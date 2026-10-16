@@ -86,7 +86,7 @@ impl Repo {
     }
     fn ok(&self, args: &[&str]) -> Value {
         let (ok, value, stderr) = self.run(&self.root, args);
-        assert!(ok, "{args:?}: {stderr}");
+        assert!(ok, "{args:?}: stderr={stderr}; result={value}");
         value
     }
     fn sync(&self) -> Value {
@@ -1457,7 +1457,8 @@ fn alignment_checks_are_read_only_and_git_never_enters_project_analysis() {
     let first = repo.sync();
     let bytes = std::fs::read(repo.db()).unwrap();
     let status = std::fs::read(repo.db().with_extension("db.sync.json")).unwrap();
-    assert_eq!(repo.ok(&["sync", "--check"])["ready"], true);
+    let aligned=repo.ok(&["sync", "--check"]);
+    assert_eq!(aligned["ready"], true,"{aligned}");
     assert_eq!(std::fs::read(repo.db()).unwrap(), bytes);
     assert_eq!(
         std::fs::read(repo.db().with_extension("db.sync.json")).unwrap(),

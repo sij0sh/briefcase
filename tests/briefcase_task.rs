@@ -46,8 +46,8 @@ fn refactor_packet_surfaces_tests_plans_scripts_configuration_and_install_touchp
         assert!(rows(&packet["slice"],role).iter().any(|row|row["path"] == path),"missing {role}: {path}");
     }
     for role in source::ARTIFACT_ROLES {assert!(packet["slice"][*role].is_array());}
-    assert!(rows(&packet,"external_touchpoints").iter().any(|e|e["predicate"] == "READS_CONFIG" && e["to"] == "env:DEMO_TOKEN"));
-    assert!(rows(&packet,"external_touchpoints").iter().any(|e|e["predicate"] == "INSTALLS_TO"));
+    assert!(rows(&packet,"external_touchpoints").iter().any(|e|e["predicate"] == "READS_CONFIG" && e["to"] == "env:DEMO_TOKEN"),"{packet}");
+    assert!(rows(&packet,"external_touchpoints").iter().any(|e|e["predicate"] == "INSTALLS_TO"),"{packet}");
     assert!(rows(&packet,"not_covered").iter().any(|e|e["area"] == "executed_test_coverage"));
     assert_eq!(packet["outcome"],"partial");
 }

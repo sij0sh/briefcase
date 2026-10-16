@@ -25,13 +25,15 @@ pub(super) struct Candidate {
     pub selected:bool,
     #[serde(default,skip_serializing_if="Option::is_none")]
     pub delivery_rank:Option<usize>,
+    #[serde(default,skip_serializing_if="Option::is_none")]
+    pub role:Option<String>,
     pub authority:String,
     pub signals:Vec<Signal>,
     pub spans:Vec<Value>,
 }
 impl Candidate {
     fn new(path:&str)->Self {Self {path:path.into(),rank:0,score:0,selected:false,
-        delivery_rank:None,authority:"retrieval_hint; not implementation membership".into(),signals:vec![],spans:vec![]}}
+        delivery_rank:None,role:None,authority:"retrieval_hint; not implementation membership".into(),signals:vec![],spans:vec![]}}
     pub fn reach(&self)->Reach {
         let signal=self.signals.iter().min_by_key(|s|(std::cmp::Reverse(s.strength),s.depth));
         Reach {depth:signal.map_or(0,|s|s.depth),via_link:signal.and_then(|s|s.via_link.clone())}
@@ -158,7 +160,8 @@ pub(super) fn expand(ix:&Index,r:&Request,seed:&Seed,candidates:&mut Candidates)
     let mut key_neighbors=BTreeMap::<&str,BTreeSet<&str>>::new();
     for e in &ix.links {
         if !link_allowed(e,seed) {continue;}
-        if facet(&e.predicate).is_none() {continue;}
+        let Some((facet,_))=facet(&e.predicate) else {continue};
+        if !r.enabled(facet) || !r.duty.policy().trace.predicates.contains(&e.predicate.as_str()) {continue;}
         key_neighbors.entry(&e.from).or_default().insert(&e.to);
         key_neighbors.entry(&e.to).or_default().insert(&e.from);
         for a in &e.from_files {for b in &e.to_files {if a!=b {
@@ -177,6 +180,10 @@ pub(super) fn expand(ix:&Index,r:&Request,seed:&Seed,candidates:&mut Candidates)
         for e in &ix.links {
             if !link_allowed(e,seed) {continue;}
             let Some((facet,base))=facet(&e.predicate) else {continue};
+            // TESTS is a direct association. A shared test suite must not
+            // bridge from one implementation into every implementation it
+            // mentions. Cargo ownership already supplies runner associations.
+            if facet=="tests" && depth>1 {continue;}
             if !r.duty.policy().trace.predicates.contains(&e.predicate.as_str()) {continue;}
             if !r.enabled(facet) {continue;}
             // Structure localizes an explicit identity only. It cannot turn a
@@ -255,6 +262,7 @@ fn delivery_order(ix:&Index,r:&Request,ranked:&[Candidate])->Vec<usize> {
 pub(super) fn rank(ix:&Index,r:&Request,candidates:Candidates)->Vec<Candidate> {
     let mut ranked:Vec<_>=candidates.into_values().filter(|c|ix.files.contains_key(&c.path)).collect();
     for candidate in &mut ranked {
+        candidate.role=Some(ix.files[&candidate.path].role.clone());
         if r.duty.policy().case.required_roles.contains(&ix.files[&candidate.path].role.as_str()) {candidate.score+=6;}
     }
     ranked.sort_by_key(|c|(std::cmp::Reverse(c.score),c.path.clone()));
@@ -381,6 +389,43 @@ mod tests {
         assert!(original.get("delivery_rank").is_none());
         let decoded:Candidate=serde_json::from_value(original.clone()).unwrap();
         assert_eq!(serde_json::to_value(decoded).unwrap(),original);
+    }
+    #[test]
+    fn shared_tests_are_direct_associations_not_transitive_implementation_bridges() {
+        let mut ix=ix();let test="tests/shared.rs";
+        ix.files.insert(test.into(),Artifact {path:test.into(),artifact_id:test.into(),digest:"digest".into(),
+            role:"test".into(),language:"rust".into(),bytes:0});
+        ix.links=["src/a.rs","src/b.rs"].into_iter().map(|implementation|Link::new("TESTS",test,implementation,
+            "derived","shared suite",vec![],vec![],BTreeSet::from([test.into()]),BTreeSet::from([implementation.into()])).unwrap()).collect();
+        for anchor in ["src/a.rs",test] {
+            let request=super::super::request::parse(&json!({"task":"repair","target":anchor,"duty":"extend","depth":2})).unwrap().0;
+            let seed=super::super::trace::seed(&ix,anchor,true);let mut candidates=Candidates::new();
+            contribute(&mut candidates,anchor,signal("anchors","exact_anchor",10000,"exact",0,None,json!({})));
+            expand(&ix,&request,&seed,&mut candidates);
+            assert!(candidates.contains_key(test));assert!(candidates.contains_key("src/a.rs"));
+            assert_eq!(candidates.contains_key("src/b.rs"),anchor==test,"{anchor}");
+        }
+    }
+    #[test]
+    fn disabled_facets_do_not_penalize_enabled_facets_through_hub_degrees() {
+        let mut ix=ix();ix.links.clear();
+        ix.links.push(Link::new("IMPORTS","src/a.rs","src/b.rs","derived","dependency",vec![],vec![],
+            BTreeSet::from(["src/a.rs".into()]),BTreeSet::from(["src/b.rs".into()])).unwrap());
+        for index in 0..20 {
+            let path=format!("tests/{index}.rs");
+            ix.files.insert(path.clone(),Artifact {path:path.clone(),artifact_id:path.clone(),digest:"digest".into(),
+                role:"test".into(),language:"rust".into(),bytes:0});
+            ix.links.push(Link::new("TESTS",&path,"src/a.rs","derived","test",vec![],vec![],
+                BTreeSet::from([path.clone()]),BTreeSet::from(["src/a.rs".into()])).unwrap());
+        }
+        let request=super::super::request::parse(&json!({"task":"repair","target":"src/a.rs","duty":"debug",
+            "exclude_facets":["tests"]})).unwrap().0;
+        let seed=super::super::trace::seed(&ix,"src/a.rs",true);let mut candidates=Candidates::new();
+        contribute(&mut candidates,"src/a.rs",signal("anchors","exact_anchor",10000,"exact",0,None,json!({})));
+        expand(&ix,&request,&seed,&mut candidates);
+        let dependency=candidates["src/b.rs"].signals.iter().find(|signal|signal.facet=="dependency").unwrap();
+        assert_eq!(dependency.strength,80);assert_eq!(dependency.provenance["hub_degree"],1);
+        assert!(candidates.keys().all(|path|!path.starts_with("tests/")));
     }
     #[test]
     fn provenance_files_are_never_traversal_endpoints_and_facets_can_be_ablated() {

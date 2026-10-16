@@ -16,7 +16,13 @@ pub(super) fn dispatch(l:&Ledger,op:&Operation,a:&Value) -> Result<Value> {
     let required=|key:&str|->Result<&str>{s(key).ok_or_else(||format!("ARGUMENTS: {key} is required").into())};
     match op.kind {
         Describe=>discover(a),
-        Brief=>task::brief(l,a),
+        Brief=>{
+            // The gateway owns the final budget, after freshness and transport
+            // framing. Retain/render once without a preliminary byte reduction.
+            let mut arguments=a.clone();
+            if let Some(object)=arguments.as_object_mut() {object.remove("max_bytes");}
+            task::brief(l,&arguments)
+        },
         AgentContext=>task::agent_context(l,a),
         Search=>search::search(l,a),
         Occurrences=>task::occurrences(l,a),

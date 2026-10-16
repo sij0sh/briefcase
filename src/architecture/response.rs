@@ -493,8 +493,22 @@ pub(crate) fn bounded_with(
     }
     let original_items = rows(&value, "items").to_vec();
     let original = measure(&mut value, max_bytes, size_of)?;
-    while measure(&mut value,max_bytes,size_of)? > max_bytes && super::task::brief::trim(&mut value) {}
+    let brief_freshness=if value["kind"]=="brief" && original>max_bytes {
+        value.get("freshness").cloned()
+    }else{None};
+    if let Some(full)=&brief_freshness {
+        value["freshness"]=super::freshness::brief_summary(full,&value);
+    }
+    while measure(&mut value,max_bytes,size_of)? > max_bytes && super::task::brief::trim(&mut value) {
+        if let Some(full)=&brief_freshness {
+            value["freshness"]=super::freshness::brief_summary(full,&value);
+        }
+    }
     if measure(&mut value,max_bytes,size_of)? <= max_bytes {return Ok(value);}
+    // Required case metadata can itself exceed a small presentation budget.
+    // Return its pins and a restart, rather than making the retained case
+    // inaccessible because the brief has a schema_version/sessions field.
+    if value["kind"]=="brief" {return notice(&value,max_bytes,original,size_of);}
     if original <= max_bytes {
         return Ok(value);
     }

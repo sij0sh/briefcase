@@ -13,5 +13,3 @@ mod briefcase_data;
 mod briefcase_cases;
 #[path="briefcase_retrieval.rs"]
 mod briefcase_retrieval;
-#[path="briefcase_stage2.rs"]
-mod briefcase_stage2;

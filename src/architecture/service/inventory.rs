@@ -93,6 +93,7 @@ fn analysis(
 
 pub(super) fn summary(l: &Ledger) -> Result<Value> {
     let status = l.status()?;
+    let source_sync=l.sync_state()?.map(|(key,view,profile)|json!({"input_key":key,"view_id":view,"profile":profile}));
     let mut scopes = BTreeMap::new();
     let mut views = BTreeMap::new();
     for scope in ["source", "deployment", "runtime"] {
@@ -215,7 +216,7 @@ pub(super) fn summary(l: &Ledger) -> Result<Value> {
     let pins: Vec<_> = views.values().map(|v| v.id.clone()).collect();
     Ok(
         json!({"operation":"status","summary":true,"repository":status["repository"],"current_view":status["current_view"],
-        "pending_or_interrupted":status["pending_or_interrupted"],"ledger_watermark":status["ledger_watermark"],
+        "pending_or_interrupted":status["pending_or_interrupted"],"ledger_watermark":status["ledger_watermark"],"source_sync":source_sync,
         "retracted_count":status["retracted_count"],"inventory":inventory,"layers":crate::architecture::task::readiness(l)?,"pinned_views":pins}),
     )
 }

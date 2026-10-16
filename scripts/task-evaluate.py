@@ -11,6 +11,7 @@ No expected files are inferred by the evaluator. Unsupported operations,
 timeouts, delivery omissions and malformed responses are failures, not zeros.
 """
 import argparse
+import hashlib
 import json
 from pathlib import Path
 import statistics
@@ -27,9 +28,10 @@ ROLES = ("impl", "test", "config", "script", "build", "install", "doc",
          "adr", "plan", "fixture", "generated")
 
 
-def execute(binary, root, operation, arguments, timeout):
+def execute(binary, root, operation, arguments, timeout, *, db=None):
+    database = ["--db", str(db)] if db is not None else []
     result = subprocess.run(
-        [str(binary), "--project-root", str(root), "--json", "call", operation,
+        [str(binary), *database, "--project-root", str(root), "--json", "call", operation,
          "--args", json.dumps(arguments, ensure_ascii=False)],
         cwd=root, capture_output=True, text=True, timeout=timeout,
     )
@@ -39,6 +41,31 @@ def execute(binary, root, operation, arguments, timeout):
     if not isinstance(value, dict):
         raise ValueError("Expected one JSON object")
     return value
+
+
+class PinnedCall:
+    """Freeze one source view across scenarios and ablations; pages keep their pins."""
+    def __init__(self, call, view):
+        if not isinstance(view, str) or not view.startswith("view:"):
+            raise ValueError("Initialize a retained source view with sync before evaluation")
+        self.call, self.view = call, view
+
+    def __call__(self, operation, arguments):
+        arguments = dict(arguments)
+        if operation in ("brief", "agent_context"):
+            requested = arguments.get("view")
+            if self.view and requested not in (None, "latest", self.view):
+                raise ValueError("Scenario source view differs from the frozen evaluation view")
+            if self.view:
+                arguments["view"] = self.view
+        result = self.call(operation, arguments)
+        if operation in ("brief", "agent_context"):
+            returned = result.get("view_id")
+            if self.view and returned != self.view:
+                raise ValueError("Source view changed during evaluation")
+            if returned:
+                self.view = returned
+        return result
 
 
 def packet_section(packet, section, call):
@@ -89,7 +116,7 @@ def manifest_source_fetch(manifest, row):
         "source_offset": row.get("source_offset", 0)}}
 
 
-def evaluate_scenario(scenario, call, *, manifest_bytes=None, exclude_facets=(), harness="pi"):
+def evaluate_scenario(scenario, call, *, manifest_bytes=None, exclude_facets=(), harness="pi", diagnostics=False):
     expected = set(scenario.get("required_paths", scenario.get("followup_paths", [])))
     if not expected:
         raise ValueError("Each scenario needs labelled required_paths or followup_paths")
@@ -105,8 +132,11 @@ def evaluate_scenario(scenario, call, *, manifest_bytes=None, exclude_facets=(),
     if outcome not in ("complete", "partial", "unknown"):
         raise ValueError("Brief outcome is missing or invalid")
     first_ms = (time.monotonic() - started) * 1000
-    selected = [item for role in ROLES
-                for item in packet_section(packet, f"/slice/{role}", call)]
+    selected, roles = [], {}
+    for role in ROLES:
+        items = packet_section(packet, f"/slice/{role}", call)
+        selected.extend(items)
+        roles.update((item["path"], role) for item in items)
     found = {item["path"] for item in selected}
     gap_rows = packet_section(packet, "/not_covered", call)
     gaps = {item.get("area") for item in gap_rows}
@@ -123,6 +153,8 @@ def evaluate_scenario(scenario, call, *, manifest_bytes=None, exclude_facets=(),
         "labelled_precision_at_k": {str(k): len(expected.intersection(row["path"] for row in selected[:k])) / min(k, len(selected))
                                     for k in (5, 10, 20, 32)} if ranked else None,
         "slice_file_count": len(found),
+        "selected_paths": sorted(found),
+        "selected_role_counts": {role: sum(value == role for value in roles.values()) for role in ROLES},
         "selected_source_bytes": sum(row.get("bytes", 0) for row in selected),
         "first_response_bytes": encoded_bytes(packet),
         "not_covered_rows": len(gap_rows),
@@ -167,14 +199,21 @@ def evaluate_scenario(scenario, call, *, manifest_bytes=None, exclude_facets=(),
             "omitted_files": manifest.get("coverage", {}).get("delivery", {}).get("files", {}).get("omitted"),
             "has_continuation": bool(manifest.get("continue_with")),
         }
-        if expected - manifest_paths and not manifest.get("continue_with"):
+        if found - manifest_paths and not manifest.get("continue_with"):
             raise ValueError("Harness delivery omitted paths without a continuation")
+    if diagnostics:
+        delivery = packet.get("coverage", {}).get("delivery", {})
+        available = "candidates" in packet or "/candidates" in delivery
+        candidates = packet_section(packet, "/candidates", call) if available else None
+        metrics["required_path_diagnostics"] = required_path_diagnostics(
+            expected, selected, candidates, manifest_paths if manifest_bytes is not None else None,
+            packet.get("coverage", {}).get("retrieval", {}).get("minimum_score", 24))
     missing = sorted(expected - found)
     forbidden = sorted(found.intersection(scenario.get("forbidden_paths", [])))
     missing_gaps = sorted(set(scenario.get("required_gap_areas", [])) - gaps)
     return {"id": scenario["id"], "status": "pass" if not (missing or forbidden or missing_gaps) else "miss",
             "report_id": packet.get("report_id") or packet.get("id"),
-            "case_id": packet.get("case_id"), "view_id": packet.get("view_id"),
+            "case_id": packet.get("case_id"), "view_id": packet.get("view_id"), "index_id": packet.get("index_id"),
             "outcome": outcome, "false_complete": outcome == "complete" and bool(missing),
             **metrics,
             "required_paths": len(expected), "recalled_paths": len(expected & found),
@@ -182,6 +221,48 @@ def evaluate_scenario(scenario, call, *, manifest_bytes=None, exclude_facets=(),
             "missing_paths": missing, "forbidden_paths_returned": forbidden,
             "missing_gap_areas": missing_gaps, "first_packet_ms": round(first_ms, 3),
             "full_delivery_ms": round((time.monotonic() - started) * 1000, 3)}
+
+
+def required_path_diagnostics(expected, selected, candidates, manifest_paths, minimum_score):
+    ranked = {row["path"]: row for row in candidates or []}
+    found = {row["path"]: row for row in selected}
+    details = {}
+    for path in sorted(expected):
+        candidate, row = ranked.get(path), found.get(path)
+        if row is not None:
+            state = "harness_delivery_omission" if manifest_paths is not None and path not in manifest_paths else "selected"
+        elif candidate is None:
+            state = "not_a_candidate" if candidates is not None else "candidate_inventory_unavailable"
+        elif candidate.get("score", 0) < minimum_score:
+            state = "below_minimum_score"
+        elif not candidate.get("selected"):
+            state = "not_selected"
+        else:
+            state = "brief_delivery_omission"
+        details[path] = {"state": state, "score": (candidate or {}).get("score"),
+                         "evidence_rank": (candidate or {}).get("rank", (row or {}).get("candidate_rank")),
+                         "delivery_rank": (row or {}).get("rank", (candidate or {}).get("delivery_rank")),
+                         "role": (candidate or row or {}).get("role"),
+                         "signals": [{key: signal.get(key) for key in ("facet", "kind", "strength", "depth", "via_link")}
+                                     for signal in (candidate or {}).get("signals", [])]}
+    return details
+
+
+def ablation_deltas(baseline, ablated):
+    original = {row["id"]: row for row in baseline if row.get("status") != "error"}
+    compared = []
+    for row in ablated:
+        before = original.get(row.get("id"))
+        if before is None or row.get("status") == "error":
+            continue
+        old, new = set(before["selected_paths"]), set(row["selected_paths"])
+        compared.append({"id": row["id"], "recall_delta": row["required_path_recall"] - before["required_path_recall"],
+                         "required_paths_gained": sorted(set(before["missing_paths"]) - set(row["missing_paths"])),
+                         "required_paths_lost": sorted(set(row["missing_paths"]) - set(before["missing_paths"])),
+                         "selected_paths_added": sorted(new - old), "selected_paths_removed": sorted(old - new),
+                         "selected_role_count_deltas": {role: row["selected_role_counts"][role] - before["selected_role_counts"][role]
+                                                        for role in ROLES}})
+    return compared
 
 
 def false_complete_metrics(results):
@@ -200,6 +281,9 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--binary", type=Path, default=Path("target/release/briefcase"))
     parser.add_argument("--root", type=Path, default=Path("."))
+    parser.add_argument("--db", type=Path, help="Explicit database used for this evaluation")
+    parser.add_argument("--view", help="Freeze this source view (otherwise pin current_view before the first scenario)")
+    parser.add_argument("--diagnostics", action="store_true", help="Report candidate/selection/delivery reasons for each required path")
     parser.add_argument("--scenarios", "--cases", dest="scenarios", type=Path, required=True,
                         help="Authored scenarios JSON; --cases is a deprecated alias")
     parser.add_argument("--output", type=Path)
@@ -209,16 +293,27 @@ def main():
     parser.add_argument("--skip-manifest", action="store_true", help="Legacy binary compatibility; no harness delivery claim")
     parser.add_argument("--ablations", default="", help="Comma-separated facets, or all, to disable one at a time")
     args = parser.parse_args()
-    authored = json.loads(args.scenarios.read_text())
+    scenario_bytes = args.scenarios.read_bytes()
+    authored = json.loads(scenario_bytes)
     scenarios = authored.get("scenarios", authored.get("cases", []))
     if not scenarios:
         parser.error("At least one labelled scenario is required")
     binary, root = args.binary.resolve(), args.root.resolve()
-    call = lambda operation, arguments: execute(binary, root, operation, arguments, args.timeout)
+    database = args.db.resolve() if args.db else None
+    raw_call = lambda operation, arguments: execute(binary, root, operation, arguments, args.timeout, db=database)
+    try:
+        initial_state = raw_call("status", {"summary": True, "max_bytes": 1048576})
+        if initial_state.get("pending_or_interrupted") is True:
+            raise ValueError("Source capture is pending/interrupted; finish it before evaluation")
+        view = args.view or initial_state.get("current_view")
+        call = PinnedCall(raw_call, view)
+    except (OSError, ValueError, RuntimeError, subprocess.TimeoutExpired) as error:
+        parser.error(f"Cannot pin evaluation inputs: {error}")
     results = []
     for scenario in scenarios:
         try:
-            results.append(evaluate_scenario(scenario, call, manifest_bytes=None if args.skip_manifest else args.manifest_bytes, harness=args.harness))
+            results.append(evaluate_scenario(scenario, call, manifest_bytes=None if args.skip_manifest else args.manifest_bytes,
+                                             harness=args.harness, diagnostics=args.diagnostics))
         except (OSError, ValueError, RuntimeError, subprocess.TimeoutExpired) as error:
             results.append({"id": scenario.get("id"), "status": "error", "error": str(error)})
     facets = ("structure", "dependency", "tests", "domain", "execution", "data", "runtime", "history", "sessions", "lexical")
@@ -231,23 +326,38 @@ def main():
         for scenario in scenarios:
             try:
                 scored.append(evaluate_scenario(scenario, call, manifest_bytes=None if args.skip_manifest else args.manifest_bytes,
-                                               exclude_facets=(facet,), harness=args.harness))
+                                               exclude_facets=(facet,), harness=args.harness, diagnostics=args.diagnostics))
             except (OSError, ValueError, RuntimeError, subprocess.TimeoutExpired) as error:
                 scored.append({"id": scenario.get("id"), "status": "error", "error": str(error)})
         ablations[facet] = scored
     timings = [r["first_packet_ms"] for r in results if "first_packet_ms" in r]
-    report = {"method": "ranked-task-context-v2", "scenarios": results, "facet_ablations": ablations,
+    input_error = None
+    try:
+        final_state = raw_call("status", {"summary": True, "max_bytes": 1048576})
+        for name in ("current_view", "ledger_watermark", "retracted_count", "pending_or_interrupted"):
+            if initial_state.get(name) != final_state.get(name):
+                raise ValueError(f"Evaluation input changed: {name}")
+        if args.scenarios.read_bytes() != scenario_bytes:
+            raise ValueError("Scenario labels changed during evaluation")
+    except (OSError, ValueError, RuntimeError, subprocess.TimeoutExpired) as error:
+        input_error = str(error)
+    report = {"method": "ranked-task-context-v3", "scenarios": results, "facet_ablations": ablations,
+              "facet_ablation_deltas": {facet: ablation_deltas(results, rows) for facet, rows in ablations.items()},
+              "inputs": {"root": str(root), "database": str(database) if database else "environment/default",
+                         "source_view": call.view, "scenario_sha256": hashlib.sha256(scenario_bytes).hexdigest(),
+                         "ledger_watermark": initial_state.get("ledger_watermark"), "validation_error": input_error,
+                         "manifest_bytes": None if args.skip_manifest else args.manifest_bytes, "harness": args.harness},
               "passed": sum(r["status"] == "pass" for r in results),
               "missed": sum(r["status"] == "miss" for r in results),
-              "errors": sum(r["status"] == "error" for r in results),
+              "errors": sum(r["status"] == "error" for r in results) + int(input_error is not None),
               **false_complete_metrics(results),
               "median_first_packet_ms": statistics.median(timings) if timings else None,
-              "interpretation": "Labelled task evidence recall and actual manifest delivery, not safe patch completion. Labelled precision treats only authored required paths as relevant, so unlabelled useful files lower it. Token counts are byte-based estimates. Ablations run sequentially on the same retained corpus; timing is warm after the first query. Weights require validation on a larger held-out task corpus."}
+              "interpretation": "Labelled task evidence recall and actual manifest delivery, not safe patch completion. Labelled precision treats only authored required paths as relevant, so unlabelled useful files lower it. Token counts are byte-based estimates. Source pinning/status preflight precedes query timing. Ablations run sequentially on the same retained corpus and timings are warm. Weights require validation on a larger held-out task corpus."}
     encoded = json.dumps(report, ensure_ascii=False, indent=2) + "\n"
     if args.output:
         args.output.write_text(encoded)
     print(encoded, end="")
-    return 0 if report["passed"] == len(results) and not any(r["status"] == "error" for scored in ablations.values() for r in scored) else 1
+    return 0 if not report["errors"] and report["passed"] == len(results) and not any(r["status"] == "error" for scored in ablations.values() for r in scored) else 1
 
 
 if __name__ == "__main__":

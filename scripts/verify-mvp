@@ -8,5 +8,6 @@ set -euo pipefail
 cd "$(dirname "$0")"
 ./verify-lint
 ./verify-core
+./verify-context
 ./verify-toolchain
 ./verify-pi

@@ -36,6 +36,12 @@ pub(crate) fn configuration() -> Value {
         "source_implementation_digest":identity::bytes_digest(include_bytes!("source.rs"))})
 }
 
+/// One policy-aware cache identity for both construction and read-only health
+/// checks. A check must never look for a differently keyed recall projection.
+pub(crate) fn index_configuration(include_evaluation: bool) -> Result<String> {
+    identity::digest(&json!({"configuration":configuration(),"include_evaluation":include_evaluation}))
+}
+
 /// Line-aligned byte ranges of at most `MAX_CHUNK_BYTES`; longer lines split
 /// at character boundaries.
 pub(crate) fn chunks(text: &str) -> Vec<(usize, usize)> {
@@ -170,7 +176,7 @@ fn ensure_index_with_policy(l: &Ledger, v: &View, include_evaluation: bool) -> R
         "SCOPE",
         "Recall reads a source capture",
     )?;
-    let config = identity::digest(&json!({"configuration":configuration(),"include_evaluation":include_evaluation}))?;
+    let config = index_configuration(include_evaluation)?;
     if let Some(count) = l.recall_ready(&v.id, &config)? {
         return Ok((config, count));
     }
@@ -519,6 +525,14 @@ fn recall_unbounded_with_policy(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn recall_index_identity_includes_the_evaluation_policy() {
+        let normal=index_configuration(false).unwrap();
+        assert_eq!(normal,index_configuration(false).unwrap());
+        assert_ne!(normal,index_configuration(true).unwrap());
+        assert_ne!(normal,identity::digest(&configuration()).unwrap(),"legacy checks must not bypass policy");
+    }
 
     #[test]
     fn disposable_trees_are_never_recalled() {

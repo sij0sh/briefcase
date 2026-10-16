@@ -366,6 +366,18 @@ pub(crate) fn agent_summary(freshness: &Value, context: &Value) -> Value {
         "fallback":freshness["fallback"]["used"].as_bool().unwrap_or(false)})
 }
 
+/// Ordinary briefs keep full diagnostics when they fit. At a small budget,
+/// preserve advisory state and provide a pinned read for a fresh full envelope.
+pub(crate) fn brief_summary(freshness:&Value,context:&Value)->Value {
+    let mut summary=agent_summary(freshness,context);
+    summary["presentation"]=json!("summary_by_budget");
+    if let Some(id)=context["case_id"].as_str().or(context["report_id"].as_str()) {
+        summary["details"]=json!({"operation":"explain","arguments":{"report_id":id,
+            "ref":"/coverage/completeness","max_bytes":1048576}});
+    }
+    summary
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# Self-contained retained-context and numbered-stage regressions.
+set -euo pipefail
+cd "$(dirname "$0")/.."
+cargo test --locked --lib --test context --test stage2 --test stage3

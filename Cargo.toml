@@ -44,3 +44,11 @@ notify = "8.2.0"
 [[test]]
 name = "context"
 path = "tests/context.rs"
+
+[[test]]
+name = "stage2"
+path = "tests/briefcase_stage2.rs"
+
+[[test]]
+name = "stage3"
+path = "tests/briefcase_stage3.rs"

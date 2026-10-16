@@ -149,7 +149,8 @@ pub(super) fn build(l:&Ledger,s:&Snapshot,ix:&Index,r:&Request) -> Result<Trace>
         boundaries.push(Boundary::RuntimeObservationScope(json!({"view_id":producer.id,"interval":producer.diagnostics["interval"],
             "sampling":producer.diagnostics["sampling"],"reason":"Retained runtime observations describe one interval; missing observations do not establish absence."})));
     }
-    let retrieval=json!({"method":"faceted-retrieval-v2","max_files":r.max_files,"minimum_score":24,
+    let retrieval=json!({"method":"faceted-retrieval-v3","max_files":r.max_files,"minimum_score":24,
+        "test_expansion":"direct associations only; shared tests are not transitive implementation bridges",
         "selection_policy":retrieval::selection_policy(r.duty),
         "evaluation_artifacts":{"policy":"excluded from automatic discovery and graph bridges; exact anchors may opt in",
             "retained_count":s.files.keys().filter(|path|source::is_evaluation_artifact(path)).count()},

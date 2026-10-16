@@ -146,8 +146,14 @@ fn profile_state_id(slot:&str,key:&str) -> Result<String> {
     identity::id("sync-profile-state",&json!([slot,key]))
 }
 
+fn profile_configuration_error(error:impl std::fmt::Display)->Value {
+    json!({"sync":"needs_configuration","message":bounded(&format!("{CONFIG}: {error}"))})
+}
+
 pub(super) fn apply(o:&SyncOptions,lock:&WriterLock,started:Instant) -> Result<Value> {
-    let profiles=configured_profiles(o)?;
+    let profiles=match configured_profiles(o) {
+        Ok(profiles)=>profiles,Err(error)=>return Ok(profile_configuration_error(error)),
+    };
     if profiles.is_empty() {return apply_one(o,lock,started,None);}
     let mut results=vec![];let mut pins=vec![];let mut keys=vec![];let mut good=true;let mut changed=false;
     for (slot,selected) in profiles {
@@ -951,7 +957,10 @@ fn prepare(o: &SyncOptions, started: Instant) -> Result<std::result::Result<Inpu
 
 /// Calculate the same publication key used by apply, without opening a generation.
 pub fn check(o: &SyncOptions) -> Result<crate::architecture::reconcile::Alignment> {
-    let profiles=configured_profiles(o)?;
+    let profiles=match configured_profiles(o) {
+        Ok(profiles)=>profiles,
+        Err(error)=>return Ok(crate::architecture::reconcile::Alignment::unavailable("project",profile_configuration_error(error))),
+    };
     if profiles.is_empty() {return check_one(o,None);}
     use crate::architecture::reconcile::{Alignment,AlignmentState};
     let states=profiles.iter().map(|(slot,selected)|check_one(selected,Some(slot))).collect::<Result<Vec<_>>>()?;
@@ -990,7 +999,7 @@ fn check_one(o: &SyncOptions, slot:Option<&str>) -> Result<crate::architecture::
             {
                 let view = ledger.load(&view_id)?;
                 let recall =
-                    ledger.recall_ready(&view_id, &identity::digest(&recall::configuration())?)?;
+                    ledger.recall_ready(&view_id, &recall::index_configuration(false)?)?;
                 if !view.stale && view.projections.len() == 2 && recall.is_some() {
                     alignment.state = AlignmentState::Aligned;
                 }

@@ -72,6 +72,13 @@ preserves its evidence rank and `candidate_ref` addresses the original candidate
 `coverage.retrieval.selection_policy` records the deterministic policy. Existing
 retained cases remain readable; the new candidate `delivery_rank` is optional.
 
+Stage 3 keeps `TESTS` associations to one graph hop, so a shared suite cannot
+bridge into unrelated implementations. Disabled facets also leave the hub-degree
+calculation. Selection weights and duty reading cycles are unchanged.
+Candidates add optional `role` metadata for diagnostics. Small ordinary briefs
+summarize freshness before trimming rows and retain a pinned restart when their
+case metadata exceeds the presentation budget.
+
 Cargo test targets and literal Rust module includes carry static test ownership
 to included modules and their runner. These associations have retained source
 witnesses and do not establish executed test coverage. Rust syntax diagnostics

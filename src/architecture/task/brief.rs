@@ -107,4 +107,18 @@ mod tests {
         assert_eq!(result["case_id"],"task-case:test");assert_eq!(result["report_id"],"task-case:test");
         assert!(crate::architecture::response::bounded(doc,255).is_err());
     }
+    #[test]
+    fn oversized_case_metadata_returns_a_pinned_notice_instead_of_a_budget_error() {
+        let mut doc=packet();doc["schema_version"]=json!("1.0");doc["outcome"]=json!("unknown");
+        doc["coverage"]["large_metadata"]=json!("x".repeat(20000));
+        doc["freshness"]=json!({"views":[{"stale":true,"projection_state":"stale_or_invalidated","reason":"x".repeat(20000)}],
+            "pending_or_interrupted":true,"fallback":{"used":true}});
+        preview(&mut doc,2);
+        let result=crate::architecture::response::bounded(doc,8000).unwrap();
+        assert!(serde_json::to_vec(&result).unwrap().len()+1<=8000);
+        assert_eq!(result["case_id"],"task-case:test");assert_eq!(result["outcome"],"unknown");
+        assert_eq!(result["freshness"]["state"],"stale");assert_eq!(result["freshness"]["fallback"],true);
+        assert_eq!(result["continue_with"]["arguments"]["report_id"],"task-case:test");
+        assert_eq!(result["continue_with"]["arguments"]["offset"],0);
+    }
 }

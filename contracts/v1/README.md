@@ -19,6 +19,11 @@ Selected candidates also carry optional `delivery_rank`. Legacy omitted fields
 remain omitted on retained-case roundtrip. Typed knowledge Coverage remains
 unchanged; Rust scheduling/parser metrics live in diagnostics.
 
+Stage 3 candidates optionally record `role`; legacy omitted fields remain
+omitted. Small-budget brief freshness may use a labelled summary with an
+explanation call for a fresh full envelope. The retained case and agent-context
+v2 contracts remain unchanged.
+
 Optional `fixture_label` is review metadata, not a production identity input. Readable fixture IDs are aliases used in isolated examples. Production constructors must implement the semantic identity keys in the canonical constructors under `src/architecture/identity.rs`.
 
 ## Offline structural profile

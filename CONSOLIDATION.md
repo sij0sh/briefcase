@@ -79,12 +79,21 @@ real module declarations into included files and their runner. Native calls use
 cached required endpoints and a shared deadline, with no fixed 4,096-item caps.
 See [evaluation/STAGE2.md](evaluation/STAGE2.md) for scope and validation.
 
+Stage 3 uses one policy-aware recall cache key for construction and read-only
+alignment. Invalid source-profile configuration remains `needs_configuration`
+before ledger creation. Ordinary brief budgets are owned by the final gateway;
+oversized metadata keeps a case restart. Direct test associations do not bridge
+through shared suites, and ablated facets cannot affect hub penalties.
+See [evaluation/STAGE3.md](evaluation/STAGE3.md) for failure classification and
+the frozen-input clean-clone/held-out control workflow.
+
 Run these checks on a Rust-enabled host:
 
 ```sh
 cargo build --locked
 cargo test --locked --lib
 cargo test --locked --test context
+cargo test --locked --test stage2 --test stage3
 cargo fmt --all -- --check
 cargo clippy --locked --lib --bins --tests
 node --test tests/briefcase-task-adapter.test.mjs

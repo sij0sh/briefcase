@@ -26,6 +26,15 @@ and on-demand native endpoint verification. Global evidence scores remain
 inspectable separately from selected reading order. No new corpus measurements
 are claimed until the Rust-enabled evaluation is run.
 
+[Stage 3](evaluation/STAGE3.md) adds explicit numbered-stage test targets,
+readiness/configuration repairs, bounded brief fallback and direct-only test
+expansion. The evaluator accepts explicit `--db`/`--view`, freezes source inputs,
+and `--diagnostics` distinguishes candidate, selection and delivery misses.
+[task-controls.py](scripts/task-controls.py) runs both labelled sets with all
+facet ablations, creates an identical-source clean clone and fresh database,
+checks the analysis profile, and compares both conditions. Its output directory
+must be outside the measured source tree. Native partial coverage remains visible.
+
 The [task evaluator](scripts/task-evaluate.py) measures labelled file recall,
 Recall@K, required-file ranks, labelled precision, selected source/response
 bytes, actionable gaps, false-complete outcomes and actual harness delivery. Scenarios must supply authored

@@ -90,7 +90,7 @@ class TaskEvaluationTests(unittest.TestCase):
         self.assertIsNone(task_evaluate.false_complete_metrics([{"status": "error"}])["false_complete_rate"])
 
     def test_scenarios_and_deprecated_cases_cli_and_input_keys(self):
-        packet = {"case_id": "task-case:test", "id": "task-case:test", "outcome": "complete",
+        packet = {"case_id": "task-case:test", "id": "task-case:test", "outcome": "complete", "current_view": "view:test", "view_id": "view:test",
                   "slice": {role: [] for role in task_evaluate.ROLES}, "not_covered": [],
                   "coverage": {"delivery": {f"/slice/{role}": {"omitted": 0} for role in task_evaluate.ROLES}}}
         packet["coverage"]["delivery"]["/not_covered"] = {"omitted": 0}
@@ -200,6 +200,86 @@ class TaskEvaluationTests(unittest.TestCase):
                               ("claude-code", root / "src/architecture/adoption.rs")]:
             literal = re.search(r'const CONTEXT_PREFIX[^=]*=\s*("(?:[^"\\]|\\.)*")', path.read_text()).group(1)
             self.assertEqual(task_evaluate.FRAMING[harness], json.loads(literal))
+
+    def test_candidate_diagnostics_distinguish_discovery_selection_and_delivery(self):
+        candidates = [
+            {"path": "weak", "score": 12, "rank": 20, "selected": False},
+            {"path": "crowded", "score": 70, "rank": 40, "role": "impl", "selected": False,
+             "signals": [{"facet": "tests", "kind": "TESTS", "strength": 70, "depth": 1}]},
+            {"path": "brief_lost", "score": 80, "rank": 2, "selected": True},
+            {"path": "harness_lost", "score": 90, "rank": 1, "selected": True},
+        ]
+        selected = [{"path": "harness_lost", "rank": 1}]
+        result = task_evaluate.required_path_diagnostics(
+            ["absent", "weak", "crowded", "brief_lost", "harness_lost"], selected, candidates, set(), 24)
+        self.assertEqual({path: row["state"] for path, row in result.items()}, {
+            "absent": "not_a_candidate", "weak": "below_minimum_score", "crowded": "not_selected",
+            "brief_lost": "brief_delivery_omission", "harness_lost": "harness_delivery_omission"})
+        self.assertEqual(result["crowded"]["signals"][0]["facet"], "tests")
+        unavailable = task_evaluate.required_path_diagnostics(["absent"], [], None, None, 24)
+        self.assertEqual(unavailable["absent"]["state"], "candidate_inventory_unavailable")
+
+    def test_retrieval_misses_do_not_require_a_manifest_omission_cursor(self):
+        packet = {"case_id": "task-case:x", "outcome": "partial", "slice": {role: [] for role in task_evaluate.ROLES},
+                  "not_covered": [], "coverage": {"delivery": {"/not_covered": {"omitted": 0}, **{
+                      f"/slice/{role}": {"omitted": 0} for role in task_evaluate.ROLES}}}}
+        packet["slice"]["impl"] = [{"path": "found", "rank": 1}]
+        manifest = {"kind": "agent_context", "case_id": "task-case:x", "anchor": {"path": "found", "ref": "/slice/impl/0"},
+                    "files": [], "fetch_source": {"operation": "explain", "arguments": {"report_id": "task-case:x"}},
+                    "continue_with": None}
+        result = task_evaluate.evaluate_scenario({"id": "x", "task": "x", "required_paths": ["found", "missing"]},
+            lambda operation, _: manifest if operation == "agent_context" else packet, manifest_bytes=8000)
+        self.assertEqual(result["status"], "miss")
+        self.assertEqual(result["harness_context"]["required_path_recall"], 0.5)
+
+    def test_source_pins_do_not_drift_or_rewrite_explicit_scenario_views(self):
+        calls = []
+        def raw(operation, arguments):
+            calls.append((operation, arguments))
+            return {"view_id": "view:stable"}
+        call = task_evaluate.PinnedCall(raw, "view:stable")
+        call("brief", {"task": "x"})
+        call("agent_context", {"task": "x", "view": "latest"})
+        self.assertTrue(all(arguments["view"] == "view:stable" for _, arguments in calls))
+        with self.assertRaisesRegex(ValueError, "differs"):
+            call("brief", {"task": "x", "view": "view:other"})
+        with self.assertRaisesRegex(ValueError, "changed"):
+            task_evaluate.PinnedCall(lambda *_: {"view_id": "view:other"}, "view:stable")("brief", {})
+
+    def test_ablation_deltas_expose_role_crowding_and_exclude_errors(self):
+        base = {"id": "one", "status": "miss", "selected_paths": ["test", "code"], "missing_paths": ["needed"],
+                "required_path_recall": 0.5, "selected_role_counts": {role: 0 for role in task_evaluate.ROLES}}
+        base["selected_role_counts"].update(test=1, impl=1)
+        changed = {**base, "status": "pass", "selected_paths": ["needed", "code"], "missing_paths": [],
+                   "required_path_recall": 1.0, "selected_role_counts": {**base["selected_role_counts"], "test": 0, "impl": 2}}
+        delta = task_evaluate.ablation_deltas([base], [changed, {"id": "error", "status": "error"}])[0]
+        self.assertEqual(delta["required_paths_gained"], ["needed"])
+        self.assertEqual(delta["selected_role_count_deltas"]["test"], -1)
+        self.assertEqual(delta["selected_paths_removed"], ["test"])
+
+    def test_input_mutations_fail_the_cli_even_when_all_labelled_paths_were_found(self):
+        packet = {"id": "task-case:x", "case_id": "task-case:x", "outcome": "partial", "view_id": "view:stable",
+                  "slice": {role: [] for role in task_evaluate.ROLES}, "not_covered": [],
+                  "coverage": {"delivery": {"/not_covered": {"omitted": 0}, **{
+                      f"/slice/{role}": {"omitted": 0} for role in task_evaluate.ROLES}}}}
+        packet["slice"]["impl"] = [{"path": "found"}]
+        status_reads = []
+        def execute(*arguments, **kwargs):
+            if arguments[2] == "status":
+                status_reads.append(1)
+                return {"current_view": "view:stable", "ledger_watermark": len(status_reads)}
+            return packet
+        with tempfile.TemporaryDirectory() as temporary:
+            source = Path(temporary) / "scenarios.json"
+            source.write_text(json.dumps({"scenarios": [{"id": "x", "task": "x", "required_paths": ["found"]}]}))
+            output = io.StringIO()
+            with patch("sys.argv", ["task-evaluate.py", "--scenarios", str(source), "--skip-manifest"]), \
+                 patch.object(task_evaluate, "execute", side_effect=execute), contextlib.redirect_stdout(output):
+                self.assertEqual(task_evaluate.main(), 1)
+            report = json.loads(output.getvalue())
+            self.assertEqual(report["passed"], 1)
+            self.assertIn("ledger_watermark", report["inputs"]["validation_error"])
+            self.assertEqual(report["errors"], 1)
 
 
 if __name__ == "__main__":
