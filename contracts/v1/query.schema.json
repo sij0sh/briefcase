@@ -1,0 +1,346 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:briefcase:query:1.0",
+  "title": "Briefcase query response v1",
+  "$ref": "#/$defs/Response",
+  "$defs": {
+    "Context": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "source"
+            },
+            "snapshot_id": {
+              "type": "string",
+              "minLength": 1
+            },
+            "build_context_id": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "kind",
+            "snapshot_id",
+            "build_context_id"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "runtime"
+            },
+            "runtime_context_id": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "kind",
+            "runtime_context_id"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "comparison"
+            },
+            "snapshot_ids": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              },
+              "minItems": 2,
+              "uniqueItems": true,
+              "maxItems": 2
+            }
+          },
+          "required": [
+            "kind",
+            "snapshot_ids"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "deployment"
+            },
+            "deployment_context_id": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "kind",
+            "deployment_context_id"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "session"
+            },
+            "session_context_id": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "kind",
+            "session_context_id"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "Request": {
+      "type": "object",
+      "properties": {
+        "schema_version": {
+          "const": "1.0"
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "operation": {
+          "enum": [
+            "dependencies",
+            "compare",
+            "policy",
+            "explain",
+            "unresolved",
+            "retrieve",
+            "domains",
+            "drift",
+            "features",
+            "workflows",
+            "passes",
+            "callgraph",
+            "reachability",
+            "data-reads",
+            "data-writes",
+            "lineage",
+            "history-lineage",
+            "deployment",
+            "desired-connections",
+            "observed-calls",
+            "runtime-connections",
+            "static-observed",
+            "architecture-context",
+            "session",
+            "session-events",
+            "session-files",
+            "session-commands",
+            "session-changes"
+          ]
+        },
+        "context": {
+          "$ref": "#/$defs/Context"
+        },
+        "view": {
+          "enum": [
+            "evidence",
+            "intent",
+            "interpretation",
+            "combined"
+          ]
+        },
+        "subject_ids": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 0,
+          "uniqueItems": true
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1000
+        },
+        "freshness": {
+          "enum": [
+            "strict",
+            "allow_partial"
+          ]
+        }
+      },
+      "required": [
+        "schema_version",
+        "id",
+        "operation",
+        "context",
+        "view",
+        "subject_ids",
+        "limit",
+        "freshness"
+      ],
+      "additionalProperties": false
+    },
+    "Row": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "assertion_ids": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 0,
+          "uniqueItems": true
+        },
+        "explanation_handle": {
+          "type": "string",
+          "minLength": 1
+        },
+        "conclusion": {
+          "enum": [
+            "present",
+            "absent",
+            "pass",
+            "violation",
+            "unknown"
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "assertion_ids",
+        "explanation_handle",
+        "conclusion"
+      ],
+      "additionalProperties": false
+    },
+    "Response": {
+      "type": "object",
+      "properties": {
+        "schema_version": {
+          "const": "1.0"
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "operation": {
+          "enum": [
+            "dependencies",
+            "compare",
+            "policy",
+            "explain",
+            "unresolved",
+            "domains",
+            "drift",
+            "passes",
+            "callgraph",
+            "reachability",
+            "history-lineage",
+            "session",
+            "session-events",
+            "session-files",
+            "session-commands",
+            "session-changes"
+          ]
+        },
+        "context": {
+          "$ref": "#/$defs/Context"
+        },
+        "view": {
+          "enum": [
+            "evidence",
+            "intent",
+            "interpretation",
+            "combined"
+          ]
+        },
+        "projection_ids": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "ledger_watermark": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "outcome": {
+          "enum": [
+            "complete",
+            "partial",
+            "unknown",
+            "error"
+          ]
+        },
+        "results": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Row"
+          },
+          "minItems": 0
+        },
+        "resolution_complete": {
+          "type": "boolean"
+        },
+        "required_predicates": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 0,
+          "uniqueItems": true
+        },
+        "limitations": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 0
+        },
+        "truncated": {
+          "type": "boolean"
+        },
+        "continuation_token": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "schema_version",
+        "id",
+        "operation",
+        "context",
+        "view",
+        "projection_ids",
+        "ledger_watermark",
+        "outcome",
+        "results",
+        "resolution_complete",
+        "required_predicates",
+        "limitations",
+        "truncated"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

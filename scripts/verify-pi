@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+# Required PR lane: Pi extension tests against the built binary.
+set -euo pipefail
+cd "$(dirname "$0")/.."
+cargo build --locked --bins
+node --test tests/briefcase-pi.test.mjs

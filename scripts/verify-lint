@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+# Required PR lane: formatting, lints and package/schema checks.
+set -euo pipefail
+cd "$(dirname "$0")/.."
+python3 tools/check_package.py
+python3 -B -m unittest discover -s scripts -p 'test_*.py'
+# Report-only: lists stale agent artifacts, never fails or deletes.
+python3 -B scripts/artifacts-prune.py
+cargo fmt --all -- --check
+cargo clippy --locked --lib --bins --tests
+node --check src/architecture/typescript.cjs
+node --check src/architecture/data.cjs
+if [[ -n "$(gofmt -l src/architecture/go_adapter.go)" ]]; then
+  printf '%s\n' 'Run gofmt on src/architecture/go_adapter.go before verification.' >&2
+  exit 1
+fi

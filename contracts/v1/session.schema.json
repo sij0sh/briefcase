@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:briefcase:session:1",
+  "title": "Briefcase normalized session v1",
+  "description": "The retained normalized projection of one session transcript under one profile. Every event names the exact byte range of the raw JSONL record it came from. It is a retained artifact, not canonical knowledge: the raw transcript stays the evidence.",
+  "$ref": "#/$defs/Session",
+  "$defs": {
+    "Path": {
+      "type": "object",
+      "properties": {
+        "location": {"enum": ["repository", "external", "unresolved"]},
+        "path": {"type": "string", "minLength": 1},
+        "raw": {"type": "string", "minLength": 1}
+      },
+      "required": ["location", "path", "raw"],
+      "additionalProperties": false
+    },
+    "Event": {
+      "type": "object",
+      "properties": {
+        "id": {"type": "string", "pattern": "^[0-9]+\\.[0-9]+$"},
+        "ordinal": {"type": "integer", "minimum": 1},
+        "byte_start": {"type": "integer", "minimum": 0},
+        "byte_end": {"type": "integer", "minimum": 0},
+        "pointer": {"type": "string"},
+        "kind": {"enum": ["user_message", "assistant_message", "tool_call", "tool_result", "file_read", "file_edit_attempt", "file_edit_confirmed", "command_started", "command_finished", "unknown"]},
+        "timestamp": {"type": "string", "format": "date-time"},
+        "external_turn_id": {"type": "string", "minLength": 1},
+        "external_message_id": {"type": "string", "minLength": 1},
+        "external_parent_id": {"type": "string", "minLength": 1},
+        "retained_byte_start": {"type": "integer", "minimum": 0},
+        "retained_byte_end": {"type": "integer", "minimum": 0},
+        "text": {"type": "string"},
+        "reason": {"type": "string", "minLength": 1},
+        "call_id": {"type": "string"},
+        "tool": {"type": "string"},
+        "operation": {"enum": ["file_read", "file_edit", "command", "patch"]},
+        "outcome": {"enum": ["succeeded", "failed", "unknown"]},
+        "paired": {"type": "boolean"},
+        "path": {"$ref": "#/$defs/Path"},
+        "patch_operation": {"enum": ["add", "update", "delete", "move"]},
+        "command": {"type": "string"},
+        "cwd": {"type": "string", "minLength": 1},
+        "exit_code": {"type": "integer"},
+        "call_event": {"type": "string", "minLength": 1},
+        "result_event": {"type": "string", "minLength": 1},
+        "attempt_event": {"type": "string", "minLength": 1},
+        "started_event": {"type": "string", "minLength": 1}
+      },
+      "required": ["id", "ordinal", "byte_start", "byte_end", "pointer", "kind"],
+      "additionalProperties": false
+    },
+    "Session": {
+      "type": "object",
+      "properties": {
+        "schema_version": {"const": "1.0"},
+        "normalization": {"const": "briefcase-session-normalize-v1"},
+        "profile": {
+          "type": "object",
+          "properties": {
+            "name": {"type": "string", "minLength": 1},
+            "version": {"type": "string", "minLength": 1},
+            "digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"}
+          },
+          "required": ["name", "version", "digest"],
+          "additionalProperties": false
+        },
+        "harness": {"type": "string", "minLength": 1},
+        "raw_artifact_id": {"type": "string", "minLength": 1},
+        "raw_digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+        "retained_digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+        "retention": {"enum": ["full", "cited", "metadata"]},
+        "repository_root": {"type": "string", "minLength": 1},
+        "metadata": {"type": "object"},
+        "capture_state": {"enum": ["complete", "partial"]},
+        "coverage": {"type": "object"},
+        "limitations": {"type": "array", "items": {"type": "string", "minLength": 1}},
+        "events": {"type": "array", "items": {"$ref": "#/$defs/Event"}}
+      },
+      "required": ["schema_version", "normalization", "profile", "harness", "raw_artifact_id", "raw_digest", "repository_root", "metadata", "capture_state", "coverage", "limitations", "events"],
+      "additionalProperties": false
+    }
+  }
+}

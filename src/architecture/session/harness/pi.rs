@@ -1,0 +1,50 @@
+//! Pi history: header shape, store location and materialization.
+//!
+//! Pi records its working directory and session id in the first line's
+//! `session` header. Transcripts are single JSONL files, so materialization
+//! is the identity: the retained bytes are the file bytes.
+
+use super::Materialized;
+use crate::architecture::Result;
+
+/// Leading lines read to find the recorded cwd.
+const HEADER_LINES: usize = 1;
+
+/// The default history root: `$PI_CODING_AGENT_DIR/sessions` or
+/// `~/.pi/agent/sessions`. Matches `pi::agent_dir(None)` joined with
+/// `sessions`; it lives here so every entry point resolves one directory.
+pub fn default_dir() -> Result<std::path::PathBuf> {
+    if let Some(dir) = std::env::var_os("PI_CODING_AGENT_DIR").filter(|d| !d.is_empty()) {
+        return Ok(std::path::PathBuf::from(dir).join("sessions"));
+    }
+    let home = std::env::var_os("HOME")
+        .or_else(|| std::env::var_os("USERPROFILE"))
+        .ok_or("Cannot find the home directory; pass --sessions-dir")?;
+    Ok(std::path::PathBuf::from(home).join(".pi/agent/sessions"))
+}
+
+/// The recorded working directory from the leading lines: the first line's
+/// `session` header. `None` is a malformed header.
+pub fn cwd(lines: &[&str]) -> Option<Option<String>> {
+    let first = lines.first()?;
+    crate::architecture::identity::parse(first.as_bytes())
+        .ok()
+        .filter(|v| v["type"] == "session")
+        .map(|v| v["cwd"].as_str().map(str::to_owned))
+}
+
+/// Every `.jsonl` transcript under `dir`.
+pub fn candidates(dir: &std::path::Path) -> Result<Vec<std::path::PathBuf>> {
+    super::files_with_extension(dir, "jsonl")
+}
+
+/// The recorded cwd from the transcript's leading lines.
+pub fn recorded_cwd(path: &std::path::Path) -> Result<Option<Option<String>>> {
+    let lines = super::leading_lines(path, HEADER_LINES)?;
+    Ok(cwd(&lines.iter().map(String::as_str).collect::<Vec<_>>()))
+}
+
+/// Identity materialization: the transcript is already canonical JSONL.
+pub fn materialize(path: &std::path::Path) -> Result<Materialized> {
+    super::identity(path)
+}

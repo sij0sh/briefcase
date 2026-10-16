@@ -1,0 +1,46 @@
+[package]
+name = "briefcase"
+version = "0.1.0"
+edition = "2021"
+autotests = false
+
+default-run = "briefcase"
+
+[lib]
+name = "briefcase"
+
+[[bin]]
+name = "briefcase"
+path = "src/bin/briefcase.rs"
+
+[[test]]
+name = "core"
+path = "tests/core.rs"
+
+[[test]]
+name = "toolchain_smoke"
+path = "tests/toolchain_smoke.rs"
+
+[[test]]
+name = "conformance"
+path = "tests/conformance.rs"
+
+[dependencies]
+sha2 = "0.10"
+unicode-normalization = "0.1"
+regex = "1"
+tempfile = "3"
+clap = { version = "4", features = ["derive"] }
+ignore = "0.4"
+rusqlite = { version = "0.37", features = ["bundled"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tree-sitter = "0.25"
+toml_edit = "0.22"
+tree-sitter-rust = "0.23"
+yaml-rust2 = "0.10"
+notify = "8.2.0"
+
+[[test]]
+name = "context"
+path = "tests/context.rs"

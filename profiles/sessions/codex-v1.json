@@ -1,0 +1,110 @@
+{
+  "schema_version": "1",
+  "name": "codex",
+  "version": "2",
+  "harness": "codex",
+  "description": "Codex rollouts (~/.codex/sessions/YYYY/MM/DD/rollout-*.jsonl). Messages come from completed UserMessage/AgentMessage items. Commands and file changes come from completed CommandExecution and FileChange items, which carry their own status and exit code. Code-mode exec scripts and other tool calls stay tool calls: what they did inside the script is not reconstructed.",
+  "timestamp": ["/timestamp"],
+  "correlation": {
+    "external_turn_id": ["/payload/turn_id", "/turn_id"],
+    "external_message_id": ["/payload/item/id"],
+    "external_parent_id": ["/payload/parent_id"]
+  },
+  "session": {
+    "external_id": ["/payload/id"],
+    "harness_version": ["/payload/cli_version"],
+    "cwd": ["/payload/cwd"]
+  },
+  "pairing": "call_id",
+  "records": [
+    {
+      "when": [{"pointer": "/type", "equals": "event_msg"}, {"pointer": "/payload/type", "equals": "item_completed"}, {"pointer": "/payload/item/type", "equals": "UserMessage"}],
+      "emit": "each",
+      "each": "/payload/item/content",
+      "rules": [
+        {"when": [{"pointer": "/type", "equals": "text"}], "emit": "user_message", "text": "/text"},
+        {"when": [{"pointer": "/type", "in": ["image", "local_image"]}], "emit": "ignore"}
+      ]
+    },
+    {
+      "when": [{"pointer": "/type", "equals": "event_msg"}, {"pointer": "/payload/type", "equals": "item_completed"}, {"pointer": "/payload/item/type", "equals": "AgentMessage"}],
+      "emit": "each",
+      "each": "/payload/item/content",
+      "rules": [
+        {"when": [{"pointer": "/type", "equals": "Text"}], "emit": "assistant_message", "text": "/text"}
+      ]
+    },
+    {
+      "when": [{"pointer": "/type", "equals": "event_msg"}, {"pointer": "/payload/type", "equals": "item_completed"}, {"pointer": "/payload/item/type", "equals": "CommandExecution"}],
+      "emit": "command",
+      "command": {"pointer": "/payload/item/command", "array": "last"},
+      "cwd": {"pointer": "/payload/item/cwd", "strip_prefix": "file://"},
+      "exit_code": "/payload/item/exit_code",
+      "failed_when": [{"pointer": "/payload/item/status", "equals": "failed"}],
+      "succeeded_when": [{"pointer": "/payload/item/status", "equals": "completed"}, {"pointer": "/payload/item/exit_code", "equals": 0}]
+    },
+    {
+      "when": [{"pointer": "/type", "equals": "event_msg"}, {"pointer": "/payload/type", "equals": "item_completed"}, {"pointer": "/payload/item/type", "equals": "FileChange"}],
+      "emit": "each",
+      "each_key": "/payload/item/changes",
+      "rules": [
+        {
+          "when": [{"pointer": "/type", "in": ["add", "update", "delete"]}],
+          "emit": "file_edit",
+          "path": "$key",
+          "failed_when": [{"pointer": "/payload/item/status", "equals": "failed", "scope": "record"}],
+          "succeeded_when": [{"pointer": "/payload/item/status", "equals": "completed", "scope": "record"}]
+        }
+      ]
+    },
+    {
+      "when": [{"pointer": "/type", "equals": "event_msg"}, {"pointer": "/payload/type", "equals": "item_completed"}, {"pointer": "/payload/item/type", "in": ["Reasoning", "ImageView", "Extension", "ContextCompaction"]}],
+      "emit": "ignore"
+    },
+    {
+      "when": [{"pointer": "/type", "equals": "event_msg"}, {"pointer": "/payload/type", "in": [
+        "task_started", "task_complete", "token_count", "thread_settings_applied", "turn_aborted", "item_started",
+        "user_message", "agent_message", "agent_reasoning", "exec_command_begin", "exec_command_end", "patch_apply_begin", "patch_apply_end"
+      ]}],
+      "emit": "ignore"
+    },
+    {
+      "when": [{"pointer": "/type", "equals": "response_item"}, {"pointer": "/payload/type", "equals": "function_call"}],
+      "emit": "tool_call",
+      "call_id": "/payload/call_id",
+      "tool": "/payload/name",
+      "input": {"pointer": "/payload/arguments", "decode": "json"}
+    },
+    {
+      "when": [{"pointer": "/type", "equals": "response_item"}, {"pointer": "/payload/type", "equals": "custom_tool_call"}],
+      "emit": "tool_call",
+      "call_id": "/payload/call_id",
+      "tool": "/payload/name",
+      "input": "/payload/input"
+    },
+    {
+      "when": [{"pointer": "/type", "equals": "response_item"}, {"pointer": "/payload/type", "in": ["function_call_output", "custom_tool_call_output"]}],
+      "emit": "tool_result",
+      "call_id": "/payload/call_id"
+    },
+    {
+      "when": [{"pointer": "/type", "equals": "response_item"}, {"pointer": "/payload/type", "in": ["message", "reasoning", "web_search_call"]}],
+      "emit": "ignore"
+    },
+    {
+      "when": [{"pointer": "/type", "in": ["session_meta", "turn_context", "world_state", "token_usage_record", "compacted"]}],
+      "emit": "ignore"
+    }
+  ],
+  "tools": {},
+  "guarantees": {
+    "user_messages": "exact",
+    "assistant_messages": "exact",
+    "tool_calls": "exact",
+    "tool_results": "exact",
+    "file_reads": "unsupported",
+    "file_edits": "recorded_operations_only",
+    "commands": "recorded_operations_only",
+    "shell_side_effects": "unsupported"
+  }
+}

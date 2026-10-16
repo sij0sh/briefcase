@@ -1,0 +1,165 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:briefcase:batch:1.0",
+  "title": "Briefcase typed batch envelope v1",
+  "$defs": {
+    "Context": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "source"
+            },
+            "snapshot_id": {
+              "type": "string",
+              "minLength": 1
+            },
+            "build_context_id": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "kind",
+            "snapshot_id",
+            "build_context_id"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "runtime"
+            },
+            "runtime_context_id": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "kind",
+            "runtime_context_id"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "comparison"
+            },
+            "snapshot_ids": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              },
+              "minItems": 2,
+              "uniqueItems": true,
+              "maxItems": 2
+            }
+          },
+          "required": [
+            "kind",
+            "snapshot_ids"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "deployment"
+            },
+            "deployment_context_id": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "kind",
+            "deployment_context_id"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "session"
+            },
+            "session_context_id": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "kind",
+            "session_context_id"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    }
+  },
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "const": "1.0"
+    },
+    "batch_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "class": {
+      "enum": [
+        "evidence",
+        "derived",
+        "claim",
+        "declaration"
+      ]
+    },
+    "producer_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "context": {
+      "$ref": "#/$defs/Context"
+    },
+    "record_ids": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "minItems": 1,
+      "uniqueItems": true
+    },
+    "expected_generation": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "payload_digest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "payload_artifact_id": {
+      "type": "string",
+      "minLength": 1
+    }
+  },
+  "required": [
+    "schema_version",
+    "batch_id",
+    "class",
+    "producer_id",
+    "context",
+    "record_ids",
+    "expected_generation",
+    "payload_digest",
+    "payload_artifact_id"
+  ],
+  "additionalProperties": false
+}

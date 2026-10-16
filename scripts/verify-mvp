@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+# Local all-in-one gate. CI runs the same lanes in parallel
+# (see .github/workflows/verify.yml); this wrapper runs them sequentially.
+# The conformance lane (tests/conformance.rs, --ignored tests) is not part
+# of the PR gate; run it via .github/workflows/conformance.yml or:
+#   cargo test --locked --test conformance -- --ignored --test-threads=2
+set -euo pipefail
+cd "$(dirname "$0")"
+./verify-lint
+./verify-core
+./verify-toolchain
+./verify-pi

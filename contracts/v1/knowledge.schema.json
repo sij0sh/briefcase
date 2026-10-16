@@ -1,0 +1,2042 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:briefcase:knowledge:1.0",
+  "title": "Briefcase knowledge contract v1",
+  "$ref": "#/$defs/Bundle",
+  "$defs": {
+    "Context": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "source"
+            },
+            "snapshot_id": {
+              "type": "string",
+              "minLength": 1
+            },
+            "build_context_id": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "kind",
+            "snapshot_id",
+            "build_context_id"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "runtime"
+            },
+            "runtime_context_id": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "kind",
+            "runtime_context_id"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "comparison"
+            },
+            "snapshot_ids": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              },
+              "minItems": 2,
+              "uniqueItems": true,
+              "maxItems": 2
+            }
+          },
+          "required": [
+            "kind",
+            "snapshot_ids"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "deployment"
+            },
+            "deployment_context_id": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "kind",
+            "deployment_context_id"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "session"
+            },
+            "session_context_id": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "kind",
+            "session_context_id"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "File": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "digest": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        }
+      },
+      "required": [
+        "path",
+        "digest"
+      ],
+      "additionalProperties": false
+    },
+    "Snapshot": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "repository_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "manifest_digest": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "files": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/File"
+          },
+          "minItems": 1
+        },
+        "capture_state": {
+          "enum": [
+            "complete",
+            "partial"
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "repository_id",
+        "manifest_digest",
+        "files",
+        "capture_state"
+      ],
+      "additionalProperties": false
+    },
+    "BuildContext": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "snapshot_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "settings_digest": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "dependency_digest": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "generated_inputs_digest": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        }
+      },
+      "required": [
+        "id",
+        "snapshot_id",
+        "settings_digest",
+        "dependency_digest",
+        "generated_inputs_digest"
+      ],
+      "additionalProperties": false
+    },
+    "AnalysisConfig": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "producer_name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "implementation_digest": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "settings_digest": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        }
+      },
+      "required": [
+        "id",
+        "producer_name",
+        "implementation_digest",
+        "settings_digest"
+      ],
+      "additionalProperties": false
+    },
+    "RuntimeContext": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "environment": {
+          "type": "string",
+          "minLength": 1
+        },
+        "deployed_artifact_digest": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "start": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "end": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "sampling": {
+          "enum": [
+            "sampled",
+            "complete"
+          ]
+        },
+        "mapping_quality": {
+          "enum": [
+            "unmapped",
+            "service",
+            "method"
+          ]
+        },
+        "collector_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "artifact_digests": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^sha256:[0-9a-f]{64}$"
+          },
+          "uniqueItems": true,
+          "minItems": 0
+        }
+      },
+      "required": [
+        "id",
+        "environment",
+        "deployed_artifact_digest",
+        "start",
+        "end",
+        "sampling",
+        "mapping_quality"
+      ],
+      "additionalProperties": false
+    },
+    "EntityVersion": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "kind": {
+          "enum": [
+            "repository",
+            "package",
+            "module",
+            "file",
+            "symbol",
+            "endpoint",
+            "service",
+            "external_system",
+            "application",
+            "domain",
+            "feature",
+            "workflow",
+            "team",
+            "table",
+            "column",
+            "topic",
+            "database",
+            "schema",
+            "artifact",
+            "deployment",
+            "source_revision",
+            "session"
+          ]
+        },
+        "language": {
+          "type": "string",
+          "minLength": 1
+        },
+        "canonical_key": {
+          "type": "string",
+          "minLength": 1
+        },
+        "context": {
+          "$ref": "#/$defs/Context"
+        },
+        "identity_provider": {
+          "type": "string",
+          "minLength": 1
+        },
+        "identity_quality": {
+          "enum": [
+            "syntax",
+            "compiler",
+            "exact_mapping",
+            "declared",
+            "observed",
+            "heuristic"
+          ]
+        },
+        "source_evidence_ref_id": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "id",
+        "kind",
+        "language",
+        "canonical_key",
+        "context",
+        "identity_provider",
+        "identity_quality"
+      ],
+      "additionalProperties": false
+    },
+    "Artifact": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "digest": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "source_kind": {
+          "enum": [
+            "code",
+            "documentation",
+            "configuration",
+            "runtime",
+            "schema",
+            "git",
+            "transport",
+            "session"
+          ]
+        },
+        "availability": {
+          "enum": [
+            "available",
+            "expired",
+            "redacted"
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "path",
+        "digest",
+        "source_kind",
+        "availability"
+      ],
+      "additionalProperties": false
+    },
+    "EvidenceRef": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "artifact_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "locator": {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "const": "span"
+                },
+                "start": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "end": {
+                  "type": "integer",
+                  "minimum": 0
+                }
+              },
+              "required": [
+                "kind",
+                "start",
+                "end"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "const": "event"
+                },
+                "event_id": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "kind",
+                "event_id"
+              ],
+              "additionalProperties": false
+            }
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "artifact_id",
+        "locator"
+      ],
+      "additionalProperties": false
+    },
+    "Guarantee": {
+      "type": "object",
+      "properties": {
+        "predicate": {
+          "type": "string",
+          "minLength": 1
+        },
+        "kind": {
+          "enum": [
+            "syntax_only",
+            "exact_supported",
+            "sound_overapproximation",
+            "observed_sample",
+            "unknown",
+            "recorded_tools_only"
+          ]
+        }
+      },
+      "required": [
+        "predicate",
+        "kind"
+      ],
+      "additionalProperties": false
+    },
+    "Coverage": {
+      "type": "object",
+      "properties": {
+        "attempted": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "completed": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "unsupported_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "unresolved_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "resolution_complete": {
+          "type": "boolean"
+        },
+        "guarantees": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Guarantee"
+          },
+          "minItems": 0
+        }
+      },
+      "required": [
+        "attempted",
+        "completed",
+        "unsupported_count",
+        "unresolved_count",
+        "resolution_complete",
+        "guarantees"
+      ],
+      "additionalProperties": false
+    },
+    "Run": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "producer_kind": {
+          "enum": [
+            "syntax",
+            "semantic",
+            "documentation",
+            "runtime",
+            "schema",
+            "git",
+            "build",
+            "deployment",
+            "session"
+          ]
+        },
+        "analysis_config_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "context": {
+          "$ref": "#/$defs/Context"
+        },
+        "status": {
+          "enum": [
+            "complete",
+            "partial",
+            "failed"
+          ]
+        },
+        "coverage": {
+          "$ref": "#/$defs/Coverage"
+        }
+      },
+      "required": [
+        "id",
+        "producer_kind",
+        "analysis_config_id",
+        "context",
+        "status",
+        "coverage"
+      ],
+      "additionalProperties": false
+    },
+    "Derivation": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "pass_name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "implementation_digest": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "configuration_digest": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "input_assertion_ids": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 0,
+          "uniqueItems": true
+        },
+        "deterministic": {
+          "type": "boolean"
+        },
+        "support_class": {
+          "enum": [
+            "evidence_only",
+            "includes_inference"
+          ]
+        },
+        "manifest_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "input_artifact_ids": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true,
+          "minItems": 0
+        },
+        "output_artifact_ids": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true,
+          "minItems": 0
+        }
+      },
+      "required": [
+        "id",
+        "pass_name",
+        "implementation_digest",
+        "configuration_digest",
+        "input_assertion_ids",
+        "deterministic",
+        "support_class"
+      ],
+      "additionalProperties": false
+    },
+    "InputPacket": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "context": {
+          "$ref": "#/$defs/Context"
+        },
+        "assertion_ids": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 0,
+          "uniqueItems": true
+        },
+        "digest": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "artifact_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "projection_ids": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true,
+          "minItems": 0
+        },
+        "taxonomy_artifact_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "candidate_evidence_digest": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "id",
+        "context",
+        "assertion_ids",
+        "digest"
+      ],
+      "additionalProperties": false
+    },
+    "Inference": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "packet_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "model_name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "model_version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "prompt_digest": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "configuration_digest": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "output_digest": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "provider_name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "prompt_artifact_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "configuration_artifact_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "request_artifact_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "output_artifact_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "taxonomy_artifact_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "opaque": {
+          "type": "boolean"
+        },
+        "deterministic": {
+          "type": "boolean"
+        },
+        "limitations": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      },
+      "required": [
+        "id",
+        "packet_id",
+        "model_name",
+        "model_version",
+        "prompt_digest",
+        "configuration_digest",
+        "output_digest"
+      ],
+      "additionalProperties": false
+    },
+    "Authority": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "context": {
+          "$ref": "#/$defs/Context"
+        },
+        "precedence": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "id",
+        "context",
+        "precedence"
+      ],
+      "additionalProperties": false
+    },
+    "DeclarationRecord": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "authority_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "artifact_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "context": {
+          "$ref": "#/$defs/Context"
+        },
+        "revision": {
+          "type": "string",
+          "minLength": 1
+        },
+        "effective_from": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "authority_id",
+        "artifact_id",
+        "context",
+        "revision",
+        "effective_from"
+      ],
+      "additionalProperties": false
+    },
+    "Resolution": {
+      "type": "object",
+      "properties": {
+        "status": {
+          "enum": [
+            "resolved",
+            "partial",
+            "ambiguous",
+            "unresolved",
+            "unsupported"
+          ]
+        },
+        "method": {
+          "enum": [
+            "syntax",
+            "compiler",
+            "observed",
+            "heuristic"
+          ]
+        },
+        "candidate_ids": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 0,
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "status",
+        "method",
+        "candidate_ids"
+      ],
+      "additionalProperties": false
+    },
+    "Proposition": {
+      "type": "object",
+      "properties": {
+        "subject_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "predicate": {
+          "type": "string",
+          "minLength": 1
+        },
+        "object": {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "const": "entity"
+                },
+                "entity_version_id": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "kind",
+                "entity_version_id"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "const": "literal"
+                },
+                "value": {
+                  "type": [
+                    "string",
+                    "integer",
+                    "boolean",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "kind",
+                "value"
+              ],
+              "additionalProperties": false
+            }
+          ]
+        }
+      },
+      "required": [
+        "subject_id",
+        "predicate",
+        "object"
+      ],
+      "additionalProperties": false
+    },
+    "EvidenceAssertion": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "proposition": {
+          "$ref": "#/$defs/Proposition"
+        },
+        "context": {
+          "$ref": "#/$defs/Context"
+        },
+        "class": {
+          "const": "evidence"
+        },
+        "origin": {
+          "type": "object",
+          "properties": {
+            "run_id": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "run_id"
+          ],
+          "additionalProperties": false
+        },
+        "evidence_ref_ids": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "resolution": {
+          "$ref": "#/$defs/Resolution"
+        },
+        "transformation": {
+          "$ref": "#/$defs/Transformation"
+        }
+      },
+      "required": [
+        "id",
+        "proposition",
+        "context",
+        "class",
+        "origin",
+        "evidence_ref_ids"
+      ],
+      "additionalProperties": false
+    },
+    "DerivedAssertion": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "proposition": {
+          "$ref": "#/$defs/Proposition"
+        },
+        "context": {
+          "$ref": "#/$defs/Context"
+        },
+        "class": {
+          "const": "derived"
+        },
+        "origin": {
+          "type": "object",
+          "properties": {
+            "derivation_id": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "derivation_id"
+          ],
+          "additionalProperties": false
+        },
+        "supports": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "support_class": {
+          "enum": [
+            "evidence_only",
+            "includes_inference"
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "proposition",
+        "context",
+        "class",
+        "origin",
+        "supports",
+        "support_class"
+      ],
+      "additionalProperties": false
+    },
+    "Claim": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "proposition": {
+          "$ref": "#/$defs/Proposition"
+        },
+        "context": {
+          "$ref": "#/$defs/Context"
+        },
+        "class": {
+          "const": "claim"
+        },
+        "origin": {
+          "type": "object",
+          "properties": {
+            "inference_id": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "inference_id"
+          ],
+          "additionalProperties": false
+        },
+        "supports": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "model_score": {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "value": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1
+                },
+                "semantics": {
+                  "const": "uncalibrated"
+                }
+              },
+              "required": [
+                "value",
+                "semantics"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "value": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1
+                },
+                "semantics": {
+                  "const": "calibrated"
+                },
+                "calibration_artifact_id": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "value",
+                "semantics",
+                "calibration_artifact_id"
+              ],
+              "additionalProperties": false
+            }
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "proposition",
+        "context",
+        "class",
+        "origin",
+        "supports"
+      ],
+      "additionalProperties": false
+    },
+    "Declaration": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "proposition": {
+          "$ref": "#/$defs/Proposition"
+        },
+        "context": {
+          "$ref": "#/$defs/Context"
+        },
+        "class": {
+          "const": "declaration"
+        },
+        "origin": {
+          "type": "object",
+          "properties": {
+            "declaration_record_id": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "declaration_record_id"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "id",
+        "proposition",
+        "context",
+        "class",
+        "origin"
+      ],
+      "additionalProperties": false
+    },
+    "Assertion": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/EvidenceAssertion"
+        },
+        {
+          "$ref": "#/$defs/DerivedAssertion"
+        },
+        {
+          "$ref": "#/$defs/Claim"
+        },
+        {
+          "$ref": "#/$defs/Declaration"
+        }
+      ]
+    },
+    "Unresolved": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "source_entity_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "context": {
+          "$ref": "#/$defs/Context"
+        },
+        "evidence_ref_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "status": {
+          "enum": [
+            "partial",
+            "ambiguous",
+            "unresolved",
+            "unsupported"
+          ]
+        },
+        "reason": {
+          "enum": [
+            "dynamic_property",
+            "trait_dispatch",
+            "missing_dependency",
+            "unsupported_generated_source",
+            "extraction_failure",
+            "unsupported_transformation",
+            "spread_object",
+            "raw_sql",
+            "dynamic_model",
+            "conditional_mapping",
+            "opaque_wrapper",
+            "schema_mismatch",
+            "mutable_tag",
+            "ambiguous_selector",
+            "unmatched_selector",
+            "missing_namespace",
+            "unsupported_span",
+            "unsupported_context",
+            "unsupported_operation"
+          ]
+        },
+        "candidate_ids": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 0,
+          "uniqueItems": true
+        },
+        "predicate": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "id",
+        "source_entity_id",
+        "context",
+        "evidence_ref_id",
+        "status",
+        "reason",
+        "candidate_ids"
+      ],
+      "additionalProperties": false
+    },
+    "SemanticBindingResolution": {
+      "type": "object",
+      "description": "Provenance of one attempt to bind a declared technical reference (ADR-0029). It is not architecture truth: it records whether a retained declaration could be bound to the technical entities of its own source context, at scan or after source overlays. A resolved row names the Declaration assertion it produced; unresolved, ambiguous and deferred rows produce none.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "context": {
+          "$ref": "#/$defs/Context"
+        },
+        "binding_key": {
+          "type": "string",
+          "minLength": 1
+        },
+        "declaration_record_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "owner_entity_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "predicate": {
+          "enum": [
+            "IMPLEMENTS_FEATURE",
+            "ENTRYPOINT_FOR",
+            "PARTICIPATES_IN"
+          ]
+        },
+        "requested_kind": {
+          "enum": [
+            "module",
+            "symbol",
+            "endpoint",
+            "service"
+          ]
+        },
+        "requested_key": {
+          "type": "string",
+          "minLength": 1
+        },
+        "status": {
+          "enum": [
+            "resolved",
+            "unresolved",
+            "ambiguous",
+            "deferred"
+          ]
+        },
+        "candidate_ids": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 0,
+          "uniqueItems": true
+        },
+        "assertion_id": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1
+        },
+        "resolution_stage": {
+          "enum": [
+            "scan",
+            "post_overlay"
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "context",
+        "binding_key",
+        "declaration_record_id",
+        "owner_entity_id",
+        "predicate",
+        "requested_kind",
+        "requested_key",
+        "status",
+        "candidate_ids",
+        "assertion_id",
+        "reason",
+        "resolution_stage"
+      ],
+      "additionalProperties": false
+    },
+    "Projection": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "kind": {
+          "enum": [
+            "graph",
+            "retrieval"
+          ]
+        },
+        "context": {
+          "$ref": "#/$defs/Context"
+        },
+        "ledger_watermark": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "generation": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "input_assertion_ids": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 0,
+          "uniqueItems": true
+        },
+        "eligible_classes": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "evidence",
+              "derived",
+              "claim",
+              "declaration"
+            ]
+          },
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "chunker": {
+          "type": "string",
+          "minLength": 1
+        },
+        "tokenizer": {
+          "type": "string",
+          "minLength": 1
+        },
+        "embedding_mode": {
+          "type": "string",
+          "minLength": 1
+        },
+        "dimensions": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "configuration_digest": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "source_artifact_ids": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true,
+          "minItems": 0
+        },
+        "unit_ids": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true,
+          "minItems": 0
+        }
+      },
+      "required": [
+        "id",
+        "kind",
+        "context",
+        "ledger_watermark",
+        "generation",
+        "input_assertion_ids",
+        "eligible_classes"
+      ],
+      "additionalProperties": false
+    },
+    "Bundle": {
+      "type": "object",
+      "properties": {
+        "schema_version": {
+          "const": "1.0"
+        },
+        "fixture_label": {
+          "type": "string",
+          "minLength": 1
+        },
+        "snapshots": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Snapshot"
+          },
+          "minItems": 0
+        },
+        "build_contexts": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/BuildContext"
+          },
+          "minItems": 0
+        },
+        "analysis_configs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/AnalysisConfig"
+          },
+          "minItems": 0
+        },
+        "runtime_contexts": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/RuntimeContext"
+          },
+          "minItems": 0
+        },
+        "session_contexts": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/SessionContext"
+          },
+          "minItems": 0
+        },
+        "entity_versions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/EntityVersion"
+          },
+          "minItems": 0
+        },
+        "artifacts": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Artifact"
+          },
+          "minItems": 0
+        },
+        "evidence_refs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/EvidenceRef"
+          },
+          "minItems": 0
+        },
+        "runs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Run"
+          },
+          "minItems": 0
+        },
+        "derivations": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Derivation"
+          },
+          "minItems": 0
+        },
+        "input_packets": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/InputPacket"
+          },
+          "minItems": 0
+        },
+        "inferences": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Inference"
+          },
+          "minItems": 0
+        },
+        "authorities": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Authority"
+          },
+          "minItems": 0
+        },
+        "declaration_records": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/DeclarationRecord"
+          },
+          "minItems": 0
+        },
+        "assertions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Assertion"
+          },
+          "minItems": 0
+        },
+        "unresolved_references": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Unresolved"
+          },
+          "minItems": 0
+        },
+        "semantic_binding_resolutions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/SemanticBindingResolution"
+          },
+          "minItems": 0
+        },
+        "projections": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Projection"
+          },
+          "minItems": 0
+        },
+        "pass_manifests": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/PassManifest"
+          }
+        },
+        "deployment_contexts": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/DeploymentContext"
+          },
+          "minItems": 0
+        }
+      },
+      "required": [
+        "schema_version",
+        "snapshots",
+        "build_contexts",
+        "analysis_configs",
+        "runtime_contexts",
+        "entity_versions",
+        "artifacts",
+        "evidence_refs",
+        "runs",
+        "derivations",
+        "input_packets",
+        "inferences",
+        "authorities",
+        "declaration_records",
+        "assertions",
+        "unresolved_references",
+        "projections"
+      ],
+      "additionalProperties": false
+    },
+    "PassManifest": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "schema_version": {
+          "const": "1.0"
+        },
+        "pass_name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "pass_version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "context": {
+          "$ref": "#/$defs/Context"
+        },
+        "implementation_digest": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "configuration_digest": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "input_assertion_ids": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true,
+          "minItems": 0
+        },
+        "input_artifact_ids": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true,
+          "minItems": 0
+        },
+        "dependencies": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true,
+          "minItems": 0
+        },
+        "coverage": {
+          "$ref": "#/$defs/Coverage"
+        },
+        "coverage_requirements": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true
+        },
+        "status": {
+          "enum": [
+            "complete",
+            "partial"
+          ]
+        },
+        "output_artifact_ids": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true,
+          "minItems": 1
+        }
+      },
+      "required": [
+        "id",
+        "schema_version",
+        "pass_name",
+        "pass_version",
+        "context",
+        "implementation_digest",
+        "configuration_digest",
+        "input_assertion_ids",
+        "input_artifact_ids",
+        "dependencies",
+        "coverage",
+        "coverage_requirements",
+        "status",
+        "output_artifact_ids"
+      ],
+      "additionalProperties": false
+    },
+    "DeploymentContext": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "repository_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "environment": {
+          "type": "string",
+          "minLength": 1
+        },
+        "manifest_digest": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "files": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/File"
+          },
+          "minItems": 1
+        },
+        "capture_state": {
+          "enum": [
+            "complete",
+            "partial"
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "repository_id",
+        "environment",
+        "manifest_digest",
+        "files",
+        "capture_state"
+      ],
+      "additionalProperties": false
+    },
+    "Transformation": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "enum": [
+            "identity",
+            "rename",
+            "constant_scaling",
+            "string_normalization",
+            "conversion"
+          ]
+        },
+        "parameters": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "additionalProperties": false
+    },
+    "SessionContext": {
+      "type": "object",
+      "description": "One retained agent session transcript interpreted by one versioned profile. It scopes what the harness recorded, not the truth of statements in the transcript (ADR-0027).",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "repository_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "harness": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string",
+              "minLength": 1
+            },
+            "reported_version": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "name"
+          ],
+          "additionalProperties": false
+        },
+        "profile": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string",
+              "minLength": 1
+            },
+            "version": {
+              "type": "string",
+              "minLength": 1
+            },
+            "digest": {
+              "type": "string",
+              "pattern": "^sha256:[0-9a-f]{64}$"
+            }
+          },
+          "required": [
+            "name",
+            "version",
+            "digest"
+          ],
+          "additionalProperties": false
+        },
+        "external_session_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "raw_artifact_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "raw_digest": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "normalized_artifact_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "repository_root": {
+          "type": "string",
+          "minLength": 1
+        },
+        "working_directory": {
+          "type": "string",
+          "minLength": 1
+        },
+        "started_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "ended_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "capture_state": {
+          "enum": [
+            "complete",
+            "partial"
+          ]
+        },
+        "coverage": {
+          "type": "object",
+          "properties": {
+            "records_total": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "records_valid_json": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "records_malformed": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "records_recognized": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "records_ignored": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "records_unknown": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "items_unknown": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "timestamps_present": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "user_messages": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "assistant_messages": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "tool_calls": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "tool_results": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "tool_results_paired": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "tool_calls_without_result": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "tool_calls_without_semantics": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "file_reads": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "file_edit_attempts": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "file_edits_confirmed": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "commands": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "paths_repository": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "paths_external": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "paths_unresolved": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "truncated_final_record": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "records_total",
+            "records_valid_json",
+            "records_malformed",
+            "records_recognized",
+            "records_ignored",
+            "records_unknown",
+            "items_unknown",
+            "timestamps_present",
+            "user_messages",
+            "assistant_messages",
+            "tool_calls",
+            "tool_results",
+            "tool_results_paired",
+            "tool_calls_without_result",
+            "tool_calls_without_semantics",
+            "file_reads",
+            "file_edit_attempts",
+            "file_edits_confirmed",
+            "commands",
+            "paths_repository",
+            "paths_external",
+            "paths_unresolved",
+            "truncated_final_record"
+          ],
+          "additionalProperties": false
+        },
+        "retention": {
+          "enum": [
+            "full",
+            "cited",
+            "metadata"
+          ]
+        },
+        "retained_digest": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        }
+      },
+      "required": [
+        "id",
+        "repository_id",
+        "harness",
+        "profile",
+        "raw_artifact_id",
+        "raw_digest",
+        "normalized_artifact_id",
+        "repository_root",
+        "capture_state",
+        "coverage"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

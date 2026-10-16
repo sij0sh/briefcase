@@ -1,0 +1,127 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:briefcase:session-profile:1",
+  "title": "Briefcase session profile v1",
+  "description": "What one harness's JSONL records mean. Declarative only: JSON Pointer extraction, exact condition matches, fixed tool-name to operation mappings and outcome rules. No expressions or embedded code.",
+  "$ref": "#/$defs/Profile",
+  "$defs": {
+    "Pointer": {"type": "string", "pattern": "^(/.*)?$"},
+    "Field": {
+      "oneOf": [
+        {"type": "string", "pattern": "^((/.*)?|\\$key)$"},
+        {
+          "type": "object",
+          "properties": {
+            "pointer": {"$ref": "#/$defs/Pointer"},
+            "decode": {"enum": ["json"]},
+            "strip_prefix": {"type": "string", "minLength": 1},
+            "array": {"enum": ["last", "join"]}
+          },
+          "required": ["pointer"],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "Fields": {"type": "array", "items": {"$ref": "#/$defs/Field"}},
+    "Condition": {
+      "type": "object",
+      "properties": {
+        "pointer": {"$ref": "#/$defs/Pointer"},
+        "scope": {"enum": ["record"]},
+        "equals": {},
+        "not_equals": {},
+        "in": {"type": "array", "minItems": 1},
+        "exists": {"type": "boolean"},
+        "type": {"enum": ["string", "array", "object", "number", "boolean", "null"]}
+      },
+      "required": ["pointer"],
+      "additionalProperties": false
+    },
+    "Conditions": {"type": "array", "items": {"$ref": "#/$defs/Condition"}},
+    "Rule": {
+      "type": "object",
+      "properties": {
+        "when": {"$ref": "#/$defs/Conditions"},
+        "emit": {"enum": ["user_message", "assistant_message", "tool_call", "tool_result", "command", "file_read", "file_edit", "ignore", "each"]},
+        "each": {"$ref": "#/$defs/Pointer"},
+        "each_key": {"$ref": "#/$defs/Pointer"},
+        "rules": {"type": "array", "items": {"$ref": "#/$defs/Rule"}, "minItems": 1},
+        "text": {"$ref": "#/$defs/Field"},
+        "call_id": {"$ref": "#/$defs/Field"},
+        "tool": {"$ref": "#/$defs/Field"},
+        "input": {"$ref": "#/$defs/Field"},
+        "path": {"$ref": "#/$defs/Field"},
+        "command": {"$ref": "#/$defs/Field"},
+        "cwd": {"$ref": "#/$defs/Field"},
+        "exit_code": {"$ref": "#/$defs/Field"},
+        "succeeded_when": {"$ref": "#/$defs/Conditions"},
+        "failed_when": {"$ref": "#/$defs/Conditions"}
+      },
+      "required": ["emit"],
+      "additionalProperties": false
+    },
+    "Tool": {
+      "type": "object",
+      "properties": {
+        "operation": {"enum": ["file_read", "file_edit", "command", "patch"]},
+        "path": {"$ref": "#/$defs/Field"},
+        "command": {"$ref": "#/$defs/Field"},
+        "cwd": {"$ref": "#/$defs/Field"},
+        "patch": {"$ref": "#/$defs/Field"},
+        "format": {"enum": ["apply_patch"]}
+      },
+      "required": ["operation"],
+      "additionalProperties": false
+    },
+    "Guarantee": {"enum": ["exact", "supported_tools_only", "recorded_operations_only", "unsupported"]},
+    "Profile": {
+      "type": "object",
+      "properties": {
+        "schema_version": {"const": "1"},
+        "name": {"type": "string", "pattern": "^[a-z0-9][a-z0-9._-]*$"},
+        "version": {"type": "string", "minLength": 1},
+        "harness": {"type": "string", "pattern": "^[a-z0-9][a-z0-9._-]*$"},
+        "description": {"type": "string"},
+        "timestamp": {"$ref": "#/$defs/Fields"},
+        "session": {
+          "type": "object",
+          "properties": {
+            "external_id": {"$ref": "#/$defs/Fields"},
+            "harness_version": {"$ref": "#/$defs/Fields"},
+            "cwd": {"$ref": "#/$defs/Fields"}
+          },
+          "additionalProperties": false
+        },
+        "correlation": {
+          "type": "object",
+          "properties": {
+            "external_turn_id": {"$ref": "#/$defs/Fields"},
+            "external_message_id": {"$ref": "#/$defs/Fields"},
+            "external_parent_id": {"$ref": "#/$defs/Fields"}
+          },
+          "additionalProperties": false
+        },
+        "pairing": {"const": "call_id"},
+        "records": {"type": "array", "items": {"$ref": "#/$defs/Rule"}},
+        "tools": {"type": "object"},
+        "guarantees": {
+          "type": "object",
+          "properties": {
+            "user_messages": {"$ref": "#/$defs/Guarantee"},
+            "assistant_messages": {"$ref": "#/$defs/Guarantee"},
+            "tool_calls": {"$ref": "#/$defs/Guarantee"},
+            "tool_results": {"$ref": "#/$defs/Guarantee"},
+            "file_reads": {"$ref": "#/$defs/Guarantee"},
+            "file_edits": {"$ref": "#/$defs/Guarantee"},
+            "commands": {"$ref": "#/$defs/Guarantee"},
+            "shell_side_effects": {"$ref": "#/$defs/Guarantee"}
+          },
+          "required": ["user_messages", "assistant_messages", "tool_calls", "tool_results", "file_reads", "file_edits", "commands", "shell_side_effects"],
+          "additionalProperties": false
+        }
+      },
+      "required": ["schema_version", "name", "version", "harness", "pairing", "records", "guarantees"],
+      "additionalProperties": false
+    }
+  }
+}

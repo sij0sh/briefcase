@@ -1,0 +1,296 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:briefcase:session-activity:1.0",
+  "title": "Briefcase cross-session activity v1",
+  "description": "A derived read report: per exact repository path, how many imported sessions in a time window read it, attempted or confirmed edits, recorded only unconfirmed attempts or a failed operation, with the net change between two caller-selected source views and retained Git commits in the window kept as separate facts. Nothing is attributed to a session and no intent is inferred. It is never a canonical knowledge record.",
+  "$ref": "#/$defs/SessionActivity",
+  "$defs": {
+    "Entry": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "modules": {
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "in_view": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "session_count": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "read_session_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "edit_attempt_session_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "confirmed_edit_session_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "unconfirmed_edit_session_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "failed_operation_session_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "user_requests_in_touching_sessions": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "first_session_started_at": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "last_session_started_at": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "window_source_change": {
+          "enum": [
+            "changed",
+            "unchanged",
+            "added",
+            "removed",
+            "not_captured",
+            "unknown"
+          ]
+        },
+        "history_commits_in_window": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "sessions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "assertion_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "class": {
+          "const": "session_aggregate"
+        },
+        "method": {
+          "const": "session-activity-v1"
+        },
+        "explanation_handle": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "path",
+        "session_count",
+        "read_session_count",
+        "edit_attempt_session_count",
+        "confirmed_edit_session_count",
+        "unconfirmed_edit_session_count",
+        "failed_operation_session_count",
+        "window_source_change",
+        "history_commits_in_window",
+        "sessions",
+        "assertion_ids",
+        "class",
+        "method"
+      ],
+      "additionalProperties": false
+    },
+    "SessionActivity": {
+      "type": "object",
+      "properties": {
+        "schema_version": {
+          "const": "1.0"
+        },
+        "id": {
+          "type": "string",
+          "pattern": "^session-activity:[0-9a-f]{64}$"
+        },
+        "operation": {
+          "const": "session_activity"
+        },
+        "request": {
+          "type": "object"
+        },
+        "window": {
+          "type": "object"
+        },
+        "configuration": {
+          "type": "object"
+        },
+        "view": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "base_view": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "sessions": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        },
+        "entries": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Entry"
+          }
+        },
+        "total_entries": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "truncated": {
+          "type": "boolean"
+        },
+        "coverage": {
+          "type": "object",
+          "properties": {
+            "sessions_total": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "sessions_in_window": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "sessions_undated_excluded": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "sessions_partial_recording": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "recorded_paths_not_joinable": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "net_change": {
+              "enum": [
+                "evaluated",
+                "not_requested"
+              ]
+            },
+            "history": {
+              "enum": [
+                "retained",
+                "unavailable"
+              ]
+            },
+            "module_rollup": {
+              "enum": [
+                "evaluated",
+                "unavailable"
+              ]
+            }
+          },
+          "required": [
+            "sessions_total",
+            "sessions_in_window",
+            "sessions_undated_excluded",
+            "sessions_partial_recording",
+            "recorded_paths_not_joinable",
+            "net_change",
+            "history",
+            "module_rollup"
+          ],
+          "additionalProperties": false
+        },
+        "limitations": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "outcome": {
+          "enum": [
+            "complete",
+            "partial",
+            "unknown"
+          ]
+        }
+      },
+      "required": [
+        "schema_version",
+        "id",
+        "operation",
+        "request",
+        "window",
+        "configuration",
+        "view",
+        "base_view",
+        "sessions",
+        "entries",
+        "total_entries",
+        "truncated",
+        "coverage",
+        "limitations",
+        "outcome"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

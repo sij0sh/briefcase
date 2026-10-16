@@ -1,0 +1,833 @@
+{
+  "schema_version": "1.0",
+  "predicates": {
+    "CONTAINS": {
+      "status": "active",
+      "subject_kinds": [
+        "repository",
+        "package",
+        "module",
+        "file",
+        "database",
+        "schema",
+        "table"
+      ],
+      "object_kinds": [
+        "package",
+        "module",
+        "file",
+        "symbol",
+        "schema",
+        "table",
+        "column"
+      ],
+      "classes": [
+        "evidence",
+        "derived"
+      ],
+      "contexts": [
+        "source"
+      ],
+      "literal": false
+    },
+    "DECLARES": {
+      "status": "active",
+      "subject_kinds": [
+        "file",
+        "module"
+      ],
+      "object_kinds": [
+        "symbol"
+      ],
+      "classes": [
+        "evidence"
+      ],
+      "contexts": [
+        "source"
+      ],
+      "literal": false
+    },
+    "IMPORTS": {
+      "status": "active",
+      "subject_kinds": [
+        "module",
+        "file",
+        "symbol"
+      ],
+      "object_kinds": [
+        "module",
+        "file",
+        "symbol",
+        "package"
+      ],
+      "classes": [
+        "evidence"
+      ],
+      "contexts": [
+        "source"
+      ],
+      "literal": false
+    },
+    "REFERENCES": {
+      "status": "active",
+      "subject_kinds": [
+        "module",
+        "file",
+        "symbol"
+      ],
+      "object_kinds": [
+        "symbol",
+        "module",
+        "package"
+      ],
+      "classes": [
+        "evidence"
+      ],
+      "contexts": [
+        "source"
+      ],
+      "literal": false
+    },
+    "CALLS_STATIC": {
+      "status": "active",
+      "subject_kinds": [
+        "symbol"
+      ],
+      "object_kinds": [
+        "symbol"
+      ],
+      "classes": [
+        "evidence"
+      ],
+      "contexts": [
+        "source"
+      ],
+      "literal": false
+    },
+    "DEPENDS_ON": {
+      "status": "active",
+      "subject_kinds": [
+        "module",
+        "package",
+        "service"
+      ],
+      "object_kinds": [
+        "module",
+        "package",
+        "service",
+        "external_system"
+      ],
+      "classes": [
+        "derived"
+      ],
+      "contexts": [
+        "source"
+      ],
+      "literal": false
+    },
+    "IN_CYCLE": {
+      "status": "active",
+      "subject_kinds": [
+        "module",
+        "package"
+      ],
+      "object_kinds": [],
+      "classes": [
+        "derived"
+      ],
+      "contexts": [
+        "source"
+      ],
+      "literal": true
+    },
+    "BELONGS_TO_DOMAIN": {
+      "status": "active",
+      "subject_kinds": [
+        "module",
+        "symbol",
+        "service",
+        "feature",
+        "workflow"
+      ],
+      "object_kinds": [
+        "domain"
+      ],
+      "classes": [
+        "claim",
+        "declaration",
+        "derived"
+      ],
+      "contexts": [
+        "source"
+      ],
+      "literal": false
+    },
+    "OWNED_BY": {
+      "status": "active",
+      "subject_kinds": [
+        "module",
+        "symbol",
+        "service"
+      ],
+      "object_kinds": [
+        "team"
+      ],
+      "classes": [
+        "claim",
+        "declaration"
+      ],
+      "contexts": [
+        "source"
+      ],
+      "literal": false
+    },
+    "CALLS_OBSERVED": {
+      "status": "active",
+      "subject_kinds": [
+        "service"
+      ],
+      "object_kinds": [
+        "service",
+        "external_system"
+      ],
+      "classes": [
+        "evidence",
+        "derived"
+      ],
+      "contexts": [
+        "runtime"
+      ],
+      "literal": false
+    },
+    "CONNECTION_OBSERVED": {
+      "status": "active",
+      "subject_kinds": [
+        "service"
+      ],
+      "object_kinds": [
+        "service",
+        "external_system"
+      ],
+      "classes": [
+        "evidence",
+        "derived"
+      ],
+      "contexts": [
+        "runtime"
+      ],
+      "literal": false
+    },
+    "LIKELY_CALL_TARGET": {
+      "status": "active",
+      "subject_kinds": [
+        "symbol"
+      ],
+      "object_kinds": [
+        "symbol"
+      ],
+      "classes": [
+        "claim"
+      ],
+      "contexts": [
+        "source"
+      ],
+      "literal": false
+    },
+    "LIKELY_SAME_ENTITY": {
+      "status": "active",
+      "subject_kinds": [
+        "symbol",
+        "module"
+      ],
+      "object_kinds": [
+        "symbol",
+        "module"
+      ],
+      "classes": [
+        "claim"
+      ],
+      "contexts": [
+        "comparison"
+      ],
+      "literal": false
+    },
+    "RENAMED_FROM": {
+      "status": "active",
+      "subject_kinds": [
+        "symbol",
+        "module"
+      ],
+      "object_kinds": [
+        "symbol",
+        "module"
+      ],
+      "classes": [
+        "evidence",
+        "derived"
+      ],
+      "contexts": [
+        "comparison"
+      ],
+      "literal": false
+    },
+    "EVOLVED_FROM": {
+      "status": "active",
+      "subject_kinds": [
+        "symbol",
+        "module"
+      ],
+      "object_kinds": [
+        "symbol",
+        "module"
+      ],
+      "classes": [
+        "derived"
+      ],
+      "contexts": [
+        "comparison"
+      ],
+      "literal": false
+    },
+    "DECLARES_CONNECTION": {
+      "status": "active",
+      "subject_kinds": [
+        "service"
+      ],
+      "object_kinds": [
+        "service",
+        "external_system"
+      ],
+      "classes": [
+        "evidence",
+        "declaration"
+      ],
+      "contexts": [
+        "source",
+        "deployment"
+      ],
+      "literal": false
+    },
+    "FORBIDS_DEPENDENCY": {
+      "status": "active",
+      "subject_kinds": [
+        "module",
+        "domain"
+      ],
+      "object_kinds": [
+        "module",
+        "domain"
+      ],
+      "classes": [
+        "declaration"
+      ],
+      "contexts": [
+        "source"
+      ],
+      "literal": false
+    },
+    "RECORDED_STATEMENT": {
+      "status": "active",
+      "subject_kinds": [
+        "file"
+      ],
+      "object_kinds": [],
+      "classes": [
+        "evidence"
+      ],
+      "contexts": [
+        "source"
+      ],
+      "literal": true
+    },
+    "READS": {
+      "status": "active",
+      "subject_kinds": [
+        "symbol"
+      ],
+      "object_kinds": [
+        "table",
+        "column"
+      ],
+      "classes": [
+        "evidence",
+        "derived"
+      ],
+      "contexts": [
+        "source"
+      ],
+      "literal": false
+    },
+    "WRITES": {
+      "status": "active",
+      "subject_kinds": [
+        "symbol"
+      ],
+      "object_kinds": [
+        "table",
+        "column"
+      ],
+      "classes": [
+        "evidence",
+        "derived"
+      ],
+      "contexts": [
+        "source"
+      ],
+      "literal": false
+    },
+    "TRANSFORMS": {
+      "status": "active",
+      "subject_kinds": [
+        "symbol"
+      ],
+      "object_kinds": [
+        "symbol"
+      ],
+      "classes": [
+        "evidence"
+      ],
+      "contexts": [
+        "source"
+      ],
+      "literal": false
+    },
+    "PRODUCES": {
+      "status": "reserved",
+      "subject_kinds": [
+        "symbol",
+        "service"
+      ],
+      "object_kinds": [
+        "table",
+        "column",
+        "topic",
+        "service",
+        "workflow"
+      ],
+      "classes": [
+        "evidence",
+        "derived",
+        "claim",
+        "declaration"
+      ],
+      "contexts": [
+        "source",
+        "runtime"
+      ],
+      "literal": false
+    },
+    "CONSUMES": {
+      "status": "reserved",
+      "subject_kinds": [
+        "symbol",
+        "service"
+      ],
+      "object_kinds": [
+        "table",
+        "column",
+        "topic",
+        "service",
+        "workflow"
+      ],
+      "classes": [
+        "evidence",
+        "derived",
+        "claim",
+        "declaration"
+      ],
+      "contexts": [
+        "source",
+        "runtime"
+      ],
+      "literal": false
+    },
+    "BUILDS": {
+      "status": "active",
+      "subject_kinds": [
+        "source_revision"
+      ],
+      "object_kinds": [
+        "artifact"
+      ],
+      "classes": [
+        "evidence"
+      ],
+      "contexts": [
+        "deployment"
+      ],
+      "literal": false
+    },
+    "DEPLOYS_AS": {
+      "status": "active",
+      "subject_kinds": [
+        "artifact",
+        "deployment"
+      ],
+      "object_kinds": [
+        "deployment",
+        "service"
+      ],
+      "classes": [
+        "evidence",
+        "declaration"
+      ],
+      "contexts": [
+        "deployment"
+      ],
+      "literal": false
+    },
+    "PARTICIPATES_IN": {
+      "status": "active",
+      "subject_kinds": [
+        "module",
+        "symbol",
+        "endpoint",
+        "service"
+      ],
+      "object_kinds": [
+        "workflow"
+      ],
+      "classes": [
+        "declaration"
+      ],
+      "contexts": [
+        "source"
+      ],
+      "literal": false,
+      "note": "Declared direct participation of a technical entity in a declared workflow (ADR-0028). Declaration only: reaching code through calls or data never establishes participation."
+    },
+    "ENTRYPOINT_FOR": {
+      "status": "active",
+      "subject_kinds": [
+        "endpoint",
+        "symbol"
+      ],
+      "object_kinds": [
+        "workflow"
+      ],
+      "classes": [
+        "declaration"
+      ],
+      "contexts": [
+        "source"
+      ],
+      "literal": false,
+      "note": "Declared technical anchor where a declared workflow starts; execution expansion for the workflow begins here."
+    },
+    "REALIZES_FEATURE": {
+      "status": "active",
+      "subject_kinds": [
+        "workflow"
+      ],
+      "object_kinds": [
+        "feature"
+      ],
+      "classes": [
+        "declaration"
+      ],
+      "contexts": [
+        "source"
+      ],
+      "literal": false,
+      "note": "A declared workflow is one journey that realizes a declared feature; many-to-many."
+    },
+    "IMPLEMENTS_FEATURE": {
+      "status": "active",
+      "subject_kinds": [
+        "module",
+        "symbol",
+        "endpoint",
+        "service"
+      ],
+      "object_kinds": [
+        "feature"
+      ],
+      "classes": [
+        "declaration"
+      ],
+      "contexts": [
+        "source"
+      ],
+      "literal": false,
+      "note": "Declared direct implementation of a capability that is not naturally one workflow (for example permissions or search)."
+    },
+    "SUBFEATURE_OF": {
+      "status": "active",
+      "subject_kinds": [
+        "feature"
+      ],
+      "object_kinds": [
+        "feature"
+      ],
+      "classes": [
+        "declaration"
+      ],
+      "contexts": [
+        "source"
+      ],
+      "literal": false,
+      "note": "Declared semantic hierarchy between features (one parent per feature in v1, acyclic). Distinct from structural CONTAINS."
+    },
+    "DISPLAY_NAME": {
+      "status": "active",
+      "subject_kinds": [
+        "application",
+        "feature",
+        "workflow"
+      ],
+      "object_kinds": [],
+      "classes": [
+        "declaration"
+      ],
+      "contexts": [
+        "source"
+      ],
+      "literal": true,
+      "note": "Declared human name of a semantic entity. Identity never depends on it; renaming keeps the entity."
+    },
+    "DESCRIPTION": {
+      "status": "active",
+      "subject_kinds": [
+        "application",
+        "feature",
+        "workflow"
+      ],
+      "object_kinds": [],
+      "classes": [
+        "declaration"
+      ],
+      "contexts": [
+        "source"
+      ],
+      "literal": true,
+      "note": "Declared plain-language description of a semantic entity. New semantic information, so it is always a Declaration with its record."
+    },
+    "ALIAS": {
+      "status": "active",
+      "subject_kinds": [
+        "feature",
+        "workflow"
+      ],
+      "object_kinds": [],
+      "classes": [
+        "declaration"
+      ],
+      "contexts": [
+        "source"
+      ],
+      "literal": true,
+      "note": "Declared alternative name used for deterministic feature resolution; never similarity matching."
+    },
+    "REACHES_STATIC": {
+      "status": "active",
+      "subject_kinds": [
+        "symbol"
+      ],
+      "object_kinds": [
+        "symbol"
+      ],
+      "classes": [
+        "derived"
+      ],
+      "contexts": [
+        "source"
+      ],
+      "literal": false
+    },
+    "MAPS_TO": {
+      "status": "active",
+      "subject_kinds": [
+        "symbol"
+      ],
+      "object_kinds": [
+        "table",
+        "column"
+      ],
+      "classes": [
+        "evidence"
+      ],
+      "contexts": [
+        "source"
+      ],
+      "literal": false
+    },
+    "ROUTES_TO": {
+      "status": "active",
+      "subject_kinds": [
+        "endpoint"
+      ],
+      "object_kinds": [
+        "symbol"
+      ],
+      "classes": [
+        "evidence"
+      ],
+      "contexts": [
+        "source"
+      ],
+      "literal": false
+    },
+    "METHOD_CALLS": {
+      "status": "reserved",
+      "subject_kinds": [
+        "symbol"
+      ],
+      "object_kinds": [
+        "symbol"
+      ],
+      "classes": [
+        "evidence"
+      ],
+      "contexts": [
+        "source"
+      ],
+      "literal": false,
+      "note": "Uniquely resolved method dispatch. Reserved until a motivating architecture question activates it; dynamic dispatch stays unresolved."
+    },
+    "CONSTRUCTS": {
+      "status": "reserved",
+      "subject_kinds": [
+        "symbol"
+      ],
+      "object_kinds": [
+        "symbol"
+      ],
+      "classes": [
+        "evidence"
+      ],
+      "contexts": [
+        "source"
+      ],
+      "literal": false,
+      "note": "Uniquely resolved constructor invocation. Reserved until a motivating architecture question activates it."
+    },
+    "HANDLES_EVENT": {
+      "status": "reserved",
+      "subject_kinds": [
+        "symbol"
+      ],
+      "object_kinds": [
+        "symbol"
+      ],
+      "classes": [
+        "evidence"
+      ],
+      "contexts": [
+        "source"
+      ],
+      "literal": false,
+      "note": "Explicit event-handler registration between retained symbols. Reserved until a motivating architecture question activates it."
+    },
+    "REGISTERS_CALLBACK": {
+      "status": "reserved",
+      "subject_kinds": [
+        "symbol"
+      ],
+      "object_kinds": [
+        "symbol"
+      ],
+      "classes": [
+        "evidence"
+      ],
+      "contexts": [
+        "source"
+      ],
+      "literal": false,
+      "note": "Explicit callback registration between retained symbols. Reserved until a motivating architecture question activates it."
+    },
+    "FRAMEWORK_ENTRYPOINT": {
+      "status": "reserved",
+      "subject_kinds": [
+        "endpoint"
+      ],
+      "object_kinds": [
+        "symbol"
+      ],
+      "classes": [
+        "evidence"
+      ],
+      "contexts": [
+        "source"
+      ],
+      "literal": false,
+      "note": "Framework-owned entrypoint dispatch (distinct from ROUTES_TO data routing). Reserved until a motivating architecture question activates it."
+    },
+    "SUBSCRIBES": {
+      "status": "reserved",
+      "subject_kinds": [
+        "service"
+      ],
+      "object_kinds": [
+        "topic"
+      ],
+      "classes": [
+        "evidence"
+      ],
+      "contexts": [
+        "source"
+      ],
+      "literal": false,
+      "note": "Static subscription relation between a retained service and topic. Reserved until a motivating architecture question activates it."
+    },
+    "RECORDED_USER_MESSAGE": {
+      "status": "active",
+      "subject_kinds": [
+        "session"
+      ],
+      "object_kinds": [],
+      "classes": [
+        "evidence"
+      ],
+      "contexts": [
+        "session"
+      ],
+      "literal": true,
+      "note": "A retained session transcript records this literal user message. It establishes that the message was recorded, never that its contents are true (ADR-0027)."
+    },
+    "READ_PATH": {
+      "status": "active",
+      "subject_kinds": [
+        "session"
+      ],
+      "object_kinds": [],
+      "classes": [
+        "evidence"
+      ],
+      "contexts": [
+        "session"
+      ],
+      "literal": true,
+      "note": "A supported read tool call paired by exact call ID with a successful result names this literal path: repository-relative, or absolute when outside the repository. Shell commands never establish reads."
+    },
+    "EDITED_PATH": {
+      "status": "active",
+      "subject_kinds": [
+        "session"
+      ],
+      "object_kinds": [],
+      "classes": [
+        "evidence"
+      ],
+      "contexts": [
+        "session"
+      ],
+      "literal": true,
+      "note": "A supported edit tool call paired by exact call ID with a successful result, or a self-contained recorded file change with a completed status, names this literal path (repository-relative, or absolute outside the repository). An attempt alone or an assistant statement never establishes it. Not a source change: compare captured views for that."
+    },
+    "RAN_COMMAND": {
+      "status": "active",
+      "subject_kinds": [
+        "session"
+      ],
+      "object_kinds": [],
+      "classes": [
+        "evidence"
+      ],
+      "contexts": [
+        "session"
+      ],
+      "literal": true,
+      "note": "The transcript records issuing this literal command and a result for it (any outcome). Files the command read or changed are not inferred."
+    }
+  }
+}

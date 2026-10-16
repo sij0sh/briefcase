@@ -1,0 +1,142 @@
+//! One report paging and explanation protocol for every context read.
+use super::{contracts::rows,identity,ledger::Ledger,query,require,task,Result};
+use serde_json::{json,Value};
+
+pub fn cursor(report:&str,section:&str,offset:usize) -> String {
+    json!({"report_id":report,"section":section,"offset":offset}).to_string()
+}
+pub(crate) fn continuation(report:&str,section:&str,offset:usize,limit:usize) -> Value {
+    json!({"operation":"page","arguments":{"report_id":report,"cursor":cursor(report,section,offset),"limit":limit}})
+}
+/// A bounded ranked result is retained before presentation truncates any rows.
+pub(crate) fn retain_items(l:&Ledger,mut doc:Value,limit:usize) -> Result<Value> {
+    doc["retraction_epoch"]=json!(l.retraction_epoch()?);
+    let id=identity::id("context-report",&doc)?;
+    doc["report_id"]=json!(id);
+    l.save_report(&id,&doc,&[])?;
+    let total=rows(&doc,"items").len();
+    doc["items"].as_array_mut().ok_or("REPORT: Missing items")?.truncate(limit);
+    delivery(&mut doc,&id,"/items",0,total,limit);
+    Ok(doc)
+}
+/// Exhaustive enumerators retain their immutable view/index recipe, rather
+/// than allocating an unbounded copy of every literal occurrence.
+pub(crate) fn pin_enumerator(l:&Ledger,doc:&mut Value,operation:&str,args:&Value) -> Result<()> {
+    let mut pinned=args.clone();
+    pinned["view"]=doc["view_id"].clone();
+    if operation=="neighbors" {pinned["index_id"]=doc["index_id"].clone();}
+    for field in ["offset","limit","max_bytes"] {pinned.as_object_mut().unwrap().remove(field);}
+    let record=json!({"enumerator":operation,"arguments":pinned,"view_id":doc["view_id"],
+        "pinned_views":doc["pinned_views"],"index_id":doc["index_id"],"retraction_epoch":l.retraction_epoch()?});
+    let id=identity::id("context-report",&record)?;
+    l.save_report(&id,&record,&[])?;
+    doc["report_id"]=json!(id);
+    let offset=doc["page"]["offset"].as_u64().unwrap_or(0) as usize;
+    let total=doc["page"]["total"].as_u64().unwrap_or(0) as usize;
+    let limit=args["limit"].as_u64().unwrap_or(100) as usize;
+    delivery(doc,&id,"/items",offset,total,limit);
+    Ok(())
+}
+fn delivery(doc:&mut Value,id:&str,section:&str,offset:usize,total:usize,limit:usize) {
+    let returned=rows(doc,"items").len();let end=offset.saturating_add(returned);
+    doc["page"]=json!({"offset":offset,"returned":returned,"total":total,
+        "remaining":total.saturating_sub(end),"next_offset":(end<total).then_some(end)});
+    doc["continue_with"]=if end<total {continuation(id,section,end,limit)} else {Value::Null};
+}
+pub fn page(l:&Ledger,a:&Value) -> Result<Value> {
+    if let Some(token)=a["token"].as_str() {return query::continuation(l,token);}
+    let id=a["report_id"].as_str().ok_or("ARGUMENTS: report_id is required")?;
+    let mut section=a["section"].as_str().unwrap_or("").to_owned();
+    let mut offset=a["offset"].as_u64().unwrap_or(0) as usize;
+    if let Some(raw)=a["cursor"].as_str() {
+        let c:Value=serde_json::from_str(raw)?;
+        require(c["report_id"]==id,"PAGINATION","Cursor belongs to another report")?;
+        section=c["section"].as_str().ok_or("PAGINATION: Missing section")?.into();
+        offset=c["offset"].as_u64().ok_or("PAGINATION: Missing offset")? as usize;
+    }
+    let limit=a["limit"].as_u64().unwrap_or(100) as usize;
+    require((1..=1000).contains(&limit),"PAGINATION","Limit must be 1..1000")?;
+    let doc=l.report(id)?;
+    let sections=if doc["kind"]=="brief" {task::report_sections(&doc)}else{report_sections(&doc)};
+    if section.is_empty() {
+        section=if doc["enumerator"].is_string()||doc["items"].is_array() {"/items".into()}
+            else if doc["response"].is_object(){"/response/results".into()}
+            else{sections.iter().find(|p|doc.pointer(p).and_then(Value::as_array).is_some_and(|a|!a.is_empty())).cloned().ok_or("REPORT: No array sections")?};
+    }
+    if let Some(operation)=doc["enumerator"].as_str() {
+        require(section=="/items","PAGINATION","Unknown enumerator section")?;
+        let mut args=doc["arguments"].clone();args["offset"]=json!(offset);args["limit"]=json!(limit);
+        return match operation {"occurrences"=>task::occurrences(l,&args),"neighbors"=>task::neighbors(l,&args),_=>Err("REPORT: Unknown enumerator".into())};
+    }
+    if doc["response"].is_object() {
+        require(section=="/items"||section=="/response/results","PAGINATION","Unknown query section")?;
+        return query::report_page(l,doc,offset,limit);
+    }
+    require(sections.contains(&section),"PAGINATION","Unknown report section")?;
+    let items=doc.pointer(&section).and_then(Value::as_array).ok_or("REPORT: Section is not an array")?;
+    require(offset<=items.len(),"PAGINATION","Offset outside retained report")?;
+    let end=offset.saturating_add(limit).min(items.len());
+    let mut out=json!({"kind":"page","report_id":id,"section":section,"view_id":doc["view_id"],
+        "index_id":doc["index_id"],"available_sections":sections,"pinned_views":doc["pinned_views"],"items":&items[offset..end],
+        "historical_packet":doc["retraction_epoch"].as_u64().or(doc["provenance"]["retraction_epoch"].as_u64())!=Some(l.retraction_epoch()?),
+        "current_retraction_epoch":l.retraction_epoch()?});
+    delivery(&mut out,id,&section,offset,items.len(),limit);
+    Ok(out)
+}
+pub fn explain(l:&Ledger,a:&Value) -> Result<Value> {
+    let reference=a["ref"].as_str().or(a["link_id"].as_str()).or(a["handle"].as_str())
+        .ok_or("ARGUMENTS: ref or handle is required")?;
+    if reference.starts_with("explain:") {
+        return query::explain_page(l,reference,a["limit"].as_u64().unwrap_or(100) as usize,
+            a["offset"].as_u64().unwrap_or(0) as usize,a["source_offset"].as_u64().unwrap_or(0) as usize);
+    }
+    let report=a["report_id"].as_str();
+    let doc=report.map(|id|l.report(id)).transpose()?;
+    let index=a["index_id"].as_str().or_else(||doc.as_ref().and_then(|d|d["index_id"].as_str()));
+    if reference.starts_with("task-link:") {
+        return task::explain(l,&json!({"index_id":index.ok_or("ARGUMENTS: Report has no relationship index")?,
+            "link_id":reference,"limit":a["limit"],"offset":a["offset"]}));
+    }
+    let doc=doc.ok_or("ARGUMENTS: report_id is required for this reference")?;
+    if let Some(row)=rows(&doc["response"],"results").iter().find(|r|r["id"]==reference) {
+        let mut args=a.clone();args["handle"]=row["explanation_handle"].clone();args["ref"]=row["explanation_handle"].clone();
+        return explain(l,&args);
+    }
+    let row=doc.pointer(reference).ok_or("EXPLAIN: Unknown report reference")?;
+    if let Some(assertion)=row["assertion_id"].as_str() {
+        // Search annotations use the same retained assertion proof traversal as
+        // query reports. No second evidence hydrator or authority rule.
+        let handle=identity::id("explain",&json!([report,reference,assertion]))?;
+        let proof=json!({"report_id":report,"operation":"search","views":doc["pinned_views"],
+            "assertion_ids":[assertion],"detail":row,"selection_reasons":["attached assertion on a retained text span"],
+            "interpretation":"The assertion keeps its original class, scope and producer coverage; current retractions are annotated."});
+        l.save_report(report.unwrap(),&doc,&[(handle.clone(),proof)])?;
+        return query::explain_page(l,&handle,a["limit"].as_u64().unwrap_or(100) as usize,
+            a["offset"].as_u64().unwrap_or(0) as usize,a["source_offset"].as_u64().unwrap_or(0) as usize);
+    }
+    // Source references return verified retained bytes, never live-file fallback.
+    if let Some(artifact)=row["artifact_id"].as_str() {
+        let payload=l.payloads_for(&[artifact.to_owned()])?;
+        let bytes=payload.get(artifact).ok_or("UNKNOWN_REFERENCE: Missing retained source payload")?;
+        let digest=row["digest"].as_str().ok_or("EXPLAIN: Source reference has no retained digest")?;
+        require(identity::bytes_digest(bytes)==digest,"DIGEST","Report source is corrupted")?;
+        let source=std::str::from_utf8(bytes)?;
+        let offset=a["source_offset"].as_u64().unwrap_or(0) as usize;
+        require(offset<=source.len()&&source.is_char_boundary(offset),"EXPLAIN","Invalid source byte offset")?;
+        let mut end=offset.saturating_add(4000).min(source.len());while !source.is_char_boundary(end) {end-=1;}
+        return Ok(json!({"kind":"explain","report_id":report,"ref":reference,"entry":row,"text":&source[offset..end],
+            "source_offset":offset,"next_source_offset":(end<source.len()).then_some(end),"omitted_bytes":source.len()-end}));
+    }
+    Ok(json!({"kind":"explain","report_id":report,"ref":reference,"entry":row,
+        "interpretation":"Retained report entry; its class and basis keep their original authority."}))
+}
+
+fn report_sections(doc:&Value)->Vec<String>{
+    fn visit(value:&Value,prefix:&str,out:&mut Vec<String>){
+        if value.is_array(){out.push(prefix.into());}
+        else if let Some(object)=value.as_object(){for (key,value) in object {
+            let key=key.replace('~',"~0").replace('/',"~1");visit(value,&format!("{prefix}/{key}"),out);
+        }}
+    }
+    let mut sections=vec![];visit(doc,"",&mut sections);sections
+}

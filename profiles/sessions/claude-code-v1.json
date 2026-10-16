@@ -1,0 +1,91 @@
+{
+  "schema_version": "1",
+  "name": "claude-code",
+  "version": "2",
+  "harness": "claude-code",
+  "description": "Claude Code project transcripts (~/.claude/projects/<project>/<session>.jsonl). Messages come from user/assistant records and their content blocks; tool_use blocks pair with tool_result blocks by exact tool_use_id; is_error marks a failed result. Read, Edit, MultiEdit, Write and NotebookEdit have file semantics, Bash is a command; other tools stay tool calls.",
+  "timestamp": ["/timestamp"],
+  "correlation": {
+    "external_turn_id": ["/turnId"],
+    "external_message_id": ["/uuid"],
+    "external_parent_id": ["/parentUuid"]
+  },
+  "session": {
+    "external_id": ["/sessionId"],
+    "harness_version": ["/version"],
+    "cwd": ["/cwd"]
+  },
+  "pairing": "call_id",
+  "records": [
+    {
+      "when": [{"pointer": "/type", "equals": "user"}, {"pointer": "/isMeta", "equals": true}],
+      "emit": "ignore"
+    },
+    {
+      "when": [{"pointer": "/type", "equals": "user"}, {"pointer": "/isCompactSummary", "equals": true}],
+      "emit": "ignore"
+    },
+    {
+      "when": [{"pointer": "/type", "equals": "user"}, {"pointer": "/message/content", "type": "string"}],
+      "emit": "user_message",
+      "text": "/message/content",
+      "cwd": "/cwd"
+    },
+    {
+      "when": [{"pointer": "/type", "equals": "user"}, {"pointer": "/message/content", "type": "array"}],
+      "emit": "each",
+      "each": "/message/content",
+      "cwd": "/cwd",
+      "rules": [
+        {"when": [{"pointer": "/type", "equals": "text"}], "emit": "user_message", "text": "/text"},
+        {
+          "when": [{"pointer": "/type", "equals": "tool_result"}],
+          "emit": "tool_result",
+          "call_id": "/tool_use_id",
+          "failed_when": [{"pointer": "/is_error", "equals": true}],
+          "succeeded_when": [{"pointer": "/is_error", "not_equals": true}]
+        },
+        {"when": [{"pointer": "/type", "in": ["image", "document"]}], "emit": "ignore"}
+      ]
+    },
+    {
+      "when": [{"pointer": "/type", "equals": "assistant"}, {"pointer": "/message/content", "type": "array"}],
+      "emit": "each",
+      "each": "/message/content",
+      "cwd": "/cwd",
+      "rules": [
+        {"when": [{"pointer": "/type", "equals": "text"}], "emit": "assistant_message", "text": "/text"},
+        {"when": [{"pointer": "/type", "equals": "tool_use"}], "emit": "tool_call", "call_id": "/id", "tool": "/name", "input": "/input"},
+        {"when": [{"pointer": "/type", "equals": "server_tool_use"}], "emit": "tool_call", "call_id": "/id", "tool": "/name", "input": "/input"},
+        {"when": [{"pointer": "/type", "equals": "web_search_tool_result"}], "emit": "tool_result", "call_id": "/tool_use_id"},
+        {"when": [{"pointer": "/type", "in": ["thinking", "redacted_thinking"]}], "emit": "ignore"}
+      ]
+    },
+    {
+      "when": [{"pointer": "/type", "in": [
+        "system", "attachment", "summary", "file-history-snapshot", "file-history-delta", "mode",
+        "atis-latch", "last-prompt", "ai-title", "custom-title", "permission-mode", "queue-operation",
+        "cost-state", "agent-name", "progress", "tag", "artifact-comment-monitor", "artifact-autoreact-ledger"
+      ]}],
+      "emit": "ignore"
+    }
+  ],
+  "tools": {
+    "Read": {"operation": "file_read", "path": "/file_path"},
+    "Edit": {"operation": "file_edit", "path": "/file_path"},
+    "MultiEdit": {"operation": "file_edit", "path": "/file_path"},
+    "Write": {"operation": "file_edit", "path": "/file_path"},
+    "NotebookEdit": {"operation": "file_edit", "path": "/notebook_path"},
+    "Bash": {"operation": "command", "command": "/command"}
+  },
+  "guarantees": {
+    "user_messages": "exact",
+    "assistant_messages": "exact",
+    "tool_calls": "exact",
+    "tool_results": "exact",
+    "file_reads": "supported_tools_only",
+    "file_edits": "supported_tools_only",
+    "commands": "supported_tools_only",
+    "shell_side_effects": "unsupported"
+  }
+}

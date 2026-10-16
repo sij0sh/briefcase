@@ -1,0 +1,222 @@
+use super::*;
+use crate::architecture::session;
+use regex::Regex;
+
+#[derive(Default)]
+pub(super) struct Joins {
+    pub history: Vec<Value>,
+    pub sessions: Vec<Value>,
+    pub errors: Vec<Value>,
+    pub links: Vec<Value>,
+    pub cochange: Vec<Value>,
+    pub not_covered: Vec<Value>,
+    pub session_views: Vec<String>,
+    pub history_tip: Option<String>,
+    pub sessions_considered: usize,
+}
+
+fn add_link(out: &mut Joins, predicate: &str, from: &str, to: &str, basis: Value) -> Result<()> {
+    let id=identity::id("task-join",&json!([METHOD,predicate,from,to,basis]))?;
+    out.links.push(json!({"id":id,"predicate":predicate,"from":from,"to":to,"class":"derived","basis":basis}));
+    Ok(())
+}
+
+pub(super) fn build(l: &Ledger, s: &Snapshot, ix: &Index, paths: &BTreeSet<String>, template:&DutyTemplate) -> Result<Joins> {
+    let mut out = Joins::default();
+    out.history_tip=l.history_tip()?.map(|(tip,_)|tip);
+    let commits=l.history_commits()?;
+    if template.history_required && out.history_tip.is_none() {out.not_covered.push(json!({"area":"history","reason":"No retained Git history tip; sync Git history."}));}
+    let features: Vec<_> = ix.entities.values().filter(|e|e.kind == "feature").collect();
+    let mut coupling = BTreeMap::<String,BTreeSet<String>>::new();
+    for commit in &commits {
+        let touched: BTreeSet<_> = commit.changes.iter().flat_map(|c|std::iter::once(c.path.clone()).chain(c.old_path.clone())).collect();
+        if paths.is_disjoint(&touched) {continue;}
+        out.history.push(json!({"commit":commit.oid,"timestamp":commit.timestamp,"message":commit.message,
+            "paths":touched.intersection(paths).collect::<Vec<_>>(),"retained_paths":touched.len(),"files_total":commit.files_total,
+            "coverage":if commit.changes.len()<commit.files_total {"partial_changed_paths"} else {"retained_commit_metadata"}}));
+        if commit.parents.len()<=1 && commit.files_total<=100 && commit.changes.len()==commit.files_total {
+            for path in touched.difference(paths) {coupling.entry(path.clone()).or_default().insert(commit.oid.clone());}
+        }
+        for feature in &features {
+            if !feature.files.is_disjoint(&touched) {
+                let basis=json!({"method":"exact_changed_path_intersects_declared_feature_files","source_view":s.view.id,
+                    "paths":feature.files.intersection(&touched).collect::<Vec<_>>(),"history_tip":out.history_tip});
+                add_link(&mut out,"COMMIT_TOUCHED_FEATURE",&commit.oid,&feature.key,
+                    basis)?;
+            }
+        }
+    }
+    out.cochange=coupling.into_iter().map(|(path,oids)|json!({"path":path,"shared_commits":oids.len(),"commit_oids":oids,
+        "class":"derived","basis":"non-merge retained commits with complete changed paths and at most 100 files; co-change is not a dependency"})).collect();
+    let repository = rows(&s.view.bundle,"snapshots").first().map(|v|text(v,"repository_id")).unwrap_or_default();
+    let publications=l.session_publications()?;
+    if template.sessions_required && publications.is_empty() {out.not_covered.push(json!({"area":"sessions","reason":"No imported session recordings."}));}
+    let receipt=Regex::new(r"(?m)^\[[^\]\r\n]+ ([0-9a-f]{7,64})\](?: [^\r\n]*)?\r?$")?;
+    for publication in publications {
+        let view=text(&publication,"view_id");
+        let same_repository=publication["context"]["repository_id"]==repository;
+        let summary=session::touch_summary(l,&view)?;
+        let root=s.view.diagnostics["capture"]["repository_root"].as_str().and_then(session::paths::normalize);
+        let absolute=crate::architecture::contracts::strings(&summary["absolute_paths"]);
+        let foreign_paths:BTreeSet<String>=root.as_ref().into_iter().flat_map(|root|absolute.iter().filter_map(|p|
+            p.strip_prefix(&format!("{}/",root.trim_end_matches('/'))).filter(|p|s.files.contains_key(*p)).map(str::to_owned))).collect();
+        let mut routed:BTreeSet<String>=if same_repository {crate::architecture::contracts::strings(&summary["paths"]).into_iter().collect()}else{foreign_paths.clone()};
+        routed.extend(foreign_paths);
+        let touchpoints:BTreeSet<_>=ix.links.iter().filter(|e|!paths.is_disjoint(&e.from_files)||!paths.is_disjoint(&e.to_files))
+            .flat_map(|e|[&e.from,&e.to]).filter_map(|key|key.strip_prefix("executable:").or_else(||key.strip_prefix("path:"))).collect();
+        let invocations:Vec<_>=crate::architecture::contracts::strings(&summary["executables"]).into_iter().filter(|exe|touchpoints.contains(exe.as_str())).collect();
+        if !same_repository&&paths.is_disjoint(&routed)&&invocations.is_empty(){continue;}
+        out.sessions_considered+=1;
+        if summary["retention"] == "metadata" {
+            out.not_covered.push(json!({"area":"sessions","view_id":view,"reason":"Metadata retention has no path/activity evidence."}));
+        }
+        if paths.is_disjoint(&routed)&&invocations.is_empty() {continue;}
+        let recording=session::load_retained(l,&view)?;
+        out.session_views.push(view.clone());
+        if recording.view.invalidated {
+            out.not_covered.push(json!({"area":"sessions","view_id":view,"reason":"Session contains retracted facts; task joins from this recording are withheld."}));
+            continue;
+        }
+        let events=recording.events();
+        let mut touches:BTreeSet<_>=events.iter().filter(|e| e["path"]["location"] == "repository" &&
+            ["file_read","file_edit_attempt","file_edit_confirmed"].contains(&e["kind"].as_str().unwrap_or("")))
+            .map(|e|text(&e["path"],"path")).collect();
+        if !same_repository {touches=routed.clone();}
+        if paths.is_disjoint(&touches)&&invocations.is_empty() {continue;}
+        for invocation in &invocations {
+            add_link(&mut out,"SESSION_INVOKED_TOUCHPOINT",&view,invocation,
+                json!({"method":"literal first executable token in a direct recorded command","same_repository":same_repository,
+                    "identity":"candidate reference; installed bytes and executed process identity are unestablished"}))?;
+        }
+        let requests:Vec<_>=events.iter().filter(|e|e["kind"] == "user_message").collect();
+        let user_requests:Vec<_>=requests.iter().take(16).map(|e|json!({"event_id":e["id"],
+            "text":e["text"].as_str().unwrap_or("").chars().take(800).collect::<String>(),
+            "omitted_characters":e["text"].as_str().unwrap_or("").chars().count().saturating_sub(800)})).collect();
+        out.sessions.push(json!({"view_id":view,"session_context_id":recording.context["id"],
+            "started_at":recording.context["started_at"],"capture_state":recording.context["capture_state"],
+            "paths":touches.intersection(paths).collect::<Vec<_>>(),"user_requests":user_requests,"omitted_user_requests":requests.len().saturating_sub(16),
+            "invoked_touchpoints":invocations,"same_repository":same_repository,
+            "basis":"recorded paths or exact executable-token reference; not source change attribution or process identity"}));
+        if recording.context["capture_state"] != "complete" || recording.context["retention"] == "metadata" {
+            out.not_covered.push(json!({"area":"sessions","view_id":view,"reason":"Recording or retained transcript coverage is partial."}));
+        }
+        let edited:BTreeSet<_>=events.iter().filter(|_|same_repository).filter(|e|e["kind"] == "file_edit_confirmed" && e["path"]["location"] == "repository")
+            .map(|e|text(&e["path"],"path")).collect();
+        for feature in &features {
+            if !edited.is_disjoint(&feature.files) {
+                add_link(&mut out,"SESSION_TOUCHED_FEATURE",&view,&feature.key,
+                    json!({"method":"confirmed_recorded_edit_intersects_declared_feature_files","source_view":s.view.id,
+                        "paths":edited.intersection(&feature.files).collect::<Vec<_>>(),"meaning":"recording, not ownership of a net source change"}))?;
+            }
+        }
+        for event in events.iter().filter(|e|e["kind"] == "command_finished") {
+            let error=event["outcome"] == "failed";
+            if error {
+                out.errors.push(json!({"session_view":view,"event_id":event["id"],"command":event["command"],"exit_code":event["exit_code"],
+                    "basis":"recorded failed command; root cause and eventual fix unknown"}));
+                add_link(&mut out,"ERROR_OCCURRED_IN_SESSION",&text(event,"id"),&view,json!({"event_id":event["id"],"outcome":event["outcome"]}))?;
+            }
+            if event["outcome"] != "succeeded" {continue;}
+            if !same_repository {continue;}
+            let command=text(event,"command");
+            // Only a literal git commit invocation, never an assistant message
+            // mentioning a hash. Alternate git -C roots remain unjoined.
+            if !direct_commit_command(&command) {
+                if command.contains("git commit") {
+                    out.not_covered.push(json!({"area":"session_commit_join","session_view":view,"event_id":event["id"],
+                        "reason":"Compound/indirect git invocation or dry-run; no commit attribution was inferred."}));
+                }
+                continue;
+            }
+            let cwd=event["cwd"].as_str().or_else(||recording.context["working_directory"].as_str());
+            let root=recording.context["repository_root"].as_str().unwrap_or("");
+            let root=session::paths::normalize(root);
+            let cwd=cwd.and_then(session::paths::normalize);
+            if !cwd.zip(root).is_some_and(|(cwd,root)|cwd == root || cwd.starts_with(&format!("{}/",root.trim_end_matches('/')))) {continue;}
+            let call=event["call_event"].as_str().and_then(|id|recording.event(id));
+            let result=call.and_then(|c|c["result_event"].as_str()).and_then(|id|recording.event(id));
+            let Some(result)=result.filter(|r|r["paired"] == true && r["outcome"] == "succeeded") else {continue};
+            let Some(raw)=recording.record(result) else {continue};
+            let raw:Value=serde_json::from_str(raw)?;
+            let pointer=result["pointer"].as_str().unwrap_or("");
+            let payload=raw.pointer(pointer).unwrap_or(&raw);
+            let output=result_output(payload);
+            for capture in receipt.captures_iter(&output) {
+                let short=capture.get(1).unwrap().as_str();
+                let candidates:Vec<_>=commits.iter().filter(|c|c.oid.starts_with(short)).collect();
+                if candidates.len()!=1 {continue;}
+                add_link(&mut out,"SESSION_PRODUCED_COMMIT",&view,&candidates[0].oid,
+                    json!({"method":"unique_retained_commit_matches_paired_successful_git_commit_receipt", "event_id":event["id"],
+                        "result_event":result["id"],"record_ordinal":result["ordinal"],"receipt":capture.get(0).unwrap().as_str(),
+                        "meaning":"session recorded this commit receipt; no attribution from time or file overlap"}))?;
+            }
+        }
+        for failure in events.iter().filter(|e|e["kind"] == "command_finished" && e["outcome"] == "failed") {
+            let from=failure["ordinal"].as_u64().unwrap_or(0);
+            let retry=events.iter().find(|e|e["kind"] == "command_finished" && e["outcome"] == "succeeded"
+                && e["command"] == failure["command"] && e["ordinal"].as_u64().unwrap_or(0)>from);
+            if let Some(retry)=retry {
+                let until=retry["ordinal"].as_u64().unwrap_or(0);
+                let edits:Vec<_>=events.iter().filter(|e|e["kind"] == "file_edit_confirmed" && e["ordinal"].as_u64().is_some_and(|n|n>from && n<until)).map(|e|json!({"event_id":e["id"],"path":e["path"]})).collect();
+                if !edits.is_empty() {
+                    add_link(&mut out,"POSSIBLE_FIX_FOR_ERROR",&text(retry,"id"),&text(failure,"id"),
+                        json!({"session_view":view,"method":"same recorded command failed, edits were recorded, then retry succeeded",
+                            "edit_events":edits,"causality":"unestablished; a temporal candidate only"}))?;
+                }
+            }
+        }
+    }
+    out.links.sort_by_key(|v|text(v,"id"));out.links.dedup_by(|a,b|a["id"] == b["id"]);
+    Ok(out)
+}
+
+fn result_output(value: &Value) -> String {
+    if let Some(text)=value.as_str() {return text.into();}
+    let mut parts=vec![];
+    if let Some(message)=value.get("message").filter(|m|m["role"] == "toolResult" || m["role"] == "tool") {
+        parts.push(result_output(message));
+    }
+    if let Some(payload)=value.get("payload").filter(|p|["function_call_output","custom_tool_call_output","tool_result"].contains(&p["type"].as_str().unwrap_or(""))) {
+        parts.push(result_output(payload));
+    }
+    // Explicit result fields only. Input command strings and model messages
+    // are never scanned as commit receipts.
+    for field in ["output","stdout","content","result","response"] {
+        if let Some(v)=value.get(field) {
+            if let Some(text)=v.as_str() {parts.push(text.to_owned());}
+            else if let Some(items)=v.as_array() {
+                parts.extend(items.iter().filter_map(|i|i["text"].as_str().map(str::to_owned)));
+            } else if v.is_object() {parts.push(result_output(v));}
+        }
+    }
+    parts.join("\n")
+}
+
+/// A conservative direct invocation: quoting is respected, compound commands,
+/// substitutions, redirections and alternate Git roots are not interpreted.
+fn direct_commit_command(command:&str) -> bool {
+    let Some(words)=session::paths::direct_command(command) else {return false};
+    words.len()>=2 && words[0]=="git" && words[1]=="commit" && !words.iter().skip(2).any(|w|
+        ["--dry-run","--help","-h","--git-dir","--work-tree","-C"].contains(&w.as_str()) || w.starts_with("--git-dir=") || w.starts_with("--work-tree="))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn result_receipts_exclude_inputs_and_assistant_prose() {
+        assert_eq!(result_output(&json!({"arguments":"[main abcdef1] fake","text":"[main abcdef1] fake"})),"");
+        assert_eq!(result_output(&json!({"content":[{"type":"text","text":"[main abcdef1] fix"}]})),"[main abcdef1] fix");
+        assert_eq!(result_output(&json!({"message":{"role":"toolResult","content":[{"type":"text","text":"[main abcdef1] fix"}]}})),"[main abcdef1] fix");
+        assert_eq!(result_output(&json!({"message":{"role":"assistant","content":[{"type":"text","text":"[main abcdef1] fake"}]}})),"");
+    }
+    #[test]
+    fn commit_invocation_requires_a_direct_command_and_rejects_shell_prose() {
+        assert!(direct_commit_command("git commit -m 'fix import'"));
+        assert!(direct_commit_command("git commit --amend --no-edit"));
+        for command in ["echo 'git commit -m fake'", "echo 'x; git commit -m fake'", "git add . && git commit -m fix",
+            "git commit --dry-run", "git -C /other commit -m fix", "git commit -m $(printf fake)"] {
+            assert!(!direct_commit_command(command),"{command}");
+        }
+    }
+}

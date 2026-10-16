@@ -1,0 +1,318 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:briefcase:task-brief:1.0",
+  "title": "Retained task brief v1",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "kind",
+    "method",
+    "outcome",
+    "task",
+    "duty",
+    "view_id",
+    "index_id",
+    "id",
+    "instruction",
+    "pinned_views",
+    "anchors",
+    "slice",
+    "neighborhood",
+    "history",
+    "sessions",
+    "errors",
+    "joins",
+    "cochange",
+    "external_touchpoints",
+    "lexical_candidates",
+    "not_covered",
+    "coverage",
+    "readiness",
+    "provenance"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "1.0"
+    },
+    "kind": {
+      "const": "brief"
+    },
+    "method": {
+      "const": "task-context-v1"
+    },
+    "outcome": {
+      "enum": [
+        "partial",
+        "complete",
+        "unknown"
+      ]
+    },
+    "task": {
+      "type": "string"
+    },
+    "duty": {
+      "type": "string",
+      "description": "Validated by the shared task::Duty type and generated operation schema."
+    },
+    "view_id": {
+      "type": "string"
+    },
+    "index_id": {
+      "type": "string"
+    },
+    "id": {
+      "type": "string"
+    },
+    "instruction": {
+      "type": "string"
+    },
+    "pinned_views": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "anchors": {
+      "type": "object",
+      "required": [
+        "status",
+        "candidates",
+        "paths"
+      ],
+      "properties": {
+        "status": {
+          "enum": [
+            "resolved",
+            "ambiguous",
+            "unresolved"
+          ]
+        },
+        "candidates": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "paths": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "slice": {
+      "type": "object",
+      "required": [
+        "impl",
+        "test",
+        "config",
+        "script",
+        "build",
+        "install",
+        "doc",
+        "adr",
+        "plan",
+        "fixture",
+        "generated"
+      ],
+      "properties": {
+        "impl": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Artifact"
+          }
+        },
+        "test": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Artifact"
+          }
+        },
+        "config": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Artifact"
+          }
+        },
+        "script": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Artifact"
+          }
+        },
+        "build": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Artifact"
+          }
+        },
+        "install": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Artifact"
+          }
+        },
+        "doc": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Artifact"
+          }
+        },
+        "adr": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Artifact"
+          }
+        },
+        "plan": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Artifact"
+          }
+        },
+        "fixture": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Artifact"
+          }
+        },
+        "generated": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Artifact"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "neighborhood": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "history": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "sessions": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "errors": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "joins": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "cochange": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "external_touchpoints": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "lexical_candidates": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "not_covered": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "coverage": {
+      "type": "object"
+    },
+    "readiness": {
+      "type": "object"
+    },
+    "provenance": {
+      "type": "object"
+    },
+    "continue_with": {
+      "type": "object"
+    },
+    "freshness": {
+      "type": "object"
+    },
+    "budget": {
+      "type": "object"
+    },
+    "omissions": {
+      "type": "object"
+    },
+    "truncated": {
+      "type": "boolean"
+    },
+    "report_id": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "Artifact": {
+      "type": "object",
+      "required": [
+        "path",
+        "artifact_id",
+        "digest",
+        "role",
+        "language",
+        "bytes",
+        "selection"
+      ],
+      "properties": {
+        "path": {
+          "type": "string"
+        },
+        "artifact_id": {
+          "type": "string"
+        },
+        "digest": {
+          "type": "string"
+        },
+        "role": {
+          "type": "string"
+        },
+        "language": {
+          "type": "string"
+        },
+        "bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "selection": {
+          "enum": [
+            "resolved_anchor",
+            "evidence_neighborhood"
+          ]
+        },
+        "text_is_untrusted_repository_content": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}
