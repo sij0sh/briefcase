@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "urn:briefcase:agent-context:1.0",
-  "title": "Budgeted agent context manifest v1",
+  "$id": "urn:briefcase:agent-context:2.0",
+  "title": "Budgeted agent context routing manifest v2",
   "type": "object",
   "required": [
     "schema_version",
@@ -14,19 +14,18 @@
     "outcome",
     "outcome_scope",
     "files",
-    "relationships",
-    "history",
-    "sessions",
     "not_covered",
     "coverage",
     "sections",
     "fetch_evidence",
     "continue_with",
-    "instruction"
+    "instruction",
+    "anchor",
+    "fetch_source"
   ],
   "properties": {
     "schema_version": {
-      "const": "1.0"
+      "const": "2.0"
     },
     "kind": {
       "const": "agent_context"
@@ -62,96 +61,7 @@
     "files": {
       "type": "array",
       "items": {
-        "type": "object",
-        "required": [
-          "path",
-          "role",
-          "rank",
-          "score",
-          "why",
-          "spans",
-          "fetch"
-        ],
-        "properties": {
-          "path": {
-            "type": "string"
-          },
-          "role": {
-            "type": "string"
-          },
-          "rank": {
-            "type": "integer",
-            "minimum": 1
-          },
-          "score": {
-            "type": "integer",
-            "minimum": 0
-          },
-          "why": {
-            "type": "array",
-            "items": {
-              "type": "object"
-            }
-          },
-          "spans": {
-            "type": "array",
-            "items": {
-              "type": "object"
-            }
-          },
-          "fetch": {
-            "type": "object",
-            "required": [
-              "operation",
-              "arguments"
-            ],
-            "properties": {
-              "operation": {
-                "const": "explain"
-              },
-              "arguments": {
-                "type": "object",
-                "required": [
-                  "report_id",
-                  "ref"
-                ],
-                "properties": {
-                  "report_id": {
-                    "type": "string"
-                  },
-                  "ref": {
-                    "type": "string"
-                  },
-                  "source_offset": {
-                    "type": "integer",
-                    "minimum": 0
-                  }
-                },
-                "additionalProperties": false
-              }
-            },
-            "additionalProperties": false
-          }
-        },
-        "additionalProperties": false
-      }
-    },
-    "relationships": {
-      "type": "array",
-      "items": {
-        "type": "object"
-      }
-    },
-    "history": {
-      "type": "array",
-      "items": {
-        "type": "object"
-      }
-    },
-    "sessions": {
-      "type": "array",
-      "items": {
-        "type": "object"
+        "$ref": "#/$defs/File"
       }
     },
     "not_covered": {
@@ -199,6 +109,44 @@
     },
     "omissions": {
       "type": "object"
+    },
+    "anchor": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "$ref": "#/$defs/AnchorFile"
+        },
+        {
+          "$ref": "#/$defs/AnchorTarget"
+        }
+      ]
+    },
+    "fetch_source": {
+      "type": "object",
+      "required": [
+        "operation",
+        "arguments"
+      ],
+      "properties": {
+        "operation": {
+          "const": "explain"
+        },
+        "arguments": {
+          "type": "object",
+          "required": [
+            "report_id"
+          ],
+          "properties": {
+            "report_id": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
     }
   },
   "additionalProperties": false,
@@ -261,6 +209,140 @@
           "enum": [
             "unknown",
             "not_required"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "Range": {
+      "type": "object",
+      "required": [
+        "start",
+        "end"
+      ],
+      "properties": {
+        "start": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "end": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false
+    },
+    "File": {
+      "type": "object",
+      "required": [
+        "path",
+        "role",
+        "rank",
+        "why",
+        "ref"
+      ],
+      "properties": {
+        "path": {
+          "type": "string"
+        },
+        "role": {
+          "type": "string"
+        },
+        "rank": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "why": {
+          "type": "string",
+          "maxLength": 96
+        },
+        "ref": {
+          "type": "string",
+          "pattern": "^/slice/[^/]+/[0-9]+$"
+        },
+        "source_offset": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "spans": {
+          "type": "array",
+          "maxItems": 1,
+          "items": {
+            "type": "object",
+            "properties": {
+              "byte_range": {
+                "$ref": "#/$defs/Range"
+              },
+              "line_range": {
+                "$ref": "#/$defs/Range"
+              }
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "AnchorFile": {
+      "type": "object",
+      "required": [
+        "target",
+        "status",
+        "path",
+        "ref"
+      ],
+      "properties": {
+        "target": {
+          "type": "string"
+        },
+        "status": {
+          "const": "resolved"
+        },
+        "path": {
+          "type": "string"
+        },
+        "ref": {
+          "type": "string",
+          "pattern": "^/slice/[^/]+/[0-9]+$"
+        },
+        "source_offset": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "spans": {
+          "type": "array",
+          "maxItems": 1,
+          "items": {
+            "type": "object",
+            "properties": {
+              "byte_range": {
+                "$ref": "#/$defs/Range"
+              },
+              "line_range": {
+                "$ref": "#/$defs/Range"
+              }
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "AnchorTarget": {
+      "type": "object",
+      "required": [
+        "target",
+        "status"
+      ],
+      "properties": {
+        "target": {
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "resolved",
+            "ambiguous",
+            "unresolved"
           ]
         }
       },

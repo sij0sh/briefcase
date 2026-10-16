@@ -1,20 +1,20 @@
 {
   "date": "2026-10-16",
   "status": "partial_validation",
-  "scope": "Evaluation recommendations: compact coverage, faceted ranked retrieval, analyzer correctness, budgeted harness manifests and evaluator delivery/ranking metrics.",
+  "scope": "Stage 1: compact agent routing projection, separate anchor, shared pinned source fetch, compact freshness and one final transport-aware byte budget. Retained selection/ranking unchanged.",
   "executed_tests": {
-    "total": 41,
-    "passed": 41,
+    "total": 43,
+    "passed": 43,
     "failed": 0,
     "suites": [
       {
-        "command": "python3 -B -m unittest discover -s scripts -p test_*.py",
+        "command": "python3 -B -m unittest discover -s scripts -p 'test_*.py'",
         "exit_code": 0,
-        "tests": 18,
+        "tests": 19,
         "result": "passed"
       },
       {
-        "command": "python3 -B -m unittest discover -s tools -p test_*.py",
+        "command": "python3 -B -m unittest discover -s tools -p 'test_*.py'",
         "exit_code": 0,
         "tests": 8,
         "result": "passed"
@@ -22,18 +22,15 @@
       {
         "command": "node --test tests/briefcase-task-adapter.test.mjs",
         "exit_code": 0,
-        "tests": 15,
+        "tests": 16,
         "result": "passed"
       }
     ]
   },
   "static_checks": {
-    "owned_schemas": 10,
-    "python_files": 18,
-    "documentation_links": 12,
-    "rust_files_lexically_checked": 37,
-    "rust_static_include_paths": 54,
-    "rust_scope": "Lexical delimiters and static includes only; not parsing/type checking/compilation.",
+    "changed_python_syntax": "passed",
+    "contract_json_parsing": "passed",
+    "owned_schema_vocabulary": "passed in schema tests",
     "javascript_syntax": {
       "files": [
         "src/architecture/typescript.cjs",
@@ -41,11 +38,16 @@
       ],
       "result": "passed"
     },
-    "git_diff_whitespace": "passed"
+    "git_diff_whitespace": "passed",
+    "changed_documentation_links": {
+      "count": 15,
+      "result": "passed"
+    }
   },
   "rust_regressions_authored": {
-    "new_unit_tests": 7,
-    "new_integration_tests": 7,
+    "new_unit_tests": 5,
+    "new_integration_tests": 2,
+    "updated_integration_tests": 1,
     "executed": false,
     "command": "cargo test --locked --lib --test context"
   },
@@ -53,32 +55,26 @@
     {
       "command": "cargo test --locked --lib --test context",
       "exit_code": 127,
-      "reason": "Cargo, rustc, rustfmt and Clippy are unavailable. Rust compilation and runtime test results are unknown."
+      "reason": "Cargo is absent; rustc, rustfmt and Clippy also unavailable. Compilation, Rust tests and actual runtime delivery are unverified."
     },
     {
-      "command": "python3 tools/check_package.py",
+      "command": "python3 -B tools/check_package.py",
       "exit_code": 1,
-      "reason": "Original evaluation/fixtures/index.json and the package/conformance fixture tree are absent from the supplied archive."
+      "reason": "The supplied archive omits evaluation/fixtures/index.json and the original conformance fixture tree."
     }
   ],
   "not_run": [
-    "Rust build, formatting and Clippy",
+    "Rust build, type checking, formatting and Clippy",
     "Binary-backed Pi integration tests",
-    "Real rust-analyzer resolution/deadline evaluation",
-    "Eight recovered task scenarios and per-facet ablations"
+    "Source sync and original/held-out task corpus measurements",
+    "Facet ablations; array-validator repair remains Stage 2"
   ],
-  "evaluation": {
-    "scenario_file": "evaluation/task-scenarios.json",
-    "scenario_count": 8,
-    "provenance": "Authored regression labels recovered verbatim from EVALUATION_FINDINGS.md. Not a held-out corpus.",
-    "updated_quality_measured": false,
-    "ranking_weights": "Initial transparent heuristics; not tuned or validated on an expanded corpus.",
-    "token_counts": "UTF-8 byte-based estimates, not exact tokenizer counts."
-  },
   "compatibility": {
-    "legacy_case_identity": "New optional fields omit their defaults on serialization; legacy cases retain load identity. Rust runtime verification is pending.",
-    "strict_external_clients": "Use updated case/brief schemas for new ranking metadata.",
-    "harness_delivery": "Pi and Claude automatic; Codex and Muse explicit agent_context tool operation."
+    "agent_context_projection": "2.0; shared fetch_source plus per-file ref/source_offset, reason string, separate anchor, compact freshness with Boolean fallback",
+    "case_and_brief": "Existing retained contracts and selection/ranking untouched",
+    "legacy_limit": "Accepted for compatibility, ignored for agent_context delivery",
+    "evaluator": "Supports legacy v1 per-file fetches and compact v2 shared fetches; anchor paths count toward delivered recall",
+    "harness_delivery": "Pi/Claude automatic; existing Codex/Muse explicit-only status unchanged"
   },
   "remaining_acceptance": [
     "cargo build --locked",
@@ -87,9 +83,8 @@
     "cargo fmt --all -- --check",
     "cargo clippy --locked --lib --bins --tests",
     "node --test tests/briefcase-pi.test.mjs",
-    "Run real Rust sync with a 600-second budget and inspect partial/complete state",
-    "Run scripts/task-evaluate.py with evaluation/task-scenarios.json and --ablations all",
-    "Restore original fixtures before the full package/conformance lane"
+    "Original/held-out delivery evaluation at matched capture/index inputs",
+    "Restore original conformance fixtures before full package checks"
   ],
-  "details": "evaluation/IMPLEMENTATION.md"
+  "details": "evaluation/STAGE1.md"
 }

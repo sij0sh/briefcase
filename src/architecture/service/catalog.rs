@@ -39,7 +39,7 @@ pub fn catalog() -> Vec<Operation> {
     let entries = [
         (Describe,"describe","Discover supported read operations and their arguments without a database."),
         (Brief,"brief","Trace retained evidence to build a case around a task, delivered as a brief: exact anchors, role-based files, relationships, history, sessions and typed coverage gaps. Feature and endpoint identities are optional targets."),
-        (AgentContext,"agent_context","Budgeted coding-harness manifest: ranked files, selection reasons, spans, role coverage, significant relationships/history/sessions, compact gaps and exact retained fetch instructions. Shares the brief's case."),
+        (AgentContext,"agent_context","Compact coding-harness routing manifest: separate target anchor, ranked supplemental files, primary reasons, shared pinned source fetch and complete evidence continuations. Fills the final byte budget; shares the brief's case."),
         (Search,"search","Rank retained text, evidence, Git history and optional session requests. A match is a candidate, never proof of ownership; use occurrences for exhaustive matching."),
         (Occurrences,"occurrences","Enumerate every retained literal match in path and byte order, including overlaps. Continue with the returned pinned view."),
         (Neighbors,"neighbors","Incoming/outgoing adjacency for any retained entity or file. Filter predicates for dependencies, callers, tests, data, deployment or runtime relationships."),
@@ -87,6 +87,7 @@ pub fn catalog() -> Vec<Operation> {
             Status=>schema(&[],&[],json!({"summary":{"type":"boolean"}})),
         };
         if matches!(kind,Brief|AgentContext) {s["properties"]["duty"]["enum"]=json!(Duty::names());}
+        if kind==AgentContext {s["properties"]["limit"]["description"]=json!("Deprecated compatibility argument; ignored. max_files bounds the retained case; max_bytes bounds delivery.");}
         if kind==Neighbors {s["properties"]["direction"]["enum"]=json!(["in","out","both"]);}
         if kind==Search {
             s["properties"]["history"]=json!({"type":"boolean"});

@@ -88,21 +88,34 @@ class TaskCaseSchemaTests(unittest.TestCase):
             with self.assertRaises(SchemaError):
                 validate(invalid, self.case_schema)
 
-    def test_agent_manifest_has_ranked_files_and_exact_pinned_source_fetches(self):
+    def test_agent_manifest_has_ranked_files_and_shared_pinned_source_fetches(self):
         case = self.case()
-        manifest = {"schema_version": "1.0", "kind": "agent_context", "case_id": case["id"], "report_id": case["id"],
+        manifest = {"schema_version": "2.0", "kind": "agent_context", "case_id": case["id"], "report_id": case["id"],
                     "view_id": case["view_id"], "index_id": case["index_id"], "pinned_views": case["pinned_views"],
                     "outcome": case["outcome"], "outcome_scope": "retained_evidence", "coverage": {**case["coverage"], "delivery": {}},
-                    "files": [{"path": "src/a.rs", "role": "impl", "rank": 1, "score": 10000, "why": [], "spans": [],
-                               "fetch": {"operation": "explain", "arguments": {"report_id": case["id"], "ref": "/slice/impl/0", "source_offset": 10}}}],
-                    "relationships": [], "history": [], "sessions": [], "not_covered": [], "sections": {},
+                    "anchor": {"target": "src/root.rs", "status": "resolved", "path": "src/root.rs", "ref": "/slice/impl/1"},
+                    "files": [{"path": "src/a.rs", "role": "impl", "rank": 2, "why": "structure: IMPORTS",
+                               "ref": "/slice/impl/0", "source_offset": 10}],
+                    "fetch_source": {"operation": "explain", "arguments": {"report_id": case["id"]}},
+                    "not_covered": [], "sections": {},
                     "fetch_evidence": {"operation": "page", "arguments": {"report_id": case["id"]}}, "continue_with": None,
                     "instruction": "Retained evidence only"}
         inspect_schema(self.agent_schema)
         validate(manifest, self.agent_schema)
-        manifest["files"][0]["fetch"]["arguments"]["source_offset"] = -1
+        for invalid_file in ({"source_offset": -1}, {"why": "x" * 97}, {"ref": "floating/path"},
+                             {"spans": [{}, {}]}):
+            invalid = copy.deepcopy(manifest)
+            invalid["files"][0].update(invalid_file)
+            with self.assertRaises(SchemaError):
+                validate(invalid, self.agent_schema)
+        invalid = copy.deepcopy(manifest)
+        invalid["files"][0].pop("ref")
         with self.assertRaises(SchemaError):
-            validate(manifest, self.agent_schema)
+            validate(invalid, self.agent_schema)
+        invalid = copy.deepcopy(manifest)
+        invalid["anchor"].pop("ref")
+        with self.assertRaises(SchemaError):
+            validate(invalid, self.agent_schema)
 
 
 if __name__ == "__main__":

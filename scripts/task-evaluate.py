@@ -79,6 +79,16 @@ def encoded_bytes(value):
     return len((json.dumps(value, ensure_ascii=False, separators=(",", ":")) + "\n").encode("utf-8"))
 
 
+def manifest_source_fetch(manifest, row):
+    """Resolve v2 shared source instructions, accepting legacy v1 manifests."""
+    if isinstance(row.get("fetch"), dict):
+        return row["fetch"]
+    template = manifest.get("fetch_source", {})
+    return {"operation": template.get("operation"), "arguments": {
+        **template.get("arguments", {}), "ref": row.get("ref"),
+        "source_offset": row.get("source_offset", 0)}}
+
+
 def evaluate_scenario(scenario, call, *, manifest_bytes=None, exclude_facets=(), harness="pi"):
     expected = set(scenario.get("required_paths", scenario.get("followup_paths", [])))
     if not expected:
@@ -123,7 +133,7 @@ def evaluate_scenario(scenario, call, *, manifest_bytes=None, exclude_facets=(),
         manifest_limit = manifest_bytes - framing_bytes
         if manifest_limit < 256:
             raise ValueError("Harness budget is too small for framing and a manifest")
-        manifest_args = {**arguments, "limit": 12, "max_bytes": manifest_limit}
+        manifest_args = {**arguments, "max_bytes": manifest_limit}
         manifest = call("agent_context", manifest_args)
         if manifest.get("kind") != "agent_context" or manifest.get("case_id") != (packet.get("case_id") or packet.get("id")):
             raise ValueError("Harness manifest is missing or belongs to another retained case")
@@ -132,13 +142,25 @@ def evaluate_scenario(scenario, call, *, manifest_bytes=None, exclude_facets=(),
         if size > manifest_limit or injected_size > manifest_bytes:
             raise ValueError("Harness manifest exceeded its UTF-8 byte budget")
         delivered = manifest.get("files", [])
-        manifest_paths = {row["path"] for row in delivered}
-        if any(row.get("fetch", {}).get("arguments", {}).get("report_id") != manifest["case_id"] for row in delivered):
-            raise ValueError("Harness source fetch is not pinned to its case")
+        anchor = manifest.get("anchor") or {}
+        source_rows = [*delivered, *([anchor] if anchor.get("path") else [])]
+        manifest_paths = {row["path"] for row in source_rows}
+        for row in source_rows:
+            fetch = manifest_source_fetch(manifest, row)
+            args = fetch.get("arguments", {})
+            offset = args.get("source_offset", 0)
+            if (fetch.get("operation") != "explain" or args.get("report_id") != manifest["case_id"]
+                    or not isinstance(args.get("ref"), str) or not args["ref"].startswith("/slice/")
+                    or type(offset) is not int or offset < 0):
+                raise ValueError("Harness source fetch is not pinned to its case")
         metrics["harness_context"] = {
             "harness": harness, "bytes": injected_size, "manifest_bytes": size,
             "framing_bytes": framing_bytes, "estimated_tokens_at_4_bytes": (injected_size + 3) // 4,
-            "delivered_files": len(delivered), "required_path_recall": len(expected & manifest_paths) / len(expected),
+            "delivered_files": len(source_rows), "supplemental_files": len(delivered),
+            "anchor_path": anchor.get("path"),
+            "freshness_bytes": encoded_bytes(manifest["freshness"]) - 1 if "freshness" in manifest else 0,
+            "non_file_metadata_bytes": encoded_bytes({key: value for key, value in manifest.items() if key != "files"}),
+            "required_path_recall": len(expected & manifest_paths) / len(expected),
             "missing_required_paths": sorted(expected - manifest_paths),
             "omitted_files": manifest.get("coverage", {}).get("delivery", {}).get("files", {}).get("omitted"),
             "has_continuation": bool(manifest.get("continue_with")),

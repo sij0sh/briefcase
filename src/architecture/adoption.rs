@@ -13,7 +13,7 @@ pub fn event(db:&Path,root:&Path,phase:&str,input:&Value)->Result<Value>{
     if phase=="prompt" {
         let task=input["prompt"].as_str().ok_or("HOOK: prompt is required")?;
         let budget=context_budget().saturating_sub(CONTEXT_PREFIX.len());
-        let packet=service::call_path(db,Some(root),"agent_context",&json!({"task":task,"limit":12,"max_bytes":budget}),true)?;
+        let packet=service::call_path(db,Some(root),"agent_context",&json!({"task":task,"max_bytes":budget}),true)?;
         let l=Ledger::open_existing(db)?;
         let state=json!({"kind":"adoption_prompt","session_key":key,"task":task,
             "report_id":packet["report_id"],"case_id":packet["case_id"],"view_id":packet["view_id"]});
@@ -27,7 +27,7 @@ pub fn event(db:&Path,root:&Path,phase:&str,input:&Value)->Result<Value>{
     let Some(state)=l.adoption_prompt(key)? else {return Ok(json!({}));};
     let id=state["case_id"].as_str().or_else(||state["report_id"].as_str()).ok_or("HOOK: Missing initial case")?;
     let initial=if id.starts_with("task-case:") {serde_json::to_value(task::case::load(&l,id)?)?} else {l.report(id)?};
-    let current=service::call_with_context(&l,"agent_context",&json!({"task":state["task"],"duty":"review","limit":12,"max_bytes":context_budget()}),Some(root),true)?;
+    let current=service::call_with_context(&l,"agent_context",&json!({"task":state["task"],"duty":"review","max_bytes":context_budget()}),Some(root),true)?;
     let review_id=current["case_id"].as_str().ok_or("HOOK: Review brief has no case ID")?;
     let review=serde_json::to_value(task::case::load(&l,review_id)?)?;
     let (dirty,dirty_state)=match super::freshness::working_paths(root) {

@@ -24,7 +24,7 @@ pub fn call(l: &Ledger, name: &str, a: &Value) -> Result<Value> {
     let normalized = normalize(name, &operation, a);
     let a = &normalized;
     validate(&operation.schema, a)?;
-    call_validated(l, &operation, a, None, false)
+    call_validated(l, &operation, a, None, false, &response::serialized_bytes)
 }
 
 /// Read with an explicitly selected live workspace and optional pending-capture
@@ -37,10 +37,23 @@ pub fn call_with_context(
     root: Option<&std::path::Path>,
     fallback_published: bool,
 ) -> Result<Value> {
+    call_with_serializer(l, name, a, root, fallback_published, &response::serialized_bytes)
+}
+
+/// The transport supplies its final framing so the gateway can budget once,
+/// after freshness and fallback have been attached.
+pub(crate) fn call_with_serializer(
+    l: &Ledger,
+    name: &str,
+    a: &Value,
+    root: Option<&std::path::Path>,
+    fallback_published: bool,
+    size_of: &dyn Fn(&Value) -> Result<usize>,
+) -> Result<Value> {
     let operation = find(name).ok_or("UNKNOWN_OPERATION: Unknown architecture operation")?;
     let args = normalize(name, &operation, a);
     validate(&operation.schema, &args)?;
-    call_validated(l, &operation, &args, root, fallback_published)
+    call_validated(l, &operation, &args, root, fallback_published, size_of)
 }
 
 pub(crate) fn normalize(name:&str,operation:&Operation,a:&Value) -> Value {
@@ -100,7 +113,7 @@ pub fn call_path(db:&std::path::Path,root:Option<&std::path::Path>,name:&str,arg
         (Kind::Brief|Kind::AgentContext|Kind::Search|Kind::Occurrences|Kind::Neighbors,Some(root))=>open_context(db,root)?,
         _=>Ledger::open_existing(db)?,
     };
-    call_validated(&l,&operation,&normalized,root,fallback)
+    call_validated(&l,&operation,&normalized,root,fallback,&response::serialized_bytes)
 }
 
 fn call_validated(
@@ -109,6 +122,7 @@ fn call_validated(
     args: &Value,
     root: Option<&std::path::Path>,
     fallback_published: bool,
+    size_of: &dyn Fn(&Value) -> Result<usize>,
 ) -> Result<Value> {
     let mut fallback = None;
     let result = dispatch(l, operation, args);
@@ -154,7 +168,9 @@ fn call_validated(
     if let Some(fallback) = fallback {
         result["freshness"]["fallback"] = fallback;
     }
-    response::bounded(result,args["max_bytes"].as_u64().map(|n|n as usize).unwrap_or(response::DEFAULT_MAX_BYTES))
+    let default_budget = if operation.kind == Kind::AgentContext { response::DEFAULT_AGENT_MAX_BYTES }
+        else { response::DEFAULT_MAX_BYTES };
+    response::bounded_with(result,args["max_bytes"].as_u64().map(|n|n as usize).unwrap_or(default_budget),size_of)
 }
 
 #[cfg(test)]

@@ -43,10 +43,92 @@ fn bounded_selection_is_ranked_pinned_and_keeps_omitted_candidates_pageable() {
     let manifest=f.call("agent_context",args);
     assert_eq!(manifest["case_id"],packet["case_id"]);assert_eq!(manifest["kind"],"agent_context");
     assert!(serde_json::to_vec(&manifest).unwrap().len()+1<=8000);assert!(!rows(&manifest,"files").is_empty());
-    assert_eq!(manifest["files"][0]["path"],"src/lib.rs");
-    let proof=f.call("explain",manifest["files"][0]["fetch"]["arguments"].clone());
+    assert_eq!(manifest["anchor"]["path"],"src/lib.rs");
+    assert!(rows(&manifest,"files").iter().all(|file|file["path"]!="src/lib.rs"));
+    assert_eq!(manifest["coverage"]["delivery"]["files"]["total"],5);
+    let mut fetch=manifest["fetch_source"]["arguments"].clone();fetch["ref"]=manifest["anchor"]["ref"].clone();
+    fetch["source_offset"]=manifest["anchor"]["source_offset"].as_u64().unwrap_or(0).into();
+    let proof=f.call("explain",fetch);
     assert!(proof["text"].as_str().unwrap().contains("pub fn start"));
     assert_eq!(manifest["coverage"]["completeness"],packet["coverage"]["completeness"]);
+}
+
+#[test]
+fn agent_delivery_fills_bytes_instead_of_generic_file_limits_and_keeps_all_evidence_reachable() {
+    let mut f=Fixture::new();
+    for i in 0..40 {write(&f,&format!("src/part_{i}.rs"),"pub fn quasar_marker() {}\n");}
+    f.recapture();
+    let mut args=full_args("repair quasar_marker");args["limit"]=json!(1);
+    let mut previous=Vec::<String>::new();
+    for budget in [8000,12000,16000,32000] {
+        args["max_bytes"]=json!(budget);
+        let manifest=f.call("agent_context",args.clone());
+        assert_eq!(manifest["schema_version"],"2.0");
+        assert_eq!(manifest["anchor"]["path"],"src/lib.rs");
+        let delivered:Vec<_>=rows(&manifest,"files").iter().map(|row|text(row,"path")).collect();
+        assert!(delivered.len()>=8,"{manifest}");
+        assert!(delivered.starts_with(&previous));
+        assert!(serde_json::to_vec(&manifest).unwrap().len()+1<=budget);
+        assert_eq!(manifest["budget"]["returned_response_bytes"],serde_json::to_vec(&manifest).unwrap().len()+1);
+        for row in rows(&manifest,"files") {
+            let mut fetch=manifest["fetch_source"]["arguments"].clone();fetch["ref"]=row["ref"].clone();
+            fetch["source_offset"]=json!(row["source_offset"].as_u64().unwrap_or(0));
+            let proof=f.call("explain",fetch);
+            assert_eq!(proof["entry"]["path"],row["path"]);
+            let source=std::fs::read_to_string(f.root.join(text(row,"path"))).unwrap();
+            let offset=row["source_offset"].as_u64().unwrap_or(0) as usize;
+            assert_eq!(proof["text"],&source[offset..]);
+        }
+        // A supplemental count is not a candidate cursor offset. Every
+        // selected and unselected file must remain in the pinned inventory.
+        let mut continuation=manifest["continue_with"]["arguments"].clone();
+        continuation["limit"]=json!(1000);continuation["max_bytes"]=json!(1048576);
+        let inventory=f.call("page",continuation);
+        assert!(rows(&inventory,"items").len()>=41);
+        assert!(rows(&inventory,"items").iter().any(|row|row["path"]=="src/lib.rs"));
+        assert!(rows(&inventory,"items").iter().any(|row|row["selected"]==false));
+        for section in manifest["sections"].as_object().unwrap().keys() {
+            let mut page=manifest["fetch_evidence"]["arguments"].clone();page["section"]=json!(section);
+            assert!(!rows(&f.call("page",page),"items").is_empty(),"{section}");
+        }
+        previous=delivered;
+    }
+    assert_eq!(previous.len(),31,"the retained 32-file case includes a separate anchor");
+    for limit in [12,1000] {
+        args["limit"]=json!(limit);
+        let manifest=f.call("agent_context",args.clone());
+        assert_eq!(rows(&manifest,"files").len(),previous.len());
+    }
+    args.as_object_mut().unwrap().remove("max_bytes");
+    let default=f.call("agent_context",args);
+    assert_eq!(default["budget"]["max_response_bytes"],8000);
+    assert!(serde_json::to_vec(&default).unwrap().len()+1<=8000);
+}
+
+#[test]
+fn mcp_agent_delivery_accounts_for_its_actual_final_frame_on_both_surfaces() {
+    use briefcase::architecture::mcp::{self,Surface};
+    let mut f=Fixture::new();
+    for i in 0..40 {write(&f,&format!("src/part_{i}.rs"),"pub fn quasar_marker() {}\n");}
+    f.recapture();
+    for (surface,name) in [(Surface::Gateway,"briefcase_query"),(Surface::Compact,"briefcase")] {
+        let mut previous=Vec::<String>::new();
+        for budget in [8000,12000,16000,32000] {
+            let frame=mcp::dispatch_for(surface,&f.ledger,&json!({"jsonrpc":"2.0","id":17,"method":"tools/call",
+                "params":{"name":name,"arguments":{"operation":"agent_context","arguments":{
+                    "task":"repair quasar_marker","target":"src/lib.rs","duty":"debug","limit":1,"max_bytes":budget}}}}));
+            assert_eq!(frame["result"]["isError"],false,"{frame}");
+            let manifest=&frame["result"]["structuredContent"];
+            let decoded:Value=serde_json::from_str(frame["result"]["content"][0]["text"].as_str().unwrap()).unwrap();
+            assert_eq!(*manifest,decoded);
+            assert!(serde_json::to_vec(&frame).unwrap().len()+1<=budget);
+            assert_eq!(manifest["budget"]["returned_response_bytes"],serde_json::to_vec(&frame).unwrap().len()+1);
+            let delivered:Vec<_>=rows(manifest,"files").iter().map(|row|text(row,"path")).collect();
+            assert!(delivered.len()>=8,"{frame}");assert!(delivered.starts_with(&previous));
+            previous=delivered;
+        }
+        assert_eq!(previous.len(),31);
+    }
 }
 
 #[test]

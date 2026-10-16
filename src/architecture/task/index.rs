@@ -176,7 +176,7 @@ fn build(s: &Snapshot, id: String) -> Result<Index> {
             let Some(target)=normalize_relative(path,literal.as_str()).filter(|p|p!=path&&s.files.contains_key(p)) else {continue};
             let predicate=if s.files[path].role=="test"&&s.files[&target].role=="impl" {"TESTS"} else {"REFERENCES_ARTIFACT"};
             let link=Link::new(predicate,path,&target,"derived","exact quoted relative path; static association, not executed coverage",vec![],
-                vec![s.witness(path,literal.start(),literal.end())],BTreeSet::from([path.clone()]),BTreeSet::from([target]))?;
+                vec![s.witness(path,literal.start(),literal.end())],BTreeSet::from([path.clone()]),BTreeSet::from([target.clone()]))?;
             insert_link(&mut links,link,&mut omitted);
         }
         if s.files[path].role == "test" {

@@ -271,7 +271,7 @@ export default function briefcasePi(pi: ExtensionAPI) {
     const task = event.prompt;
     try {
       const budget = contextBudget() - Buffer.byteLength(CONTEXT_PREFIX, "utf8");
-      const { result } = await execRead(pi, "agent_context", {task, limit: 12, max_bytes: budget}, ctx.cwd);
+      const { result } = await execRead(pi, "agent_context", {task, max_bytes: budget}, ctx.cwd);
       activeTask = {task, report: result.report_id ?? result.id, caseId: result.case_id,
         completeness: await caseCompleteness(pi, result, ctx.cwd)};
       return {message: {customType: "briefcase-context", display: false,
@@ -284,7 +284,7 @@ export default function briefcasePi(pi: ExtensionAPI) {
     const task = activeTask; activeTask = undefined;
     if (!task || process.env.BRIEFCASE_CONTEXT === "0") return;
     try {
-      const {result} = await execRead(pi, "agent_context", {task: task.task, duty: "review", limit: 12, max_bytes: contextBudget()}, ctx.cwd);
+      const {result} = await execRead(pi, "agent_context", {task: task.task, duty: "review", max_bytes: contextBudget()}, ctx.cwd);
       const completeness = await caseCompleteness(pi, result, ctx.cwd);
       const dimensionDeltas = compareCompleteness(task.completeness, completeness);
       pi.appendEntry("briefcase-completeness", {prompt_report_id: task.report, report_id: result.report_id ?? result.id,

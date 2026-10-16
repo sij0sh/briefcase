@@ -99,21 +99,21 @@ fn discovery_call_for(surface: Surface, request: &Value) -> bool {
     }
 }
 
-fn search_call<'a>(get_ledger: &dyn Fn() -> Result<&'a Ledger>, a: &Value, root:Option<&Path>) -> Result<Value> {
+fn search_call<'a>(get_ledger: &dyn Fn() -> Result<&'a Ledger>, a: &Value, root:Option<&Path>, size_of:&dyn Fn(&Value)->Result<usize>) -> Result<Value> {
     service::validate(&search_schema(), a)?;
     let mut args = a.clone();
     let query = args.as_object_mut().unwrap().remove("query").unwrap();
     args["text"] = query;
-    service::call_with_context(get_ledger()?, "search", &args, root, root.is_some())
+    service::call_with_serializer(get_ledger()?, "search", &args, root, root.is_some(), size_of)
 }
 
-fn query_call<'a>(get_ledger: &dyn Fn() -> Result<&'a Ledger>, a: &Value, root:Option<&Path>) -> Result<Value> {
+fn query_call<'a>(get_ledger: &dyn Fn() -> Result<&'a Ledger>, a: &Value, root:Option<&Path>, size_of:&dyn Fn(&Value)->Result<usize>) -> Result<Value> {
     service::validate(&query_schema(), a)?;
     let operation = a["operation"].as_str().unwrap();
     if matches!(operation, "describe" | "architecture_describe") {
         return service::discover(&a["arguments"]);
     }
-    service::call_with_context(get_ledger()?, operation, &a["arguments"], root, root.is_some())
+    service::call_with_serializer(get_ledger()?, operation, &a["arguments"], root, root.is_some(), size_of)
 }
 
 fn call_for(
@@ -122,25 +122,26 @@ fn call_for(
     name: &str,
     a: &Value,
     root:Option<&Path>,
+    size_of:&dyn Fn(&Value)->Result<usize>,
 ) -> Result<Value> {
     let get_ledger = || -> Result<&Ledger> { ledger.clone().map_err(Into::into) };
     match (surface, name) {
         (Surface::Gateway, "briefcase_describe") => service::discover(a),
-        (Surface::Gateway, "briefcase_query") => query_call(&get_ledger, a, root),
-        (Surface::Gateway, "briefcase_search") => search_call(&get_ledger, a, root),
+        (Surface::Gateway, "briefcase_query") => query_call(&get_ledger, a, root, size_of),
+        (Surface::Gateway, "briefcase_search") => search_call(&get_ledger, a, root, size_of),
         (Surface::Gateway, "briefcase_status") => {
             service::validate(&service::find("status").unwrap().schema, a)?;
-            service::call_with_context(get_ledger()?, "status", a, root, root.is_some())
+            service::call_with_serializer(get_ledger()?, "status", a, root, root.is_some(), size_of)
         }
-        (Surface::Compact, "context") => search_call(&get_ledger, a, root),
-        (Surface::Compact, "briefcase") => query_call(&get_ledger, a, root),
+        (Surface::Compact, "context") => search_call(&get_ledger, a, root, size_of),
+        (Surface::Compact, "briefcase") => query_call(&get_ledger, a, root, size_of),
         // Older clients can finish existing conversations. These aliases do
         // not appear in tools/list, so they add no eager-client context cost.
         (_, alias) if alias.starts_with("architecture_") && service::find(alias).is_some() => {
             if alias == "architecture_describe" {
                 return service::discover(a);
             }
-            service::call_with_context(get_ledger()?, alias, a, root, root.is_some())
+            service::call_with_serializer(get_ledger()?, alias, a, root, root.is_some(), size_of)
         }
         (Surface::Gateway, _) => Err(
             "UNKNOWN_TOOL: Unknown Briefcase tool; use briefcase_describe or briefcase_query"
@@ -175,31 +176,22 @@ fn respond_for(
         "ping" => Ok(json!({})),
         "tools/list" => Ok(tools_for(surface)),
         "tools/call" => {
+            let wrapped = |value: &Value| -> Result<Value> {
+                Ok(json!({"content":[{"type":"text","text":serde_json::to_string(value)?}],"structuredContent":value,"isError":false}))
+            };
+            let size_of = |value: &Value| -> Result<usize> {
+                response::serialized_bytes(&json!({"jsonrpc":"2.0","id":id,"result":wrapped(value)?}))
+            };
             let value = call_for(
                 surface,
                 ledger,
                 request["params"]["name"].as_str().unwrap_or(""),
                 &request["params"]["arguments"],
                 root,
+                &size_of,
             );
             match value {
-                Ok(v) => {
-                    let wrapped = |v: &Value| -> Result<Value> {
-                        Ok(
-                            json!({"content":[{"type":"text","text":serde_json::to_string(v)?}],"structuredContent":v,"isError":false}),
-                        )
-                    };
-                    let v = if let Some(max) = v["budget"]["max_response_bytes"].as_u64() {
-                        response::bounded_with(v, max as usize, &|value| {
-                            response::serialized_bytes(
-                                &json!({"jsonrpc":"2.0","id":id,"result":wrapped(value)?}),
-                            )
-                        })?
-                    } else {
-                        v
-                    };
-                    wrapped(&v)
-                }
+                Ok(v) => wrapped(&v),
                 Err(e) => {
                     Ok(json!({"content":[{"type":"text","text":e.to_string()}],"isError":true}))
                 }

@@ -8,6 +8,7 @@ use serde_json::{json, Value};
 use std::collections::BTreeMap;
 
 pub const DEFAULT_MAX_BYTES: usize = 24576;
+pub const DEFAULT_AGENT_MAX_BYTES: usize = 8000;
 pub const MIN_MAX_BYTES: usize = 256;
 pub const MAX_MAX_BYTES: usize = 1024 * 1024;
 /// Smallest excerpt worth keeping over dropping a lower-ranked item.
@@ -473,6 +474,23 @@ pub(crate) fn bounded_with(
     )?;
     summarize_limitations(&mut value);
     super::freshness::filter_returned_hits(&mut value);
+    if value["kind"] == "agent_context" {
+        // Agent projections arrive unbudgeted. Compact the actual freshness
+        // envelope (including fallback) before measuring or removing files.
+        // Retain the full diagnostic locally to recompute delivered overlap.
+        let freshness = value.get("freshness").cloned();
+        if let Some(full) = &freshness {
+            value["freshness"] = super::freshness::agent_summary(full, &value);
+        }
+        let original = measure(&mut value, max_bytes, size_of)?;
+        loop {
+            if measure(&mut value, max_bytes, size_of)? <= max_bytes { return Ok(value); }
+            if !super::task::brief::trim(&mut value) { return notice(&value, max_bytes, original, size_of); }
+            if let Some(full) = &freshness {
+                value["freshness"] = super::freshness::agent_summary(full, &value);
+            }
+        }
+    }
     let original_items = rows(&value, "items").to_vec();
     let original = measure(&mut value, max_bytes, size_of)?;
     while measure(&mut value,max_bytes,size_of)? > max_bytes && super::task::brief::trim(&mut value) {}

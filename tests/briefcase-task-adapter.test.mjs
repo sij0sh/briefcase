@@ -96,7 +96,8 @@ test('prompt context and post-task checks never submit another agent prompt', as
   assert.deepEqual(entries[0].value.not_covered_areas,['static_calls']);
   assert.equal(calls.length,2);
   assert.equal(calls[0][calls[0].indexOf('call')+1], 'agent_context');
-  assert.equal(JSON.parse(calls[0][calls[0].indexOf('--args')+1]).limit, 12);
+  assert.equal(JSON.parse(calls[0][calls[0].indexOf('--args')+1]).limit, undefined);
+  assert.equal(JSON.parse(calls[1][calls[1].indexOf('--args')+1]).limit, undefined);
   assert.equal(JSON.parse(calls[1][calls[1].indexOf('--args')+1]).duty,'review');
   await events.get('agent_end')({},ctx);
   assert.equal(calls.length,2,'a settled turn must not check again');
@@ -206,4 +207,20 @@ test('automatic context budgets are configurable and include the framing text', 
   const args=JSON.parse(calls[0][calls[0].indexOf('--args')+1]);
   assert.ok(args.max_bytes<12000&&args.max_bytes>11000);
   for(const invalid of ['bad','0','1000000','4096.5']) {process.env.BRIEFCASE_CONTEXT_MAX_BYTES=invalid;assert.equal(adapter.contextBudget(),8000);}
+});
+
+test('automatic context preserves compact manifests with more than twenty supplemental files', async () => {
+  const files=Array.from({length:24},(_,index)=>({path:`src/part_${index}.rs`,role:'impl',rank:index+2,
+    why:'dependency: imports',ref:`/slice/impl/${index+1}`}));
+  const manifest={schema_version:'2.0',kind:'agent_context',case_id:'task-case:compact',report_id:'task-case:compact',
+    anchor:{target:'src/lib.rs',status:'resolved',path:'src/lib.rs',ref:'/slice/impl/0'},files,
+    fetch_source:{operation:'explain',arguments:{report_id:'task-case:compact'}},
+    coverage:{completeness:completeness()},freshness:{state:'unknown',view_count:6}};
+  const events=new Map();
+  adapter.default({registerTool(){},registerCommand(){},on:(name,handler)=>events.set(name,handler),
+    exec:async()=>({code:0,stdout:JSON.stringify(manifest),stderr:''})});
+  const injected=await events.get('before_agent_start')({prompt:'inspect storage'},{cwd:'/repo'});
+  assert.ok(Buffer.byteLength(injected.message.content)<=8000);
+  const delivered=JSON.parse(injected.message.content.slice(injected.message.content.indexOf('{')));
+  assert.deepEqual(delivered,manifest);
 });

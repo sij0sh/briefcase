@@ -9,9 +9,16 @@ Case owns typed gaps and completeness; the brief owns presentation. `search`,
 `occurrences`, `neighbors`, `page` and `explain` share its context/read protocol.
 No map or presentation engine is required. Selection now follows
 `request → faceted discovery → candidate fusion/ranking → bounded slice → case`.
-`agent_context` projects that same case for coding harnesses. All available
+`agent_context` projects that same case for coding harnesses. Its v2 routing
+packet separates the explicit target, shares pinned source fetch instructions
+and fills one final transport byte budget after compacting freshness. Generic
+presentation limits do not cap supplemental paths. All available
 channels can influence candidates within reported bounds; scores do not establish
 implementation membership or completeness.
+
+Stage 1 changes, protocol migration and validation are recorded in
+[evaluation/STAGE1.md](evaluation/STAGE1.md). Retained case construction and
+retrieval ranking are unchanged by that stage.
 
 The [task evaluator](scripts/task-evaluate.py) measures labelled file recall,
 Recall@K, required-file ranks, labelled precision, selected source/response

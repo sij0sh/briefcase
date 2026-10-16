@@ -132,6 +132,7 @@ class TaskEvaluationTests(unittest.TestCase):
         self.assertEqual(result["actionable_gap_rows"], 1)
         self.assertEqual(result["producer_boundary_occurrences"], 2000)
         self.assertEqual(calls[0][1]["exclude_facets"], ["history"])
+        self.assertNotIn("limit", next(args for operation, args in calls if operation == "agent_context"))
         self.assertEqual(result["selected_source_bytes"], 60)
         manifest["case_id"] = "task-case:other"
         with self.assertRaisesRegex(ValueError, "another retained case"):
@@ -149,6 +150,35 @@ class TaskEvaluationTests(unittest.TestCase):
             task_evaluate.evaluate_scenario(scenario, call, manifest_bytes=8000)
         manifest["detail"] = "é" * 20000
         with self.assertRaisesRegex(ValueError, "UTF-8 byte budget"):
+            task_evaluate.evaluate_scenario(scenario, call, manifest_bytes=8000)
+
+    def test_shared_fetches_and_separate_anchor_preserve_harness_recall(self):
+        packet = {"case_id": "task-case:v2", "id": "task-case:v2", "outcome": "partial", "not_covered": [],
+                  "slice": {role: [] for role in task_evaluate.ROLES},
+                  "coverage": {"delivery": {f"/slice/{role}": {"omitted": 0} for role in task_evaluate.ROLES}}}
+        packet["coverage"]["delivery"]["/not_covered"] = {"omitted": 0}
+        packet["slice"]["impl"] = [{"path": "a", "rank": 1}, {"path": "b", "rank": 2}]
+        manifest = {"schema_version": "2.0", "kind": "agent_context", "case_id": "task-case:v2",
+                    "anchor": {"path": "a", "ref": "/slice/impl/0"},
+                    "files": [{"path": "b", "ref": "/slice/impl/1", "source_offset": 42}],
+                    "fetch_source": {"operation": "explain", "arguments": {"report_id": "task-case:v2"}},
+                    "coverage": {"delivery": {"files": {"omitted": 0}}}, "continue_with": None}
+        call = lambda operation, _: manifest if operation == "agent_context" else packet
+        scenario = {"id": "v2", "task": "repair a", "required_paths": ["a", "b"]}
+        result = task_evaluate.evaluate_scenario(scenario, call, manifest_bytes=8000)
+        self.assertEqual(result["harness_context"]["required_path_recall"], 1)
+        self.assertEqual(result["harness_context"]["delivered_files"], 2)
+        self.assertEqual(result["harness_context"]["supplemental_files"], 1)
+        self.assertEqual(result["harness_context"]["anchor_path"], "a")
+        self.assertEqual(task_evaluate.manifest_source_fetch(manifest, manifest["files"][0]), {
+            "operation": "explain", "arguments": {"report_id": "task-case:v2", "ref": "/slice/impl/1", "source_offset": 42}})
+        for offset in (-1, True, "42"):
+            manifest["files"][0]["source_offset"] = offset
+            with self.assertRaisesRegex(ValueError, "not pinned"):
+                task_evaluate.evaluate_scenario(scenario, call, manifest_bytes=8000)
+        manifest["files"][0]["source_offset"] = 42
+        manifest["fetch_source"]["arguments"]["report_id"] = "task-case:other"
+        with self.assertRaisesRegex(ValueError, "not pinned"):
             task_evaluate.evaluate_scenario(scenario, call, manifest_bytes=8000)
 
 

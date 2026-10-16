@@ -320,7 +320,7 @@ mod tests {
         for role in source::ARTIFACT_ROLES {
             let area=GapArea::try_from(format!("artifact_role:{role}")).unwrap();assert_eq!(area.dimension(),Slice);
         }
-        assert!(GapArea::try_from("unassigned_future_area".into()).is_err());
+        assert!(GapArea::try_from("unassigned_future_area".to_string()).is_err());
     }
     #[test]
     fn anchors_determine_unknown_outcome_and_unknown_slice() {

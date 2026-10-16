@@ -1,0 +1,12 @@
+{"scenarios": [
+ {"id": "H1-mcp-gateway-tools", "task": "change the MCP gateway tool list and tool descriptions exposed to agents", "target": "src/architecture/mcp.rs", "duty": "refactor",
+  "required_paths": ["src/architecture/mcp.rs","src/architecture/service.rs","src/architecture/service/catalog.rs","tests/briefcase_integration.rs"]},
+ {"id": "H2-claude-code-discovery", "task": "Claude Code transcripts with a new header layout are no longer discovered for import", "target": "src/architecture/session/harness/claude_code.rs", "duty": "debug",
+  "required_paths": ["src/architecture/session/harness/claude_code.rs","src/architecture/session/harness/mod.rs","profiles/sessions/claude-code-v1.json","src/architecture/sync/sessions.rs","tests/briefcase_session.rs"]},
+ {"id": "H3-watch-poll", "task": "make the watch command's fallback poll interval configurable", "target": "src/architecture/watch.rs", "duty": "extend",
+  "required_paths": ["src/architecture/watch.rs","src/bin/briefcase/command.rs","src/bin/briefcase/run.rs","tests/briefcase_integration.rs"]},
+ {"id": "H4-disposable-untargeted", "task": "search recalls files from disposable temporary trees that should be excluded", "duty": "debug",
+  "required_paths": ["src/architecture/search.rs","src/architecture/native_host.rs"]},
+ {"id": "H5-python-roots-untargeted", "task": "validate the python source root option and reject roots outside the repository", "duty": "extend",
+  "required_paths": ["src/architecture/python.rs","src/architecture/sync/project.rs","src/bin/briefcase/args.rs","tests/briefcase_python.rs"]}
+]}

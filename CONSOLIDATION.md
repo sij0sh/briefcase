@@ -62,6 +62,14 @@ traces. Existing OTLP `trace_id` and `span_id` fields are unchanged. The v1 case
 a new graph product. Its owned contract is `agent-context.schema.json`.
 Original cases that omit the new optional fields keep their load identity.
 
+Stage 1 replaces the disposable agent projection with v2: one target anchor,
+supplemental ranked paths, one reason/location per path, shared pinned source
+fetch instructions and compact evidence states. The gateway budgets after
+freshness/fallback attachment; MCP supplies its final frame serializer to that
+same pass. Generic presentation limits no longer cap agent files. Complete
+tables and diagnostics remain in the case, including the candidate inventory
+whose continuation starts at zero. See [evaluation/STAGE1.md](evaluation/STAGE1.md).
+
 Run these checks on a Rust-enabled host:
 
 ```sh

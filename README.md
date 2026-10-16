@@ -27,7 +27,7 @@ readiness, pending captures and the relationship to live Git state stay visible.
 | Operation | Purpose |
 | --- | --- |
 | `brief` | A presentation of a retained task case: ranked files by role, relationships, history, sessions and typed gaps |
-| `agent_context` | A budgeted harness manifest over the same case, with ranked source fetches, spans, reasons and evidence continuations |
+| `agent_context` | A compact routing manifest over the same case, with a separate target anchor, ranked supplemental files and shared pinned fetch instructions |
 | `search` | One lexical ranking over retained text, Git history and optional session requests; eligible assertion annotations keep their own authority |
 | `occurrences` | Exhaustive retained literal matches, including overlaps, in path/byte order |
 | `neighbors` | Shared incoming/outgoing adjacency for source, test, configuration, data, deployment and runtime relationships |
@@ -77,6 +77,38 @@ briefcase --json brief "debug the retry handler" --target src/retry.rs \
 briefcase --json call agent_context --args \
   '{"task":"review storage migration","target":"src/store.rs","max_files":32,"max_bytes":8000}'
 ```
+
+Agent manifests use projection schema version **2.0**. `anchor` describes an
+explicit target; when it resolves to one selected file, that file is delivered
+there and `files` contains only supplemental paths in case-rank order. Directory,
+ambiguous and inferred anchors do not remove paths from the supplemental list.
+`max_files` still bounds the retained case. Delivery fills `max_bytes` without a
+separate file-count ceiling; the legacy `limit` argument is accepted but ignored
+by `agent_context`. The default manifest budget is 8,000 bytes.
+
+Each file has one short `why`, a case-local `ref`, an optional `source_offset`
+(default 0) and at most one compact source span. To read it, copy
+`fetch_source.arguments`, add that file's `ref` and `source_offset`, then call
+`fetch_source.operation` (`explain`). The anchor uses the same template. Per-file
+`fetch` objects and structured reason arrays from projection v1 are replaced by
+this shared template and the primary reason string. Retained cases and briefs
+keep their existing contracts and identities.
+
+`sections` lists all nonempty evidence tables. Copy `fetch_evidence.arguments`,
+set `section` to one of those keys, then call `page` and follow its cursor.
+`continue_with` restarts the pinned candidate inventory at offset 0 so removing
+an anchor or omitting selected files cannot skip candidates. Full coverage,
+retrieval diagnostics and readiness remain available through `explain` with
+`ref: "/coverage"` or `ref: "/readiness"` and the same `case_id` as `report_id`.
+The three-gap preview and `coverage.delivery` describe presentation, while
+`coverage.completeness` always preserves the retained case's evidence states.
+
+The compact advisory `freshness` includes projection `state`, `view_count`,
+source capture age/state, `pending_or_interrupted`, `git_state`, `dirty_state`,
+`dirty_overlap_count` and a Boolean `fallback`. A consistent projection does not
+establish equality with live files. Unknown ages, unavailable checks and bounded
+dirty-path diagnostics remain unknown; dirty overlap counts only the delivered
+anchor and supplemental paths. Ordinary reads retain the full freshness envelope.
 
 For controlled evaluation, `exclude_facets` accepts any of `structure`,
 `dependency`, `tests`, `domain`, `execution`, `data`, `runtime`, `history`,
@@ -176,8 +208,11 @@ active configuration, process identity or execution.
 
 Pi and Claude prompt hooks request `agent_context`, with a default 8,000-byte
 context budget including framing text. Set `BRIEFCASE_CONTEXT_MAX_BYTES` to an
-integer from 4,096 to 60,000 to change it. Ranked files yield to the byte budget,
-and omitted evidence stays addressable through pinned `page`/`explain` calls.
+integer from 4,096 to 60,000 to change it. The final gateway budget includes
+freshness and byte accounting; MCP supplies its complete JSON-RPC serializer,
+including both result representations. Diagnostics and span detail yield before
+ranked supplemental files. Omitted evidence stays addressable through pinned
+`page`/`explain` calls.
 Pi also stores a post-task advisory coverage report.
 Its report keeps initial/review case IDs and completeness dimension changes.
 Claude's completion hook also compares full case slices, opened/closed gaps

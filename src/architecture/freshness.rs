@@ -336,9 +336,62 @@ pub(crate) fn filter_returned_hits(result: &mut Value) {
         json!("Returned hit paths only; paths beyond the live diagnostic bound remain unknown.");
 }
 
+/// Prompt-sized advisory summary across every pinned view. Full diagnostics
+/// stay on ordinary reads; consistency describes projections, never live bytes.
+/// Recompute overlap against the final packet, not the pre-budget file list.
+pub(crate) fn agent_summary(freshness: &Value, context: &Value) -> Value {
+    let pins = rows(freshness, "views");
+    let state = if pins.iter().any(|pin| pin["invalidated"] == true) {
+        "invalidated"
+    } else if freshness["stale"] == true || pins.iter().any(|pin| pin["stale"] == true) {
+        "stale"
+    } else if !pins.is_empty() && pins.iter().all(|pin| pin["projection_state"] == "consistent") {
+        "consistent"
+    } else { "unknown" };
+    let dirty = &freshness["dirty_hit_paths"];
+    let mut hits = BTreeSet::new();
+    hit_paths(context, &mut hits);
+    let overlap = if dirty["state"] == "checked" && dirty["omitted_path_count"].as_u64() == Some(0) {
+        json!(rows(dirty, "paths").iter().filter(|path| path.as_str().is_some_and(|path| hits.contains(path))).count())
+    } else { Value::Null };
+    let dirty_state = match dirty["root_alignment"].as_str() {
+        Some("mismatch") => "root_mismatch",
+        Some("unknown") => "root_unknown",
+        _ => dirty["state"].as_str().unwrap_or("unknown"),
+    };
+    json!({"state":state,"view_count":pins.len(),"age_seconds":freshness["age_seconds"],
+        "capture_state":freshness["capture_state"],"pending_or_interrupted":freshness["pending_or_interrupted"],
+        "git_state":freshness["git"]["state"].as_str().unwrap_or("not_requested"),
+        "dirty_state":dirty_state,"dirty_overlap_count":overlap,
+        "fallback":freshness["fallback"]["used"].as_bool().unwrap_or(false)})
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn agent_summary_preserves_secondary_view_failures_and_final_dirty_overlap() {
+        let mut full=json!({"views":[{"stale":false,"projection_state":"consistent"},
+                {"stale":true,"projection_state":"stale_or_invalidated"}],
+            "age_seconds":null,"capture_state":"partial","pending_or_interrupted":true,
+            "git":{"state":"behind"},"fallback":{"used":true},
+            "dirty_hit_paths":{"state":"checked","root_alignment":"matches","omitted_path_count":0,
+                "paths":["src/anchor.rs","src/supplement.rs","src/omitted.rs"]}});
+        let context=json!({"anchor":{"path":"src/anchor.rs"},"files":[{"path":"src/supplement.rs"}]});
+        let summary=agent_summary(&full,&context);
+        assert_eq!(summary["state"],"stale");assert_eq!(summary["view_count"],2);
+        assert_eq!(summary["dirty_overlap_count"],2);assert_eq!(summary["git_state"],"behind");
+        assert_eq!(summary["capture_state"],"partial");assert!(summary["age_seconds"].is_null());
+        assert_eq!(summary["pending_or_interrupted"],true);assert_eq!(summary["fallback"],true);
+        full["views"][1]["invalidated"]=json!(true);
+        assert_eq!(agent_summary(&full,&context)["state"],"invalidated");
+        full["dirty_hit_paths"]["omitted_path_count"]=json!(3);
+        assert!(agent_summary(&full,&context)["dirty_overlap_count"].is_null());
+        full["dirty_hit_paths"]=json!({"state":"unknown","root_alignment":"mismatch"});
+        assert_eq!(agent_summary(&full,&context)["dirty_state"],"root_mismatch");
+        assert!(agent_summary(&full,&context)["dirty_overlap_count"].is_null());
+    }
+
     #[test]
     fn git_paths_preserve_spaces_unicode_renames_and_untracked_entries() {
         let paths =
