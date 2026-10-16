@@ -56,8 +56,8 @@ pub fn page(l:&Ledger,a:&Value) -> Result<Value> {
     }
     let limit=a["limit"].as_u64().unwrap_or(100) as usize;
     require((1..=1000).contains(&limit),"PAGINATION","Limit must be 1..1000")?;
-    let doc=l.report(id)?;
-    let sections=if doc["kind"]=="brief" {task::report_sections(&doc)}else{report_sections(&doc)};
+    let doc=load_report(l,id)?;
+    let sections=match doc["kind"].as_str() {Some("case")=>task::case::sections(&doc),Some("brief")=>task::report_sections(&doc),_=>report_sections(&doc)};
     if section.is_empty() {
         section=if doc["enumerator"].is_string()||doc["items"].is_array() {"/items".into()}
             else if doc["response"].is_object(){"/response/results".into()}
@@ -91,7 +91,7 @@ pub fn explain(l:&Ledger,a:&Value) -> Result<Value> {
             a["offset"].as_u64().unwrap_or(0) as usize,a["source_offset"].as_u64().unwrap_or(0) as usize);
     }
     let report=a["report_id"].as_str();
-    let doc=report.map(|id|l.report(id)).transpose()?;
+    let doc=report.map(|id|load_report(l,id)).transpose()?;
     let index=a["index_id"].as_str().or_else(||doc.as_ref().and_then(|d|d["index_id"].as_str()));
     if reference.starts_with("task-link:") {
         return task::explain(l,&json!({"index_id":index.ok_or("ARGUMENTS: Report has no relationship index")?,
@@ -139,4 +139,9 @@ fn report_sections(doc:&Value)->Vec<String>{
         }}
     }
     let mut sections=vec![];visit(doc,"",&mut sections);sections
+}
+
+fn load_report(l:&Ledger,id:&str) -> Result<Value> {
+    if id.starts_with("task-case:") {Ok(serde_json::to_value(task::case::load(l,id)?)?)}
+    else {l.report(id)}
 }

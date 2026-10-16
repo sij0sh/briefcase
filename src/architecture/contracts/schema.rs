@@ -7,8 +7,10 @@ pub fn schema(value: &Value, name: &str, definition: Option<&str>) -> Result<()>
     static SESSION: OnceLock<Value> = OnceLock::new();
     static DECLARATION: OnceLock<Value> = OnceLock::new();
     static SESSION_ACTIVITY: OnceLock<Value> = OnceLock::new();
+    static TASK_CASE: OnceLock<Value> = OnceLock::new();
     static TASK_BRIEF: OnceLock<Value> = OnceLock::new();
     let (cell, raw) = match name {
+        "task-case" => (&TASK_CASE, include_str!("../../../contracts/v1/task-case.schema.json")),
         "task-brief" => (&TASK_BRIEF, include_str!("../../../contracts/v1/task-brief.schema.json")),
         "knowledge" => (&KNOWLEDGE, include_str!("../../../contracts/v1/knowledge.schema.json")),
         "batch" => (&BATCH, include_str!("../../../contracts/v1/batch.schema.json")),

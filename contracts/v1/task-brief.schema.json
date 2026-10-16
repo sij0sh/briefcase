@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "urn:briefcase:task-brief:1.0",
-  "title": "Retained task brief v1",
+  "title": "Task brief v1, projected from a retained case",
   "type": "object",
   "required": [
     "schema_version",
@@ -251,7 +251,10 @@
       "type": "object"
     },
     "continue_with": {
-      "type": "object"
+      "type": [
+        "object",
+        "null"
+      ]
     },
     "freshness": {
       "type": "object"
@@ -267,6 +270,12 @@
     },
     "report_id": {
       "type": "string"
+    },
+    "case_id": {
+      "type": "string"
+    },
+    "outcome_scope": {
+      "const": "retained_evidence"
     }
   },
   "additionalProperties": false,
@@ -310,6 +319,26 @@
         },
         "text_is_untrusted_repository_content": {
           "type": "boolean"
+        },
+        "reached_by": {
+          "type": "object",
+          "required": [
+            "depth",
+            "via_link"
+          ],
+          "properties": {
+            "depth": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "via_link": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "additionalProperties": false
         }
       },
       "additionalProperties": false

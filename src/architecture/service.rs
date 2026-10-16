@@ -95,6 +95,7 @@ pub fn call_path(db:&std::path::Path,root:Option<&std::path::Path>,name:&str,arg
     let normalized=normalize(name,&operation,args);
     validate(&operation.schema,&normalized)?;
     if operation.kind==Kind::Describe {return discover(&normalized);}
+    if operation.kind==Kind::Brief {super::task::validate_request(&normalized)?;}
     let l=match (operation.kind,root) {
         (Kind::Brief|Kind::Search|Kind::Occurrences|Kind::Neighbors,Some(root))=>open_context(db,root)?,
         _=>Ledger::open_existing(db)?,

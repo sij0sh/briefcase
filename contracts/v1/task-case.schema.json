@@ -1,0 +1,539 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:briefcase:task-case:1.0",
+  "title": "Retained task case v1",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "kind",
+    "method",
+    "outcome",
+    "task",
+    "duty",
+    "view_id",
+    "index_id",
+    "id",
+    "pinned_views",
+    "anchors",
+    "slice",
+    "neighborhood",
+    "history",
+    "sessions",
+    "errors",
+    "joins",
+    "cochange",
+    "external_touchpoints",
+    "lexical_candidates",
+    "not_covered",
+    "coverage",
+    "readiness",
+    "provenance",
+    "request",
+    "outcome_scope"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "1.0"
+    },
+    "kind": {
+      "const": "case"
+    },
+    "method": {
+      "const": "task-context-v1"
+    },
+    "outcome": {
+      "enum": [
+        "partial",
+        "complete",
+        "unknown"
+      ]
+    },
+    "task": {
+      "type": "string"
+    },
+    "duty": {
+      "type": "string",
+      "description": "Validated by the shared task::Duty type and generated operation schema."
+    },
+    "view_id": {
+      "type": "string"
+    },
+    "index_id": {
+      "type": "string"
+    },
+    "id": {
+      "type": "string"
+    },
+    "pinned_views": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "anchors": {
+      "type": "object",
+      "required": [
+        "status",
+        "candidates",
+        "paths"
+      ],
+      "properties": {
+        "status": {
+          "enum": [
+            "resolved",
+            "ambiguous",
+            "unresolved"
+          ]
+        },
+        "candidates": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "paths": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "slice": {
+      "type": "object",
+      "required": [
+        "impl",
+        "test",
+        "config",
+        "script",
+        "build",
+        "install",
+        "doc",
+        "adr",
+        "plan",
+        "fixture",
+        "generated"
+      ],
+      "properties": {
+        "impl": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Artifact"
+          }
+        },
+        "test": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Artifact"
+          }
+        },
+        "config": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Artifact"
+          }
+        },
+        "script": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Artifact"
+          }
+        },
+        "build": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Artifact"
+          }
+        },
+        "install": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Artifact"
+          }
+        },
+        "doc": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Artifact"
+          }
+        },
+        "adr": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Artifact"
+          }
+        },
+        "plan": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Artifact"
+          }
+        },
+        "fixture": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Artifact"
+          }
+        },
+        "generated": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Artifact"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "neighborhood": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "history": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "sessions": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "errors": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "joins": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "cochange": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "external_touchpoints": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "lexical_candidates": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "not_covered": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/Gap"
+      }
+    },
+    "coverage": {
+      "type": "object",
+      "required": [
+        "completeness"
+      ],
+      "properties": {
+        "completeness": {
+          "$ref": "#/$defs/Completeness"
+        }
+      },
+      "additionalProperties": true
+    },
+    "readiness": {
+      "type": "object"
+    },
+    "provenance": {
+      "type": "object"
+    },
+    "outcome_scope": {
+      "const": "retained_evidence"
+    },
+    "request": {
+      "type": "object",
+      "required": [
+        "task",
+        "duty",
+        "target",
+        "depth",
+        "view",
+        "scope"
+      ],
+      "properties": {
+        "task": {
+          "type": "string"
+        },
+        "duty": {
+          "enum": [
+            "debug",
+            "refactor",
+            "impact",
+            "extend",
+            "continue",
+            "explain",
+            "history",
+            "run",
+            "review",
+            "test"
+          ]
+        },
+        "target": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "depth": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 3
+        },
+        "view": {
+          "type": "string"
+        },
+        "scope": {
+          "type": "object",
+          "required": [
+            "deployment_view",
+            "runtime_environment",
+            "runtime_from",
+            "runtime_to"
+          ],
+          "properties": {
+            "deployment_view": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "runtime_environment": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "runtime_from": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "runtime_to": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "Artifact": {
+      "type": "object",
+      "required": [
+        "path",
+        "artifact_id",
+        "digest",
+        "role",
+        "language",
+        "bytes",
+        "selection",
+        "reached_by"
+      ],
+      "properties": {
+        "path": {
+          "type": "string"
+        },
+        "artifact_id": {
+          "type": "string"
+        },
+        "digest": {
+          "type": "string"
+        },
+        "role": {
+          "type": "string"
+        },
+        "language": {
+          "type": "string"
+        },
+        "bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "selection": {
+          "enum": [
+            "resolved_anchor",
+            "evidence_neighborhood"
+          ]
+        },
+        "text_is_untrusted_repository_content": {
+          "type": "boolean"
+        },
+        "reached_by": {
+          "type": "object",
+          "required": [
+            "depth",
+            "via_link"
+          ],
+          "properties": {
+            "depth": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "via_link": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "Completeness": {
+      "type": "object",
+      "required": [
+        "anchors",
+        "slice",
+        "neighborhood",
+        "history",
+        "sessions",
+        "gap_inventory",
+        "verification"
+      ],
+      "properties": {
+        "anchors": {
+          "enum": [
+            "established",
+            "partial",
+            "unknown"
+          ]
+        },
+        "slice": {
+          "enum": [
+            "established",
+            "partial",
+            "unknown"
+          ]
+        },
+        "neighborhood": {
+          "enum": [
+            "established",
+            "partial"
+          ]
+        },
+        "history": {
+          "enum": [
+            "established",
+            "partial",
+            "unknown",
+            "not_required"
+          ]
+        },
+        "sessions": {
+          "enum": [
+            "established",
+            "partial",
+            "unknown",
+            "not_required"
+          ]
+        },
+        "gap_inventory": {
+          "enum": [
+            "established",
+            "partial"
+          ]
+        },
+        "verification": {
+          "enum": [
+            "unknown",
+            "not_required"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "Gap": {
+      "type": "object",
+      "required": [
+        "area",
+        "dimension",
+        "reason"
+      ],
+      "properties": {
+        "area": {
+          "enum": [
+            "anchors",
+            "capture",
+            "capture_path",
+            "capture_exclusion",
+            "capture_diagnostic",
+            "relationship_index",
+            "relationship_propagation",
+            "semantic_analysis",
+            "semantic_binding",
+            "static_calls",
+            "language_profile",
+            "producer_boundary",
+            "profile_snapshot",
+            "deployment_source",
+            "deployment_publications",
+            "runtime_identity",
+            "runtime_selection",
+            "runtime_publications",
+            "runtime_observation_scope",
+            "history",
+            "sessions",
+            "session_commit_join",
+            "producer_boundary_scope",
+            "executed_test_coverage",
+            "plan_outcomes",
+            "external_installations",
+            "artifact_role:impl",
+            "artifact_role:test",
+            "artifact_role:config",
+            "artifact_role:script",
+            "artifact_role:build",
+            "artifact_role:install",
+            "artifact_role:doc",
+            "artifact_role:adr",
+            "artifact_role:plan",
+            "artifact_role:fixture",
+            "artifact_role:generated"
+          ]
+        },
+        "dimension": {
+          "enum": [
+            "anchors",
+            "slice",
+            "neighborhood",
+            "history",
+            "sessions",
+            "gap_inventory",
+            "verification"
+          ]
+        },
+        "reason": {}
+      },
+      "additionalProperties": true
+    }
+  }
+}

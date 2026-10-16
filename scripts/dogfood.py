@@ -31,14 +31,14 @@ class Briefcase(BaseTrace):
         super().__init__(binary, db, cwd=ROOT, timeout=3600)
 
 
-def answer(trace, q):
+def answer(client, q):
     try:
-        result = trace.call(q['operation'], q['arguments'])
+        result = client.call(q['operation'], q['arguments'])
     except RuntimeError as e:
         return {'id': q['id'], 'question': q['question'], 'status': 'error', 'error': str(e)[:400]}
     # Facts and budgets cover the complete response, not just payload.text.
     text = json.dumps(result, separators=(',', ':'), ensure_ascii=False)
-    raw = getattr(trace, 'last_stdout', None)
+    raw = getattr(client, 'last_stdout', None)
     answer_bytes = len(raw) if isinstance(raw, bytes) and raw else json_bytes(result)
     caps = [q['expect'].get('max_answer_bytes'), q.get('arguments', {}).get('max_bytes')]
     cap = min((n for n in caps if isinstance(n, int)), default=None)
@@ -73,22 +73,22 @@ def main():
         db = work / 'dogfood.db'
         for stale in work.glob('dogfood.db*'):
             stale.unlink()
-        trace = Briefcase(binary, db)
-        captured = trace.run('capture-text', str(ROOT))
+        client = Briefcase(binary, db)
+        captured = client.run('capture-text', str(ROOT))
         for harness in harnesses:
-            trace.run('sessions', 'import-local', '--harness', harness, '--repository-root', str(ROOT))
+            client.run('sessions', 'import-local', '--harness', harness, '--repository-root', str(ROOT))
         args.out.mkdir(parents=True, exist_ok=True)
         questions = json.loads(args.questions.read_text()) if args.questions else QUESTIONS
         if isinstance(questions, dict):
             questions = questions['questions']
         results = []
         for q in questions:
-            result = answer(trace, q)
+            result = answer(client, q)
             results.append(result)
         for operation, arguments in [('brief',QUESTIONS[0]['arguments']),('search',QUESTIONS[1]['arguments']),('status',QUESTIONS[2]['arguments'])]:
-            (args.out / f'{operation}.json').write_text(json.dumps(trace.call(operation, arguments), indent=2, ensure_ascii=False) + '\n')
+            (args.out / f'{operation}.json').write_text(json.dumps(client.call(operation, arguments), indent=2, ensure_ascii=False) + '\n')
         if harnesses:
-            (args.out / 'session-activity.json').write_text(json.dumps(trace.call('session_activity', {}), indent=2) + '\n')
+            (args.out / 'session-activity.json').write_text(json.dumps(client.call('session_activity', {}), indent=2) + '\n')
     passed = sum(r['status'] == 'pass' for r in results)
     rates = {'passed': passed, 'failed': sum(r['status'] == 'fail' for r in results),
              'errors': sum(r['status'] == 'error' for r in results),

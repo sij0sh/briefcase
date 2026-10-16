@@ -2,14 +2,17 @@ use super::*;
 use crate::architecture::retained_source;
 use regex::Regex;
 
+// Snapshot decoding and record definitions affect the derived index too.
+const INDEX_SOURCES:&[&[u8]]=&[include_bytes!("mod.rs"),include_bytes!("evidence.rs"),
+    include_bytes!("index.rs"),include_bytes!("producers.rs"),include_bytes!("../source.rs"),include_bytes!("../retained_source.rs")];
+fn implementation_digest(sources:&[&[u8]]) -> String {identity::bytes_digest(&sources.concat())}
+
 fn cache_key(s: &Snapshot) -> Result<String> {
     identity::id("task-index", &json!({"method":METHOD,"view":s.view.id,
         "profile_views":s.profiles.iter().chain(s.evidence_views.iter()).map(|v|v.id.clone()).collect::<Vec<_>>(),"profile_boundaries":s.profile_boundaries,
         "producer_links":s.producer_links,"bundle":identity::bytes_digest(&serde_json::to_vec(&s.view.bundle)?),
         "retraction_epoch":s.view.retraction_watermark,
-        "implementation":identity::bytes_digest(&[include_bytes!("mod.rs").as_slice(),
-            include_bytes!("index.rs").as_slice(),include_bytes!("producers.rs").as_slice(),include_bytes!("../source.rs").as_slice(),
-            include_bytes!("../retained_source.rs").as_slice()].concat())}))
+        "implementation":implementation_digest(INDEX_SOURCES)}))
 }
 
 pub(super) fn load(l: &Ledger, s: &Snapshot) -> Result<Index> {
@@ -119,13 +122,14 @@ fn build(s: &Snapshot, id: String) -> Result<Index> {
     let qualified = Regex::new(r"[A-Za-z_][A-Za-z0-9_]*(?:::[A-Za-z_][A-Za-z0-9_]*)+")?;
     for (path,content) in &s.contents {
         for found in path_token.find_iter(content) {
-            let token = found.as_str().replace('\\',"/");
+            let literal=found.as_str().trim_end_matches(['.', ',', ';', ':']);
+            let token = literal.replace('\\',"/");
             let relative = normalize_relative(path,&token);
             let target = if s.files.contains_key(&token) {Some(token)} else {relative.filter(|p|s.files.contains_key(p))};
             let Some(target) = target.filter(|t|t != path) else {continue};
             let predicate = if s.files[path].role == "test" && s.files[&target].role == "impl" {"TESTS"} else {"REFERENCES_ARTIFACT"};
             let link = Link::new(predicate,path,&target,"derived","exact retained path reference; not execution or implementation proof",
-                vec![],vec![s.witness(path,found.start(),found.end())],BTreeSet::from([path.clone()]),BTreeSet::from([target.clone()]))?;
+                vec![],vec![s.witness(path,found.start(),found.start()+literal.len())],BTreeSet::from([path.clone()]),BTreeSet::from([target.clone()]))?;
             insert_link(&mut links,link,&mut omitted);
         }
         if s.files[path].role == "test" {
@@ -292,4 +296,18 @@ fn config_links(s: &Snapshot, links: &mut BTreeMap<String,Link>, omitted: &mut u
 fn insert_link(links:&mut BTreeMap<String,Link>,link:Link,omitted:&mut usize) {
     if links.len()<100000 || links.contains_key(&link.id) {links.insert(link.id.clone(),link);}
     else {*omitted+=1;}
+}
+
+#[cfg(test)]
+mod cache_tests {
+    use super::*;
+    #[test]
+    fn every_index_source_participates_in_cache_invalidation() {
+        let original=implementation_digest(INDEX_SOURCES);
+        for i in 0..INDEX_SOURCES.len() {
+            let mut changed=INDEX_SOURCES[i].to_vec();changed.push(b' ');
+            let mut sources=INDEX_SOURCES.to_vec();sources[i]=&changed;
+            assert_ne!(original,implementation_digest(&sources),"source {i}");
+        }
+    }
 }

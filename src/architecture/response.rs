@@ -365,6 +365,8 @@ fn notice(
         "pinned_views",
         "view_id",
         "report_id",
+        "case_id",
+        "outcome_scope",
         "views",
         "freshness",
         "budget_floor",
@@ -387,6 +389,7 @@ fn notice(
             result["continue_with"]=value["continue_with"].clone();result["continue_with"]["arguments"]["offset"]=json!(offset);
         }
     } else if value["kind"] == "brief" {
+        if let Some(outcome)=value.get("outcome") {result["outcome"]=outcome.clone();}
         result["report_id"]=value["id"].clone();
         result["continue_with"]=json!({"operation":"page","arguments":{"report_id":value["id"],"section":"/slice/impl","offset":0}});
     }
@@ -438,7 +441,7 @@ pub(crate) fn bounded_with(
     super::freshness::filter_returned_hits(&mut value);
     let original_items = rows(&value, "items").to_vec();
     let original = measure(&mut value, max_bytes, size_of)?;
-    while measure(&mut value,max_bytes,size_of)? > max_bytes && super::task::trim_packet(&mut value) {}
+    while measure(&mut value,max_bytes,size_of)? > max_bytes && super::task::brief::trim(&mut value) {}
     if measure(&mut value,max_bytes,size_of)? <= max_bytes {return Ok(value);}
     if original <= max_bytes {
         return Ok(value);

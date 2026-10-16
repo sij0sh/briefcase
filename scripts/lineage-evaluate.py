@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Score historical-lineage quality against labeled before/after fixtures.
 
-For each active case: scan both snapshots, prepare correspondence, query
+For each active scenario: scan both snapshots, prepare correspondence, query
 exact/ambiguous modes (no provider), run classify-history-lineage with the
 given provider, then query likely/combined modes. Deterministic exactness
 and provider-backed judgments are scored separately per the gold verdicts.
@@ -52,7 +52,7 @@ def main():
               'scoring_digest': digest(Path(__file__).read_bytes()),
               'provider_digest': digest((run / 'provider.json').read_bytes()),
               'artifact_directory': str(run), 'bridge_retirement_authorized': False,
-              'cases': [], 'skipped_cases': []}
+              'scenarios': [], 'skipped_scenarios': []}
     env = dict(os.environ, XDG_STATE_HOME=str(run / 'state'))
 
     def command(directory, name, argv, timeout=300):
@@ -68,30 +68,30 @@ def main():
         return value, elapsed, ''
 
     try:
-        for case in gold['cases']:
-            if case.get('status', 'active') != 'active':
-                report['skipped_cases'].append({'id': case['id'], 'reason': 'not active'})
+        for scenario in gold.get('scenarios', gold.get('cases', [])):
+            if scenario.get('status', 'active') != 'active':
+                report['skipped_scenarios'].append({'id': scenario['id'], 'reason': 'not active'})
                 continue
-            entry = {'id': case['id'], 'kind': case['kind'], 'verdict': case['verdict'],
+            entry = {'id': scenario['id'], 'kind': scenario['kind'], 'verdict': scenario['verdict'],
                      'provider_errors': 0, 'usage': None}
-            directory = run / case['id']
+            directory = run / scenario['id']
             directory.mkdir()
-            fixture = (ROOT / case['fixture']).resolve()
+            fixture = (ROOT / scenario['fixture']).resolve()
             # Labels are bound to fixture bytes.
-            for labeled in case['files']:
+            for labeled in scenario['files']:
                 actual = digest((ROOT / labeled['path']).read_bytes())
                 if actual != labeled['content_digest']:
-                    raise ValueError(f"{case['id']}: fixture drift for {labeled['path']}")
+                    raise ValueError(f"{scenario['id']}: fixture drift for {labeled['path']}")
             database = directory / 'architecture.db'
             architecture = [binary, '--json', '--db', database]
             before, _, err = command(directory, 'scan-before',
-                [*architecture, 'scan', fixture / 'before', '--label', 'base', '--repository-id', case['id'], '--syntax-only'])
+                [*architecture, 'scan', fixture / 'before', '--label', 'base', '--repository-id', scenario['id'], '--syntax-only'])
             changed, _, err2 = command(directory, 'scan-changed',
-                [*architecture, 'scan', fixture / 'changed', '--label', 'changed', '--repository-id', case['id'], '--syntax-only'])
+                [*architecture, 'scan', fixture / 'changed', '--label', 'changed', '--repository-id', scenario['id'], '--syntax-only'])
             if before is None or changed is None:
                 entry['provider_errors'] += 1
                 entry['scan_error'] = (err or err2)[:500]
-                report['cases'].append(entry)
+                report['scenarios'].append(entry)
                 continue
             base_args = ['--base', 'base', '--view', 'changed']
             exact, _, _ = command(directory, 'lineage-exact', [*architecture, 'history-lineage', *base_args, '--mode', 'exact'])
@@ -111,7 +111,7 @@ def main():
                 else:
                     entry['provider_errors'] += 1
                     entry['classify_error'] = err[:500]
-                    report['cases'].append(entry)
+                    report['scenarios'].append(entry)
                     continue
             else:
                 entry['abstained'] = classified['abstained']
@@ -122,8 +122,8 @@ def main():
             combined, _, _ = command(directory, 'lineage-combined', [*architecture, 'history-lineage', *base_args, '--mode', 'combined'])
             entry['likely_findings'] = finding_pairs(likely) if likely else []
             entry['combined_classes'] = sorted({d.get('certainty_class') for d in combined['details'].values()}) if combined else []
-            score(entry, case)
-            report['cases'].append(entry)
+            score(entry, scenario)
+            report['scenarios'].append(entry)
         summarize(report)
         report['status'] = 'measured'
         report['finished_unix'] = time.time()
@@ -163,9 +163,9 @@ def parse_usage(stderr_path):
     return None
 
 
-def score(entry, case):
-    verdict = case['verdict']
-    expected = case['expected']
+def score(entry, scenario):
+    verdict = scenario['verdict']
+    expected = scenario['expected']
     exact = [(f, t) for (f, t, p, c) in entry['exact_findings'] if p == 'RENAMED_FROM']
     likely = [(f, t) for (f, t, p, c) in entry['likely_findings'] if p == 'LIKELY_SAME_ENTITY']
     entry['exact_false_positive'] = False
@@ -196,11 +196,11 @@ def score(entry, case):
 
 
 def summarize(report):
-    measured = [c for c in report['cases'] if 'exact_false_positive' in c]
+    measured = [c for c in report['scenarios'] if 'exact_false_positive' in c]
     exact_fp = sum(c['exact_false_positive'] for c in measured)
     exact_required = [c for c in measured if c['verdict'] == 'exact_required']
     acceptable = [c for c in measured if c['verdict'] == 'claim_acceptable']
-    fp_cases = [c for c in measured if c['verdict'] in ('claim_false_positive', 'abstention_required')]
+    fp_scenarios = [c for c in measured if c['verdict'] in ('claim_false_positive', 'abstention_required')]
     tp = sum(c['likely_true_positive'] for c in acceptable)
     fp = sum(c['likely_false_positive'] for c in measured)
     abstentions = sum(1 for c in measured if c.get('abstained'))
@@ -210,7 +210,7 @@ def summarize(report):
         usage = (c.get('usage') or {}).get('provider_usage', {})
         total_tokens += usage.get('total_tokens', 0) or 0
     report['summary'] = {
-        'measured_cases': len(measured),
+        'measured_scenarios': len(measured),
         'exact_required_met': sum(c.get('exact_required_met', False) for c in exact_required),
         'exact_required_total': len(exact_required),
         'exact_false_positives': exact_fp,
@@ -220,9 +220,9 @@ def summarize(report):
         'likely_recall': tp / len(acceptable) if acceptable else None,
         'abstention_rate': abstentions / len(measured) if measured else None,
         'appropriate_abstentions': sum(c['appropriate_abstention'] for c in measured),
-        'ambiguity_preserved_cases': sum(c['ambiguity_preserved'] for c in measured),
+        'ambiguity_preserved_scenarios': sum(c['ambiguity_preserved'] for c in measured),
         'split_merge_binary_claim_rate': sum(c['likely_false_positive'] for c in split_merge) / len(split_merge) if split_merge else None,
-        'provider_errors': sum(c['provider_errors'] for c in report['cases']),
+        'provider_errors': sum(c['provider_errors'] for c in report['scenarios']),
         'mean_classify_seconds': sum(c.get('classify_seconds', 0) for c in measured) / len(measured) if measured else None,
         'mean_output_bytes': sum(c.get('output_bytes', 0) for c in measured) / len(measured) if measured else None,
         'total_tokens': total_tokens,

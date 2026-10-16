@@ -8,7 +8,8 @@
 | `predicate-registry.json` | Active/reserved vocabulary, subject/object kinds, classes and scope |
 | `identity-vectors.json` | Independent canonical JSON literals and expected SHA-256 values |
 | `architecture-declaration.schema.json` | The `scan --policy` authority artifact: domain assignments, report-only rules, the declared application and the feature/workflow catalog (ADR-0028, ADR-0029) |
-| `task-brief.schema.json` | Retained duty-based context packet, role slices, relationships and explicit gaps |
+| `task-case.schema.json` | Retained task authority, request, role slices, relationships, typed gaps and completeness |
+| `task-brief.schema.json` | V1 presentation of a retained case, with case ID, delivery counts and continuation |
 | `session-activity.schema.json` | Derived cross-session activity per repository path in a time window, with net change and retained commits kept separate (ADR-0030; not a knowledge record) |
 
 Optional `fixture_label` is review metadata, not a production identity input. Readable fixture IDs are aliases used in isolated examples. Production constructors must implement the semantic identity keys in the canonical constructors under `src/architecture/identity.rs`.

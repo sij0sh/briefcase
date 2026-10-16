@@ -1,7 +1,8 @@
 # Briefcase
 
-Briefcase gives coding agents retained repository context with explicit source,
-coverage and provenance. Start a task with `brief`; follow relationships through
+Briefcase traces retained evidence from a codebase to build a case around a
+task, delivered as a brief. Source, coverage and provenance stay explicit.
+Start a task with `brief`; follow relationships through
 `neighbors`, locate passages with `search`, and enumerate literal matches with
 `occurrences`. `page` and `explain` expand the retained results.
 
@@ -25,7 +26,7 @@ readiness, pending captures and the relationship to live Git state stay visible.
 
 | Operation | Purpose |
 | --- | --- |
-| `brief` | One duty-based packet: anchors, files by role, relationships, history, sessions and explicit gaps |
+| `brief` | A presentation of a retained task case: anchors, files by role, relationships, history, sessions and typed gaps |
 | `search` | One lexical ranking over retained text, Git history and optional session requests; eligible assertion annotations keep their own authority |
 | `occurrences` | Exhaustive retained literal matches, including overlaps, in path/byte order |
 | `neighbors` | Shared incoming/outgoing adjacency for source, test, configuration, data, deployment and runtime relationships |
@@ -53,12 +54,30 @@ request. Follow `continue_with`, or select a section explicitly:
 
 ```sh
 briefcase --project-root /path/to/repo --json call page --args \
-  '{"report_id":"<brief report>","section":"/slice/test","offset":0,"limit":100}'
+  '{"report_id":"<task-case ID>","section":"/slice/test","offset":0,"limit":100}'
 briefcase --project-root /path/to/repo --json call explain --args \
   '{"report_id":"<search report>","ref":"/items/0"}'
 briefcase --project-root /path/to/repo --json call explain --args \
   '{"report_id":"<search report>","ref":"/items/0/evidence_matches/0"}'
 ```
+
+For a brief, `id`, `report_id` and `case_id` identify the same retained
+`task-case:` artifact. Changing `limit` or `max_bytes` changes delivery without
+changing that case. The case retains the full tables; the brief itself is not
+stored. Older `task-brief:` reports remain pageable and explainable.
+
+`coverage.completeness` records `anchors`, `slice`, `neighborhood`, `history`,
+`sessions`, `gap_inventory` and `verification`. Each is `established`, `partial`,
+`unknown` or `not_required`. `outcome: complete` means complete for the retained
+evidence scope, stated by `outcome_scope: retained_evidence`. It does not
+establish runtime truth or task completion. Duties requiring executed tests
+remain partial under the current retained evidence model. `coverage.delivery`
+only counts delivered and omitted rows. Gaps are ordered by dimension name
+and area; their reasons retain producer scope.
+
+Slice rows include `reached_by: {depth, via_link}`. Anchors have depth 0 and no
+link. Other rows name a retained relationship that can be inspected with
+`explain` using the brief's `report_id` and that link as `ref`.
 
 Search is bounded to 1,000 lexical candidates and 1 MiB of excerpts before
 path/class filtering. `component` filters an exact retained file or directory
@@ -103,6 +122,9 @@ means observed byte equality. It does not establish installation causality,
 active configuration, process identity or execution.
 
 Pi adds bounded prompt context and stores a post-task advisory coverage report.
+Its report keeps initial/review case IDs and completeness dimension changes.
+Claude's completion hook also compares full case slices, opened/closed gaps
+and advisory dirty paths outside the initial case.
 Set `BRIEFCASE_CONTEXT=0` to disable it. Claude hooks use supported prompt/stop
 events. Codex and Muse keep their supported session-start bootstrap hooks.
 Completion feedback never submits another agent prompt or blocks task completion.

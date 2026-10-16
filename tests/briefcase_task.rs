@@ -193,6 +193,7 @@ fn profiles_with_identical_source_snapshots_are_composed_and_stale_ones_are_disc
     let packet=f.call("brief",json!({"task":"review src/store.rs","max_bytes":1048576}));
     assert_eq!(rows(&packet["coverage"],"analysis_profiles").len(),2);
     assert!(rows(&packet,"not_covered").iter().any(|v|v["area"] == "profile_snapshot"));
+    assert_eq!(packet["coverage"]["completeness"]["neighborhood"],"partial");
 }
 
 #[test]
@@ -226,6 +227,7 @@ fn session_commit_joins_require_a_paired_git_receipt_and_reject_echoed_hashes() 
     let links:Vec<_>=rows(&packet,"joins").iter().filter(|l|l["predicate"] == "SESSION_PRODUCED_COMMIT").collect();
     assert_eq!(links.len(),1);assert_eq!(links[0]["from"],imported[0]["view_id"]);
     assert!(rows(&packet,"not_covered").iter().any(|g|g["area"] == "session_commit_join"));
+    assert_eq!(packet["coverage"]["completeness"]["sessions"],"partial");
 }
 
 #[test]

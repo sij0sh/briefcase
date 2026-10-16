@@ -9,3 +9,5 @@ mod briefcase_deployment;
 mod briefcase_runtime;
 #[path="briefcase_data.rs"]
 mod briefcase_data;
+#[path="briefcase_cases.rs"]
+mod briefcase_cases;

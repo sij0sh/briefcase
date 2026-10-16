@@ -1,114 +1,77 @@
-# Approved consolidation implementation
+# Task case implementation
 
-The simplification engine and human map/presentation machinery are deleted.
-Data, deployment and runtime analyzers remain evidence producers; the context
-index consumes their outputs and exposes relationships through brief/neighbors.
-The implementation is supplied for review. Rust validation remains outstanding.
+Status: current source implementation, 2026-10-16. Rust compilation and runtime
+regressions require a host with Cargo. See [VALIDATION.json](VALIDATION.json).
 
-## Removed products
+Briefcase traces retained evidence from a codebase to build a case around a
+task, delivered as a brief. The evidence substrate stays upstream of the task
+pipeline; task reads do not inspect live source files.
 
-- Simplification candidate scoring, review/compare reports and commands.
-- Technical/human map models, layout, rendering, visual exports, navigation and
-  presentation resources, including session maps and feature projections.
-- Separate data/deployment/runtime query families and product routing/planners.
-- Their schemas, command dispatchers, product-specific tests and obsolete
-  evaluators/gates. Original missing evaluation fixtures were not fabricated.
-
-Optional application/feature/workflow declarations still provide explicit
-labels and bindings. They do not create a feature product or inferred ownership.
-
-## Consolidated implementation
-
-| Concern | Owner and resulting behavior |
+| Module | Responsibility |
 | --- | --- |
-| Duties | `task/duty.rs`: typed vocabulary, routing cues, required roles and coverage/depth templates |
-| Operations | `service/catalog.rs`: typed kinds and generated argument schemas; exhaustive dispatch shared by CLI, MCP and Pi |
-| Task answers | `task/brief.rs`: every ask route composes the same packet, including explain duties |
-| Ranking | `search.rs`: one BM25 engine; aliases use it, and unresolved brief candidates use its ranking |
-| Evidence projection | `evidence_index.rs`: retained span verification for ledger projections, with no query ranking or fusion pipeline |
-| Adjacency | `task/queries.rs` and `task/index.rs`: shared incoming/outgoing relationships; legacy Rust query wrappers reuse adjacency |
-| Reports | `reports.rs`: pinned paging, cursor checks, source explanations and delegation to existing assertion provenance traversal |
-| Producers | `task/producers.rs`: explicit source/build/deployment/runtime joins with original assertion IDs, pins and gaps |
-| Freshness | `freshness.rs`: capture/live HEAD, ahead/behind counts, committed-path deltas and separate dirty overlap |
-| Adoption | `adoption.rs`, hooks and Pi extension: bounded prompt context and advisory post-task coverage reports |
+| `task/request.rs` | Pure validation of task, duty, target, depth and producer scope; separate presentation limits |
+| `task/evidence.rs` | Retained snapshots, artifacts, links and witnesses; digest verification |
+| `task/trace.rs` | Exact/candidate seeding, lexical fallback, bounded expansion, reach provenance and typed boundaries |
+| `task/joins.rs` | History and session traversal; boundary facts without duty input |
+| `task/case.rs` | Pure assembly from traced facts and captured ledger state; retention, loading, sections and comparison |
+| `task/completeness.rs` | Typed gap areas, exhaustive dimension mapping, duty policy and derived outcome |
+| `task/brief.rs` | V1 projection, instruction, previews, delivery counts, continuation and byte-budget trimming |
 
-Evidence, Derived, Declaration and Claim authority stay distinct. The context
-index excludes Claims and inference-dependent derived facts from structural
-ownership. It preserves scalar relationship values and original assertion IDs.
-Exact retained path, configuration and test references are labelled derivations.
-File-association propagation and relationship/publication bounds are explicit.
+`DutyPolicy` separates traversal predicates/depth from case obligations. Shared
+expansion preserves the brief's undirected accumulating closure and neighbors'
+directed frontier semantics. Differential unit tests retain the original loops
+as independent traversal oracles. The brief output intentionally changes, so
+the pre-completeness byte-equality oracle is not part of the final test suite.
+That intermediate guard could not be executed on this host.
 
-## Producer boundaries
+Cases are schema-validated before retention and use `task-case:<hash>`. The
+identity covers the complete case without its ID, including request scope,
+evidence pins and captured ledger state. Presentation limits are excluded.
+Loading checks the schema and content identity. Briefs use the case ID for
+`id`, `report_id` and `case_id`, and are not retained separately. Section
+pointers, including `/slice/impl` and `/not_covered`, are preserved. Legacy
+`kind: brief` reports remain pageable and explainable. Retraction epochs
+continue to label historical reports without rewriting them.
 
-- A desired deployment must pin the selected source snapshot. Build-manifest
-  file paths and digests must match retained source before adding source links.
-- Runtime selection is bounded, environment/interval-aware and sampled. Missing
-  observations do not mean no activity. Name-only or ambiguous resource mappings
-  remain gaps, and affected retractions withhold cross-scope identity joins.
-- Source/profile facts compose only for matching source snapshots. Mixed
-  projects use explicit profiles; automatic profile guessing was not added.
-- Source text and literal reads remain usable without graph projection readiness.
-  A fresh core read captures only text and never runs compiler providers.
-- External inspection reads only explicitly selected absolute files and returns
-  digests/identity observations, with no file contents or execution.
-- Live Git status failures are unknown/unavailable, including in post-task checks.
+Completeness dimensions are `anchors`, `slice`, `neighborhood`, `history`,
+`sessions`, `gap_inventory` and `verification`. States are `established`,
+`partial`, `unknown` and `not_required`. Unresolved anchors produce an unknown
+outcome. All required dimensions must be established for a complete outcome.
+Verification obligations remain unknown under the current evidence model.
+`outcome_scope` is always `retained_evidence`. C1–C6 describe the case;
+C7 and `coverage.delivery` describe only the brief. Gaps are sorted by
+dimension name, then area, preserving fact order within equal keys.
 
-Briefs scope localized producer boundaries to the selected files/entities and
-count out-of-slice and unlocalized boundaries. Duty templates select meaningful
-gaps instead of adding unconditional role/test/plan/install warnings to every
-answer. Completion reports remain advisory.
+Prompt hooks keep initial case IDs. Completion checks compare full retained
+cases, including slice additions/removals, opened/closed gaps, dimension changes
+and advisory dirty paths outside the initial case. Pi records case IDs and
+dimension changes, reading retained metadata if a budget notice omitted it.
+Checks remain advisory and never start another agent turn.
 
-## Compatibility
+The path-token guard now removes trailing sentence punctuation before exact
+retained lookup. Foreign-session routing also checks recorded roots: imports
+share the ledger repository ID even when their recording root differs. Foreign
+recordings may join only through retained absolute paths or literal executable
+invocations; their relative edits cannot become local edits or commit ownership.
 
-| Old spelling | Canonical behavior |
-| --- | --- |
-| `ask` | `brief` for every question |
-| `recall`, `retrieve` | `search` |
-| `dependencies` | Filtered outgoing `neighbors` |
-| `callgraph` | Outgoing `CALLS_STATIC` neighbors |
-| `task_page`, `continue` | `page` |
-| `task_explain` | `explain` |
+The index implementation key includes `evidence.rs`. Vocabulary uses
+`knowledge::support_closure`, evaluator scenarios, and runtime spans or OTLP
+traces. Existing OTLP `trace_id` and `span_id` fields are unchanged. No new
+agent-callable trace/case operation or v2 contract was added.
 
-Compatibility names are unadvertised. Removed map, feature-product and
-simplification operations have no aliases. Old serialized product contracts
-are intentionally unsupported. Callers that inspected old retrieval fusion,
-profile timings, graph expansions or evidence-text fields must migrate to
-search items/annotations and generic report references. Direct Rust retrieval
-keeps strict ledger projection validation before invoking canonical search.
-Direct Rust adjacency wrappers keep query report shape; historical inspection
-uses pinned reports/explanations.
-
-## Verification and follow-up
-
-The new `context` Rust suite contains 32 self-contained regressions: 15 task
-cases, 9 consolidation cases and 8 producer cases. They cover pinned delivery,
-byte witnesses, retractions, source-profile boundaries, generic producer joins,
-name-only runtime identities, external equality and advisory lifecycle hooks.
-Existing query/retrieval/integration assertions were migrated to shared reads.
-These Rust tests were authored but could not be executed on this host.
-
-Checks executed here are listed in [VALIDATION.json](VALIDATION.json). Source
-lexical/reference checks are not a Rust parser, type checker or compiler.
-No latency, recall-quality, release or original corpus results are claimed.
-The supplied archive omits `evaluation/fixtures/index.json` and the broader
-`evaluation/` corpus, so original conformance/package gates remain blocked.
-Missing compile-time unit inputs were replaced by small self-contained unit
-fixtures; runtime original-corpus tests still require the complete checkout.
-
-Run on a Rust-capable host before release:
+Run these checks on a Rust-enabled host:
 
 ```sh
-cargo fmt --all
-cargo check --locked --all-targets
+cargo build --locked
 cargo test --locked --lib
-cargo test --locked --test context
+cargo test --locked --test context -- --skip response_budget_pagination_does_not_skip_undelivered_matches
+cargo fmt --all -- --check
 cargo clippy --locked --lib --bins --tests
 node --test tests/briefcase-task-adapter.test.mjs
-python3 -B -m unittest discover -s scripts -p 'test_*.py'
-python3 -B -m unittest discover -s tools -p 'test_*.py'
+node --test tests/briefcase-pi.test.mjs
 ```
 
-With the original evaluation corpus and native providers restored, also run the
-core, toolchain_smoke and conformance suites and the full Pi installer/binary
-suite. `scripts/dogfood.py` now exercises current generic reads independently
-of the retired product gates; it is a smoke workload, not a substitute gold set.
+The occurrences budget test remains unchanged and should be investigated
+separately, as specified by the plan. Full package/conformance checks and real
+recall measurements also require the evaluation files omitted from the supplied
+archive. No Rust pass/fail baseline or recall numbers were inferred here.

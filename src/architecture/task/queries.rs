@@ -68,7 +68,7 @@ pub fn neighbors(l: &Ledger, a: &Value) -> Result<Value> {
         let s=Snapshot::load_with(l,a["view"].as_str().unwrap_or("latest"),a)?;index::load(l,&s)?
     };
     if a["index_id"].is_string() {require(a["view"].as_str().is_none_or(|v|v=="latest" || v==ix.source_view),"ARGUMENTS","view differs from retained index pin")?;}
-    let (status,mut keys,files) = resolve(&ix,target,true);
+    let (status,mut keys,files) = trace::resolve(&ix,target,true);
     let direct_touchpoint = ix.links.iter().any(|e|e.from == target || e.to == target);
     if status == "unresolved" && direct_touchpoint {keys.insert(target.into());}
     let status = if direct_touchpoint && status == "unresolved" {"resolved"} else {&status};
@@ -79,26 +79,13 @@ pub fn neighbors(l: &Ledger, a: &Value) -> Result<Value> {
     let limit = a["limit"].as_u64().unwrap_or(100) as usize;
     let depth = a["depth"].as_u64().unwrap_or(1) as usize;
     require((1..=3).contains(&depth) && (1..=1000).contains(&limit),"ARGUMENTS","depth must be 1..3 and limit 1..1000")?;
-    let mut selected = BTreeMap::new();
+    let mut items=vec![];
     if status == "resolved" {
-        let mut frontier_keys = keys.clone();
-        let mut frontier_files = files;
-        for _ in 0..depth {
-            let mut next_keys = BTreeSet::new(); let mut next_files = BTreeSet::new();
-            for e in &ix.links {
-                if !predicates.is_empty() && !predicates.contains(e.predicate.as_str()) {continue;}
-                let outgoing = direction != "in" && (frontier_keys.contains(&e.from) || !frontier_files.is_disjoint(&e.from_files));
-                let incoming = direction != "out" && (frontier_keys.contains(&e.to) || !frontier_files.is_disjoint(&e.to_files));
-                if outgoing || incoming {
-                    selected.insert(e.id.clone(),serde_json::to_value(e)?);
-                    if outgoing {next_keys.insert(e.to.clone());next_files.extend(e.to_files.clone());}
-                    if incoming {next_keys.insert(e.from.clone());next_files.extend(e.from_files.clone());}
-                }
-            }
-            frontier_keys = next_keys; frontier_files = next_files;
-        }
+        let direction=match direction {"in"=>trace::Direction::In,"out"=>trace::Direction::Out,_=>trace::Direction::Both};
+        let predicates:Vec<_>=predicates.iter().copied().collect();
+        let selected=trace::expand(&ix,&keys,&files,direction,&predicates,depth,trace::Accumulate::Frontier);
+        for edge in ix.links.iter().filter(|e|selected.links.contains(&e.id)) {items.push(serde_json::to_value(edge)?);}
     }
-    let mut items:Vec<_> = selected.into_values().collect();
     items.sort_by(|a,b|(&a["from"].as_str(),&a["predicate"].as_str(),&a["to"].as_str(),&a["id"].as_str()).cmp(&(&b["from"].as_str(),&b["predicate"].as_str(),&b["to"].as_str(),&b["id"].as_str())));
     let mut result = page_items("neighbors",&ix.source_view,&items,offset,limit);
     result["resolution"] = json!({"status":status,"candidates":keys});

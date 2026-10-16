@@ -62,6 +62,14 @@ fn lifecycle_outputs_never_block_or_continue_the_agent(){
     let finished=adoption::event(&f.db,&f.root,"complete",&prompt).unwrap();
     assert!(finished["systemMessage"].as_str().unwrap().contains("coverage check"));
     assert!(finished.get("decision").is_none());assert!(finished.get("continue").is_none());assert!(finished.get("hookSpecificOutput").is_none());
+    let sql=rusqlite::Connection::open(&f.db).unwrap();
+    let brief_count:i64=sql.query_row("SELECT count(*) FROM reports WHERE json_extract(body,'$.kind')='brief'",[],|r|r.get(0)).unwrap();
+    assert_eq!(brief_count,0,"Hooks retain cases and comparison reports, never brief projections");
+    let raw:String=sql.query_row("SELECT body FROM reports WHERE json_extract(body,'$.kind')='case_comparison'",[],|r|r.get(0)).unwrap();
+    let check:Value=serde_json::from_str(&raw).unwrap();
+    assert!(check["prompt_case_id"].as_str().unwrap().starts_with("task-case:"));
+    assert!(check["case_id"].as_str().unwrap().starts_with("task-case:"));
+    assert!(check["task_cycle"]["dimension_deltas"].is_object());
 }
 #[test]
 fn foreign_sessions_join_only_recorded_external_paths_or_literal_invocations(){
@@ -77,6 +85,27 @@ fn foreign_sessions_join_only_recorded_external_paths_or_literal_invocations(){
     assert!(rows(&packet,"sessions").iter().any(|s|s["view_id"]==imported["view_id"]&&s["same_repository"]==false));
     assert!(rows(&packet,"joins").iter().any(|e|e["predicate"]=="SESSION_INVOKED_TOUCHPOINT"));
     assert!(!rows(&packet,"joins").iter().any(|e|e["predicate"]=="SESSION_PRODUCED_COMMIT"));
+}
+
+#[test]
+fn foreign_relative_paths_and_command_prose_do_not_join_local_files(){
+    let mut f=Fixture::new();let foreign=f.dir.path().join("foreign-root");std::fs::create_dir_all(&foreign).unwrap();
+    let mut excluded=vec![];
+    for (id,tool,args) in [("relative","read",json!({"path":"src/lib.rs"})),
+        ("prose","bash",json!({"command":"echo /opt/demo-tool"})),
+        ("indirect","bash",json!({"command":"/opt/demo-tool --help && echo done"}))] {
+        let events=vec![json!({"type":"session","version":3,"id":id,"cwd":foreign,"timestamp":"2026-01-01T00:00:00Z"}),
+            json!({"type":"message","message":{"role":"assistant","content":[{"type":"toolCall","id":"call","name":tool,"arguments":args}]}}),
+            json!({"type":"message","message":{"role":"toolResult","toolCallId":"call","isError":false,"content":[{"type":"text","text":"recorded"}]}})];
+        let raw=events.iter().map(|v|v.to_string()).collect::<Vec<_>>().join("\n")+"\n";
+        let imported=briefcase::architecture::session::import(&mut f.ledger,raw.as_bytes(),&briefcase::architecture::session::ImportOptions{
+            profile:"pi-v1".into(),repository_root:foreign.to_string_lossy().into_owned(),repository_id:None,label:None,source_name:format!("{id}.jsonl"),
+            retention:briefcase::architecture::session::Retention::Full}).unwrap();
+        excluded.push(imported["view_id"].clone());
+    }
+    let packet=f.call("brief",json!({"task":"debug src/lib.rs","target":"src/lib.rs","limit":1000,"max_bytes":1048576}));
+    assert!(!rows(&packet,"sessions").iter().any(|s|excluded.contains(&s["view_id"])));
+    assert!(!rows(&packet,"joins").iter().any(|e|excluded.contains(&e["from"])));
 }
 
 #[test]

@@ -1,49 +1,106 @@
 {
   "date": "2026-10-16",
-  "scope": "Approved simplification/map removal and context/evidence consolidation",
+  "scope": "Request → Trace → Case → Brief plan, final phases 1–4 with guardrail bug fixes",
   "python_script_tests": {
-    "passed": 12,
+    "passed": 15,
     "failed": 0,
     "command": "python3 -B -m unittest discover -s scripts -p 'test_*.py'"
   },
   "python_validator_tests": {
-    "passed": 2,
+    "passed": 6,
     "failed": 0,
     "command": "python3 -B -m unittest discover -s tools -p 'test_*.py'"
   },
   "pi_adapter_tests": {
-    "passed": 9,
+    "passed": 13,
     "failed": 0,
     "command": "node --test tests/briefcase-task-adapter.test.mjs"
   },
   "python_syntax": {
-    "files": 18,
+    "files": 20,
     "result": "passed using ast.parse"
   },
   "owned_schema_vocabulary": {
-    "schemas": 8,
+    "schemas": 9,
     "result": "passed using tools/schema_profile.py"
   },
-  "javascript_typescript_syntax": "passed: Pi extension, Pi binary-suite source, and producer CJS scripts",
-  "pi_typescript_transpile": "0 diagnostics; SDK imports and full type checking not verified",
-  "documentation_file_links": "passed for current README, consolidation notes, task context and contract README",
-  "source_reference_checks": "passed: Rust lexical delimiters, static include paths, CLI variant references; not parsing or compilation",
+  "schema_contract_tests": "Passed: case-only request fields, typed gap dimensions and areas, verification state restrictions, and new/legacy v1 brief shapes.",
+  "javascript_syntax": {
+    "files": 4,
+    "result": "passed using node --check; Pi TypeScript is stripped and loaded by the 13 adapter tests"
+  },
+  "typescript_sdk_type_check": "not run: Pi SDK imports are mocked by pure adapter tests",
+  "documentation_file_links": {
+    "links_checked": 9,
+    "result": "passed for README, TASK_CONTEXT, CONSOLIDATION and contract README"
+  },
+  "source_reference_checks": {
+    "changed_rust_files": 23,
+    "result": "passed lexical delimiters and static include paths only; not parsing or compilation"
+  },
   "git_diff_whitespace_check": "passed",
   "rust_context_regressions": {
-    "total": 32,
-    "task": 15,
-    "consolidation": 9,
-    "producers": 8,
-    "execution": "not run"
+    "total_authored": 38,
+    "new_tests": 6,
+    "command": "cargo test --locked --test context -- --skip response_budget_pagination_does_not_skip_undelivered_matches",
+    "execution": "not run: Cargo is unavailable"
   },
-  "rust_build_tests_formatting_lints": "unverified: cargo, rustc, rustfmt and clippy are unavailable; toolchain download was blocked",
-  "full_pi_installer_binary_tests": "not run: compiled briefcase binary unavailable",
+  "new_rust_unit_regressions": {
+    "authored": 21,
+    "execution": "not run: Cargo is unavailable",
+    "coverage": [
+      "pure request validation",
+      "seed resolution",
+      "closure and frontier differential traversal",
+      "config-hop reach provenance",
+      "every gap area and completeness dimension",
+      "boundary localization and duty policy",
+      "case comparisons",
+      "brief delivery and byte-budget floor",
+      "index source invalidation"
+    ]
+  },
+  "rust_build_tests_formatting_lints": {
+    "result": "blocked",
+    "attempted_command": "cargo test --locked --lib",
+    "exit_code": 127,
+    "reason": "cargo, rustc, rustfmt and clippy are unavailable on this host"
+  },
+  "phase_0_brief_byte_equality_guard": "Not executed on this host. Final output intentionally adds typed completeness and case identity; independent legacy traversal oracles remain in Rust unit tests.",
+  "full_pi_installer_binary_tests": {
+    "result": "blocked during fixture setup",
+    "command": "node --test tests/briefcase-pi.test.mjs",
+    "setup_failures": 16,
+    "reason": "target/debug/briefcase does not exist; no compiled binary is available"
+  },
   "original_package_validation": {
     "result": "blocked",
+    "command": "python3 tools/check_package.py",
     "exit_code": 1,
     "reason": "Supplied archive omits evaluation/fixtures/index.json and the original evaluation corpus"
   },
-  "original_corpus_rust_conformance": "not run; requires omitted evaluation fixtures and native providers",
-  "latency_and_quality_measurements": "not measured",
-  "release_status": "Source implementation for review; Rust verification required before release"
+  "plan_reported_preexisting_failures": {
+    "source": "Attached implementation plan; not independently rerun here",
+    "items": [
+      "search::tests::disposable_trees_are_never_recalled",
+      "Pi notice-wording assertion",
+      "occurrences response-budget pagination test did not finish in the reported baseline"
+    ]
+  },
+  "known_brief_path_fixes": [
+    "Trim trailing sentence punctuation before exact path lookup and keep the witness on the path token.",
+    "Require matching recorded roots for local session joins because imports share the ledger repository ID."
+  ],
+  "excluded_occurrences_budget_test": "Unchanged, outside this plan. Skip on the first Rust context regression run as directed by the plan.",
+  "latency_recall_false_complete_measurements": "not measured: authored corpus is missing; metric behavior is covered by Python tests only",
+  "required_followup_checks": [
+    "cargo build --locked",
+    "cargo test --locked --lib",
+    "cargo test --locked --test context -- --skip response_budget_pagination_does_not_skip_undelivered_matches",
+    "cargo fmt --all -- --check",
+    "cargo clippy --locked --lib --bins --tests",
+    "node --test tests/briefcase-pi.test.mjs",
+    "python3 tools/check_package.py (after restoring evaluation fixtures)"
+  ],
+  "release_status": "Source implementation for review. Rust compilation, type checking and runtime regressions remain unverified."
 }

@@ -1,4 +1,4 @@
-//! Bounded OTLP trace ingestion. The OpenTelemetry Collector collects; this
+//! Bounded OTLP trace ingestion for retained runtime spans. The OpenTelemetry Collector collects; this
 //! adapter retains the exact export, normalizes span events, and publishes
 //! runtime Evidence between explicitly identified services. Span names never
 //! identify source symbols, and missing observations never establish absence.

@@ -1,6 +1,7 @@
 use super::*;
 use crate::architecture::session;
 use regex::Regex;
+use super::trace::Boundary;
 
 #[derive(Default)]
 pub(super) struct Joins {
@@ -9,7 +10,7 @@ pub(super) struct Joins {
     pub errors: Vec<Value>,
     pub links: Vec<Value>,
     pub cochange: Vec<Value>,
-    pub not_covered: Vec<Value>,
+    pub boundaries: Vec<Boundary>,
     pub session_views: Vec<String>,
     pub history_tip: Option<String>,
     pub sessions_considered: usize,
@@ -21,11 +22,11 @@ fn add_link(out: &mut Joins, predicate: &str, from: &str, to: &str, basis: Value
     Ok(())
 }
 
-pub(super) fn build(l: &Ledger, s: &Snapshot, ix: &Index, paths: &BTreeSet<String>, template:&DutyTemplate) -> Result<Joins> {
+pub(super) fn build(l: &Ledger, s: &Snapshot, ix: &Index, paths: &BTreeSet<String>) -> Result<Joins> {
     let mut out = Joins::default();
     out.history_tip=l.history_tip()?.map(|(tip,_)|tip);
     let commits=l.history_commits()?;
-    if template.history_required && out.history_tip.is_none() {out.not_covered.push(json!({"area":"history","reason":"No retained Git history tip; sync Git history."}));}
+    if out.history_tip.is_none() {out.boundaries.push(Boundary::NoHistory);}
     let features: Vec<_> = ix.entities.values().filter(|e|e.kind == "feature").collect();
     let mut coupling = BTreeMap::<String,BTreeSet<String>>::new();
     for commit in &commits {
@@ -34,6 +35,10 @@ pub(super) fn build(l: &Ledger, s: &Snapshot, ix: &Index, paths: &BTreeSet<Strin
         out.history.push(json!({"commit":commit.oid,"timestamp":commit.timestamp,"message":commit.message,
             "paths":touched.intersection(paths).collect::<Vec<_>>(),"retained_paths":touched.len(),"files_total":commit.files_total,
             "coverage":if commit.changes.len()<commit.files_total {"partial_changed_paths"} else {"retained_commit_metadata"}}));
+        if commit.changes.len()<commit.files_total {
+            out.boundaries.push(Boundary::PartialHistory(json!({"commit":commit.oid,
+                "reason":"Retained changed paths for a joined commit are partial."})));
+        }
         if commit.parents.len()<=1 && commit.files_total<=100 && commit.changes.len()==commit.files_total {
             for path in touched.difference(paths) {coupling.entry(path.clone()).or_default().insert(commit.oid.clone());}
         }
@@ -49,14 +54,18 @@ pub(super) fn build(l: &Ledger, s: &Snapshot, ix: &Index, paths: &BTreeSet<Strin
     out.cochange=coupling.into_iter().map(|(path,oids)|json!({"path":path,"shared_commits":oids.len(),"commit_oids":oids,
         "class":"derived","basis":"non-merge retained commits with complete changed paths and at most 100 files; co-change is not a dependency"})).collect();
     let repository = rows(&s.view.bundle,"snapshots").first().map(|v|text(v,"repository_id")).unwrap_or_default();
+    let root=s.view.diagnostics["capture"]["repository_root"].as_str().and_then(session::paths::normalize);
     let publications=l.session_publications()?;
-    if template.sessions_required && publications.is_empty() {out.not_covered.push(json!({"area":"sessions","reason":"No imported session recordings."}));}
+    if publications.is_empty() {out.boundaries.push(Boundary::NoSessions);}
     let receipt=Regex::new(r"(?m)^\[[^\]\r\n]+ ([0-9a-f]{7,64})\](?: [^\r\n]*)?\r?$")?;
     for publication in publications {
         let view=text(&publication,"view_id");
-        let same_repository=publication["context"]["repository_id"]==repository;
+        // Imports share the ledger repository ID even when the recording came
+        // from another root. Require the retained roots to agree as well.
+        let recorded_root=publication["context"]["repository_root"].as_str().and_then(session::paths::normalize);
+        let same_repository=publication["context"]["repository_id"]==repository
+            && root.as_ref().zip(recorded_root.as_ref()).is_some_and(|(a,b)|a==b);
         let summary=session::touch_summary(l,&view)?;
-        let root=s.view.diagnostics["capture"]["repository_root"].as_str().and_then(session::paths::normalize);
         let absolute=crate::architecture::contracts::strings(&summary["absolute_paths"]);
         let foreign_paths:BTreeSet<String>=root.as_ref().into_iter().flat_map(|root|absolute.iter().filter_map(|p|
             p.strip_prefix(&format!("{}/",root.trim_end_matches('/'))).filter(|p|s.files.contains_key(*p)).map(str::to_owned))).collect();
@@ -68,13 +77,13 @@ pub(super) fn build(l: &Ledger, s: &Snapshot, ix: &Index, paths: &BTreeSet<Strin
         if !same_repository&&paths.is_disjoint(&routed)&&invocations.is_empty(){continue;}
         out.sessions_considered+=1;
         if summary["retention"] == "metadata" {
-            out.not_covered.push(json!({"area":"sessions","view_id":view,"reason":"Metadata retention has no path/activity evidence."}));
+            out.boundaries.push(Boundary::MetadataSession(json!({"view_id":view,"reason":"Metadata retention has no path/activity evidence."})));
         }
         if paths.is_disjoint(&routed)&&invocations.is_empty() {continue;}
         let recording=session::load_retained(l,&view)?;
         out.session_views.push(view.clone());
         if recording.view.invalidated {
-            out.not_covered.push(json!({"area":"sessions","view_id":view,"reason":"Session contains retracted facts; task joins from this recording are withheld."}));
+            out.boundaries.push(Boundary::RetractedSession(json!({"view_id":view,"reason":"Session contains retracted facts; task joins from this recording are withheld."})));
             continue;
         }
         let events=recording.events();
@@ -98,7 +107,7 @@ pub(super) fn build(l: &Ledger, s: &Snapshot, ix: &Index, paths: &BTreeSet<Strin
             "invoked_touchpoints":invocations,"same_repository":same_repository,
             "basis":"recorded paths or exact executable-token reference; not source change attribution or process identity"}));
         if recording.context["capture_state"] != "complete" || recording.context["retention"] == "metadata" {
-            out.not_covered.push(json!({"area":"sessions","view_id":view,"reason":"Recording or retained transcript coverage is partial."}));
+            out.boundaries.push(Boundary::PartialSession(json!({"view_id":view,"reason":"Recording or retained transcript coverage is partial."})));
         }
         let edited:BTreeSet<_>=events.iter().filter(|_|same_repository).filter(|e|e["kind"] == "file_edit_confirmed" && e["path"]["location"] == "repository")
             .map(|e|text(&e["path"],"path")).collect();
@@ -123,8 +132,8 @@ pub(super) fn build(l: &Ledger, s: &Snapshot, ix: &Index, paths: &BTreeSet<Strin
             // mentioning a hash. Alternate git -C roots remain unjoined.
             if !direct_commit_command(&command) {
                 if command.contains("git commit") {
-                    out.not_covered.push(json!({"area":"session_commit_join","session_view":view,"event_id":event["id"],
-                        "reason":"Compound/indirect git invocation or dry-run; no commit attribution was inferred."}));
+                    out.boundaries.push(Boundary::IndirectCommit(json!({"session_view":view,"event_id":event["id"],
+                        "reason":"Compound/indirect git invocation or dry-run; no commit attribution was inferred."})));
                 }
                 continue;
             }

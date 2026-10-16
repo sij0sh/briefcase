@@ -135,7 +135,7 @@ pub fn claim_predicate(
     Ok(id)
 }
 
-pub fn trace(b: &Value, roots: &[String]) -> Result<Vec<String>> {
+pub fn support_closure(b: &Value, roots: &[String]) -> Result<Vec<String>> {
     let mut todo = roots.to_vec();
     let mut seen = BTreeSet::new();
     while let Some(id) = todo.pop() {
@@ -171,7 +171,7 @@ pub struct Source {
 }
 pub fn sources(b: &Value, payloads: &Payloads, roots: &[String]) -> Result<Vec<Source>> {
     let mut out = BTreeMap::new();
-    for id in trace(b, roots)? {
+    for id in support_closure(b, roots)? {
         let a = row(b, "assertions", &id)?;
         for eid in strings(&a["evidence_ref_ids"]) {
             let er = row(b, "evidence_refs", &eid)?;

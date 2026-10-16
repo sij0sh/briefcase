@@ -38,7 +38,7 @@ pub fn catalog() -> Vec<Operation> {
     use Kind::*;
     let entries = [
         (Describe,"describe","Discover supported read operations and their arguments without a database."),
-        (Brief,"brief","Compose task context: exact anchors, role-based files, relationships, history, sessions and explicit coverage gaps. Feature and endpoint identities are optional targets."),
+        (Brief,"brief","Trace retained evidence to build a case around a task, delivered as a brief: exact anchors, role-based files, relationships, history, sessions and typed coverage gaps. Feature and endpoint identities are optional targets."),
         (Search,"search","Rank retained text, evidence, Git history and optional session requests. A match is a candidate, never proof of ownership; use occurrences for exhaustive matching."),
         (Occurrences,"occurrences","Enumerate every retained literal match in path and byte order, including overlaps. Continue with the returned pinned view."),
         (Neighbors,"neighbors","Incoming/outgoing adjacency for any retained entity or file. Filter predicates for dependencies, callers, tests, data, deployment or runtime relationships."),

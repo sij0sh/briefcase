@@ -123,3 +123,59 @@ test('truncated search text keeps a restart cursor in its header', () => {
   assert.match(text,/"offset":0/);
   assert.match(text,/"operation":"page"/);
 });
+
+const completeness = (overrides = {}) => ({anchors:'established',slice:'established',neighborhood:'partial',
+  history:'unknown',sessions:'unknown',gap_inventory:'established',verification:'not_required',...overrides});
+
+test('case dimension comparisons distinguish unchanged, changed and unavailable states', () => {
+  assert.deepEqual(adapter.compareCompleteness(completeness(), completeness()), {});
+  assert.deepEqual(adapter.compareCompleteness(completeness(), completeness({history:'established',verification:'unknown'})), {
+    history:{before:'unknown',after:'established'},verification:{before:'not_required',after:'unknown'},
+  });
+  assert.equal(adapter.compareCompleteness(undefined, completeness()), undefined);
+  assert.equal(adapter.compareCompleteness({}, completeness()), undefined);
+});
+
+test('post-task entries compare identified cases and keep dimension deltas', async () => {
+  const events=new Map(), entries=[];let reads=0;
+  adapter.default({registerTool(){},registerCommand(){},on:(name,handler)=>events.set(name,handler),
+    appendEntry:(type,value)=>entries.push({type,value}),exec:async()=>{
+      const first=reads++===0;
+      return {code:0,stdout:JSON.stringify({kind:'brief',id:first?'task-case:before':'task-case:after',
+        case_id:first?'task-case:before':'task-case:after',coverage:{completeness:completeness(first?{}:{sessions:'partial'})}}),stderr:''};
+    }});
+  const ctx={cwd:'/repo',ui:{notify(){}}};
+  await events.get('before_agent_start')({prompt:'debug src/a.rs'},ctx);
+  await events.get('agent_end')({},ctx);
+  assert.equal(entries[0].value.prompt_case_id,'task-case:before');
+  assert.equal(entries[0].value.case_id,'task-case:after');
+  assert.equal(entries[0].value.dimension_comparison,'compared');
+  assert.deepEqual(entries[0].value.dimension_deltas,{sessions:{before:'unknown',after:'partial'}});
+  assert.equal(reads,2);
+});
+
+test('byte-budget notices recover dimension states from retained case metadata', async () => {
+  const events=new Map(), calls=[], entries=[];
+  adapter.default({registerTool(){},registerCommand(){},on:(name,handler)=>events.set(name,handler),
+    appendEntry:(type,value)=>entries.push(value),exec:async (_program,args)=>{
+      const operation=args[args.indexOf('call')+1];calls.push(operation);
+      const result=operation==='explain'?{kind:'explain',entry:completeness()}:
+        {kind:'brief',truncated:true,id:'task-case:budget',case_id:'task-case:budget',report_id:'task-case:budget'};
+      return {code:0,stdout:JSON.stringify(result),stderr:''};
+    }});
+  const ctx={cwd:'/repo',ui:{notify(){}}};
+  await events.get('before_agent_start')({prompt:'debug src/a.rs'},ctx);
+  await events.get('agent_end')({},ctx);
+  assert.deepEqual(calls,['brief','explain','brief','explain']);
+  assert.deepEqual(entries[0].dimension_deltas,{});
+  assert.equal(entries[0].dimension_comparison,'compared');
+});
+
+test('oversized new briefs preserve their case ID', () => {
+  const result={kind:'brief',case_id:'task-case:new',id:'task-case:new',report_id:'task-case:new',
+    outcome:'unknown',outcome_scope:'retained_evidence',slice:{impl:[{text:'é'.repeat(10000)}]}};
+  const notice=JSON.parse(adapter.formatOperation(result,1800));
+  assert.equal(notice.case_id,'task-case:new');assert.equal(notice.report_id,'task-case:new');
+  assert.equal(notice.outcome,'unknown');
+  assert.equal(notice.outcome_scope,'retained_evidence');assert.equal(notice.continue_with.arguments.section,'/slice/impl');
+});
