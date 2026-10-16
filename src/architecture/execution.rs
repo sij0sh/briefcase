@@ -12,8 +12,9 @@ use super::{
 };
 use serde_json::{json, Value};
 use std::{
-    collections::{BTreeMap, BTreeSet},
+    collections::{BTreeMap, BTreeSet, VecDeque},
     path::Path,
+    time::{Duration,Instant},
 };
 use tree_sitter::{Node, Parser};
 
@@ -34,33 +35,26 @@ fn name_position(node: Node) -> Option<usize> {
         _ => None,
     }
 }
+struct FileSyntax<'a> {
+    modules:Vec<&'a Definition>,
+    functions:BTreeMap<usize,Option<&'a Definition>>,
+    blocked:Vec<(usize,usize)>,
+}
 fn sites(c: &Capture, syntax: &Syntax) -> Result<Vec<Site>> {
     fn walk(
         node: Node,
         path: &str,
-        syntax: &Syntax,
+        syntax: &FileSyntax<'_>,
         caller: Option<&Definition>,
         in_closure: bool,
         out: &mut Vec<Site>,
     ) {
-        let module = syntax
-            .definitions
-            .iter()
-            .filter(|d| {
-                d.kind == "module"
-                    && d.path == path
-                    && d.start <= node.start_byte()
-                    && d.end >= node.end_byte()
-            })
+        let module = syntax.modules.iter()
+            .filter(|d|d.start<=node.start_byte()&&d.end>=node.end_byte())
             .min_by_key(|d| d.end - d.start)
             .map(|d| d.key.clone())
             .unwrap_or_else(|| "crate".into());
-        let blocked = syntax.occurrences.iter().any(|o| {
-            o.path == path
-                && o.kind == "unsupported_generated_source"
-                && o.start <= node.start_byte()
-                && o.end >= node.end_byte()
-        });
+        let blocked=syntax.blocked.iter().any(|(start,end)|*start<=node.start_byte()&&*end>=node.end_byte());
         if blocked
             || matches!(
                 node.kind(),
@@ -79,10 +73,7 @@ fn sites(c: &Capture, syntax: &Syntax) -> Result<Vec<Site>> {
             return;
         }
         let caller = if node.kind() == "function_item" {
-            syntax
-                .definitions
-                .iter()
-                .find(|d| d.function && d.path == path && d.start == node.start_byte())
+            syntax.functions.get(&node.start_byte()).copied().flatten()
         } else {
             caller
         };
@@ -122,22 +113,20 @@ fn sites(c: &Capture, syntax: &Syntax) -> Result<Vec<Site>> {
         let tree = parser
             .parse(code, None)
             .ok_or("EXECUTION: Rust parse failed")?;
-        walk(tree.root_node(), path, syntax, None, false, &mut out);
-        if tree.root_node().has_error() {
-            out.push(Site {
-                path: path.clone(),
-                module: syntax
-                    .modules
-                    .iter()
-                    .find(|(_, p)| *p == path)
-                    .map(|(m, _)| m.clone())
-                    .unwrap_or_else(|| "crate".into()),
-                caller: None,
-                start: 0,
-                end: code.len(),
-                position: None,
-                reason: "extraction_failure",
-            });
+        let mut functions=BTreeMap::<usize,Option<&Definition>>::new();
+        for definition in syntax.definitions.iter().filter(|d|d.function&&d.path==*path) {
+            functions.entry(definition.start).and_modify(|value|*value=None).or_insert(Some(definition));
+        }
+        let local=FileSyntax {modules:syntax.definitions.iter().filter(|d|d.kind=="module"&&d.path==*path).collect(),
+            functions,blocked:syntax.occurrences.iter().filter(|o|o.path==*path&&o.kind=="unsupported_generated_source")
+                .map(|o|(o.start,o.end)).collect()};
+        walk(tree.root_node(),path,&local,None,false,&mut out);
+        for (at,end) in rust::parse_errors(tree.root_node()) {
+            if code.is_empty() {continue;}
+            let mut start=at.min(code.len()-1);while !code.is_char_boundary(start) {start-=1;}
+            let mut end=end.max(start+1).min(code.len());while !code.is_char_boundary(end) {end+=1;}
+            out.push(Site {path:path.clone(),module:local.modules.first().map(|d|d.key.clone()).unwrap_or_else(||"crate".into()),
+                caller:None,start,end,position:None,reason:"extraction_failure"});
         }
     }
     out.retain(|s| s.start < s.end);
@@ -184,15 +173,8 @@ fn function_target(
             .or_else(|| candidate.get("range"))
             .ok_or("EXECUTION: Native definition has no range")?;
         let position = rust::byte_position(code, &range["start"]);
-        let definition = syntax
-            .definitions
-            .iter()
-            .find(|d| d.function && d.path == relative && Some(d.name_start) == position);
-        if let Some(definition) = definition {
-            keys.insert(definition.key.clone());
-        } else {
-            unsupported = true;
-        }
+        let definitions:Vec<_>=syntax.definitions.iter().filter(|d|d.function&&d.path==relative&&Some(d.name_start)==position).collect();
+        if definitions.len()==1 {keys.insert(definitions[0].key.clone());}else{unsupported=true;}
     }
     Ok(if !unsupported && keys.len() == 1 {
         keys.into_iter().next()
@@ -200,6 +182,65 @@ fn function_target(
         None
     })
 }
+#[derive(Default)]
+struct Resolution {
+    verified:BTreeSet<String>,
+    failed_callers:BTreeSet<String>,
+    resolved:Vec<(Site,String)>,
+    unknown:Vec<(Site,&'static str)>,
+    limitations:Vec<String>,
+    completed:usize,
+    native_requests:usize,
+}
+
+/// Resolve only endpoints needed by actual calls. No fixed function/site cap,
+/// no up-front native sweep, and one cached identity check per caller. A native
+/// call-target lookup itself verifies that target's retained free-function key.
+fn resolve_sites<F>(sites:&[Site],syntax:&Syntax,declared:&BTreeSet<String>,deadline:Instant,mut lookup:F)->Resolution
+where F:FnMut(&str,usize)->Result<Option<String>> {
+    let definitions:BTreeMap<_,_>=syntax.definitions.iter().filter(|d|d.function).map(|d|(d.key.as_str(),d)).collect();
+    let mut queues=BTreeMap::<&str,VecDeque<&Site>>::new();
+    for site in sites {queues.entry(site.path.as_str()).or_default().push_back(site);}
+    let mut result=Resolution::default();
+    loop {
+        let mut visited=false;
+        for queue in queues.values_mut() {
+            let Some(site)=queue.pop_front() else {continue};visited=true;
+            let (Some(caller),Some(position))=(site.caller.as_deref(),site.position) else {
+                result.completed+=1;result.unknown.push((site.clone(),site.reason));continue;
+            };
+            if Instant::now()>=deadline {result.unknown.push((site.clone(),"extraction_failure"));continue;}
+            result.completed+=1;
+            if !declared.contains(caller) || !definitions.contains_key(caller) {
+                result.unknown.push((site.clone(),"unsupported_generated_source"));continue;
+            }
+            if !result.verified.contains(caller) && !result.failed_callers.contains(caller) {
+                let definition=definitions[caller];result.native_requests+=1;
+                match lookup(&definition.path,definition.name_start) {
+                    Ok(Some(key)) if key==caller => {result.verified.insert(key);},
+                    Ok(_) => {result.failed_callers.insert(caller.into());},
+                    Err(error) => {result.failed_callers.insert(caller.into());result.limitations.push(error.to_string());},
+                }
+            }
+            if !result.verified.contains(caller) {result.unknown.push((site.clone(),"extraction_failure"));continue;}
+            if Instant::now()>=deadline {result.unknown.push((site.clone(),"extraction_failure"));continue;}
+            result.native_requests+=1;
+            match lookup(&site.path,position) {
+                Ok(Some(target)) if declared.contains(&target)&&definitions.contains_key(target.as_str()) => {
+                    result.failed_callers.remove(&target);
+                    result.verified.insert(target.clone());result.resolved.push((site.clone(),target));
+                },
+                Ok(_) => result.unknown.push((site.clone(),site.reason)),
+                Err(error) => {result.limitations.push(error.to_string());result.unknown.push((site.clone(),"extraction_failure"));},
+            }
+        }
+        if !visited {break;}
+    }
+    result.resolved.sort_by_key(|(site,target)|(site.path.clone(),site.start,target.clone()));
+    result.unknown.sort_by_key(|(site,reason)|(site.path.clone(),site.start,*reason));
+    result
+}
+
 pub(crate) fn retained_capture(l: &Ledger, bundle: &Value) -> Result<Capture> {
     let ctx = knowledge::context(bundle);
     let snapshot = knowledge::row(bundle, "snapshots", &text(&ctx, "snapshot_id"))?;
@@ -234,7 +275,10 @@ pub(crate) fn retained_capture(l: &Ledger, bundle: &Value) -> Result<Capture> {
 }
 
 pub fn analyze(l: &mut Ledger, o: &query::Options, options: &ScanOptions) -> Result<Value> {
-    let deadline=std::time::Instant::now()+options.timeout;
+    let deadline=Instant::now()+options.timeout;
+    // Keep bounded time for serializing/publishing a partial result under the
+    // same outer deadline instead of consuming it all on native requests.
+    let native_deadline=deadline-(options.timeout/10).min(Duration::from_secs(5));
     require(
         !o.historical,
         "EXECUTION",
@@ -268,7 +312,7 @@ pub fn analyze(l: &mut Ledger, o: &query::Options, options: &ScanOptions) -> Res
         "SCOPE",
         "Execution must inherit the captured build's feature selection",
     )?;
-    let mut analyzer = Analyzer::start(executable, sandbox.path(), deadline.saturating_duration_since(std::time::Instant::now()), &features)?;
+    let mut analyzer = Analyzer::start(executable, sandbox.path(), native_deadline.saturating_duration_since(Instant::now()), &features)?;
     let producer = analyzer.identity.clone();
     let implementation = identity::bytes_digest(include_bytes!("execution.rs"));
     let mut key = identity::id(
@@ -302,91 +346,29 @@ pub fn analyze(l: &mut Ledger, o: &query::Options, options: &ScanOptions) -> Res
     add(&mut b, "analysis_configs", config);
     let mut limitations = vec!["Static execution covers native-resolved direct calls between retained free functions, not observed runtime behavior. Methods, dynamic dispatch, external targets, generated code and conditional source remain unsupported.".to_owned()];
     let mut opened = BTreeSet::new();
-    let mut verified = BTreeSet::new();
-    let mut unverified = 0;
     let source_entities:BTreeMap<_,_>=rows(&v.bundle,"entity_versions").iter().filter(|e|e["context"]==ctx)
         .map(|e|(text(e,"id"),e)).collect();
     let declared:BTreeSet<_>=rows(&v.bundle,"assertions").iter().filter(|a|a["class"]=="evidence"
         && a["proposition"]["predicate"]=="DECLARES" && !removed.contains(&text(a,"id")) && v.eligible.contains(&text(a,"id")))
         .filter_map(|a|source_entities.get(&text(&a["proposition"]["object"],"entity_version_id"))).map(|e|text(e,"canonical_key")).collect();
-    const MAX_FUNCTIONS: usize = 4096;
-    for (index, definition) in syntax.definitions.iter().filter(|d| d.function).enumerate() {
-        if index >= MAX_FUNCTIONS || analyzer.expired() {
-            unverified += 1;
-            continue;
-        }
-        let source_supported=declared.contains(&definition.key);
-        if !source_supported {
-            unverified += 1;
-            continue;
-        }
-        let code = std::str::from_utf8(&c.files[&definition.path])?;
-        let path = sandbox.path().join(&definition.path);
-        if opened.insert(definition.path.clone()) {
-            analyzer.open(&path, code)?;
-        }
-        match analyzer
-            .definition(&path, code, definition.name_start)
-            .and_then(|r| function_target(&syntax, &c, sandbox.path(), &r))
-        {
-            Ok(Some(key)) if key == definition.key => {
-                verified.insert(key);
-            }
-            Ok(_) => {
-                unverified += 1;
-            }
-            Err(error) => {
-                unverified += 1;
-                limitations.push(error.to_string());
-            }
-        }
-    }
-    let all_sites = sites(&c, &syntax)?;
-    let mut resolved = Vec::new();
-    let mut unknown = Vec::new();
-    const MAX_SITES: usize = 4096;
-    let mut completed=0usize;
-    for (index, site) in all_sites.iter().enumerate() {
-        let exhausted=index >= MAX_SITES || analyzer.expired();
-        if !exhausted {completed+=1;}
-        let caller = site.caller.as_ref().filter(|key| verified.contains(*key));
-        let result = if exhausted {
-            Ok(None)
-        } else if let (Some(_), Some(position)) = (caller, site.position) {
-            let code = std::str::from_utf8(&c.files[&site.path])?;
-            let path = sandbox.path().join(&site.path);
-            if opened.insert(site.path.clone()) {
-                analyzer.open(&path, code)?;
-            }
-            analyzer
-                .definition(&path, code, position)
-                .and_then(|r| function_target(&syntax, &c, sandbox.path(), &r))
-        } else {
-            Ok(None)
-        };
-        match result {
-            Ok(Some(target)) if verified.contains(&target) => resolved.push((site.clone(), target)),
-            Ok(_) => unknown.push((
-                site.clone(),
-                if exhausted {
-                    "extraction_failure"
-                } else {
-                    site.reason
-                },
-            )),
-            Err(error) => {
-                limitations.push(error.to_string());
-                unknown.push((site.clone(), "extraction_failure"));
-            }
-        }
-    }
-    if unverified > 0 {
-        limitations.push(format!("{unverified} source function identities were not verified; the native-function limit is {MAX_FUNCTIONS}."));
-    }
+    let all_sites=sites(&c,&syntax)?;
+    let result=resolve_sites(&all_sites,&syntax,&declared,native_deadline,|file,position| {
+        let code=std::str::from_utf8(&c.files[file])?;let path=sandbox.path().join(file);
+        if opened.insert(file.to_owned()) {analyzer.open(&path,code)?;}
+        analyzer.definition(&path,code,position).and_then(|response|function_target(&syntax,&c,sandbox.path(),&response))
+    });
+    let Resolution {verified,failed_callers,resolved,unknown,limitations:native_limitations,completed,native_requests}=result;
+    limitations.extend(native_limitations);
+    let unverified=failed_callers.len();
+    if unverified>0 {limitations.push(format!("{unverified} required caller identities could not be verified."));}
     let resolution_complete=c.complete && analyzer.workspace_ready() && unknown.is_empty() && unverified == 0 && syntax.diagnostics.is_empty() && limitations.len() == 1;
+    let native_analysis=json!({"native_requests":native_requests,"native_functions":{"retained":syntax.definitions.iter().filter(|d|d.function).count(),
+            "verified_endpoints":verified.len(),"unverified_required_callers":unverified},
+        "scheduling":"round_robin_by_file; cached on-demand endpoints; deadline only",
+        "rust_syntax":rust::syntax_diagnostics(&syntax)});
     let coverage = json!({"attempted":all_sites.len(),"completed":completed,
         "unsupported_count":unknown.iter().filter(|(_,r)| *r == "unsupported_generated_source").count(),
-        "unresolved_count":unknown.iter().filter(|(_,r)| *r != "unsupported_generated_source").count() + unverified,
+        "unresolved_count":unknown.iter().filter(|(_,r)| *r != "unsupported_generated_source").count(),
         "resolution_complete":resolution_complete,
         "guarantees":[{"predicate":"CALLS_STATIC","kind":"exact_supported",
             "scope":if resolution_complete {"retained_free_function_scope"} else {"native_resolved_subset"}}]});
@@ -397,7 +379,7 @@ pub fn analyze(l: &mut Ledger, o: &query::Options, options: &ScanOptions) -> Res
         rust::normalize_native(&mut correspondence,sandbox.path());
         key=identity::id("execution-overlay",&json!({"base":key,"coverage":coverage,"correspondence":correspondence}))?;
         if l.has_overlay(&key)? {
-            return Ok(json!({"view_id":v.id,"context":ctx,"coverage":coverage,"reused":true,"state":"partial","retryable":true}));
+            return Ok(json!({"view_id":v.id,"context":ctx,"coverage":coverage,"native_analysis":native_analysis,"reused":true,"state":"partial","retryable":true}));
         }
     }
     let run_id = identity::id(
@@ -478,7 +460,7 @@ pub fn analyze(l: &mut Ledger, o: &query::Options, options: &ScanOptions) -> Res
             .cloned()
             .unwrap_or_else(|| text(module, "id"));
         let mut u = json!({"source_entity_id":subject,"context":ctx,"evidence_ref_id":er,"predicate":"CALLS_STATIC",
-            "status":"unsupported","reason":reason,"candidate_ids":[]});
+            "status":if reason=="extraction_failure" {"unresolved"}else{"unsupported"},"reason":reason,"candidate_ids":[]});
         u["id"] = json!(identity::id("unresolved", &u)?);
         add(&mut b, "unresolved_references", u);
     }
@@ -509,7 +491,7 @@ pub fn analyze(l: &mut Ledger, o: &query::Options, options: &ScanOptions) -> Res
             contracts::Capability::Evidence,
             contracts::Capability::Derived,
         ],
-        json!({"coverage":coverage,"limitations":limitations,"workspace_status":analyzer.workspace_status}),
+        json!({"coverage":coverage,"native_analysis":native_analysis,"limitations":limitations,"workspace_status":analyzer.workspace_status}),
     )?;
     super::ledger::recovery::check_deadline(deadline)?;
     l.commit_extension(
@@ -526,7 +508,7 @@ pub fn analyze(l: &mut Ledger, o: &query::Options, options: &ScanOptions) -> Res
         &json!({"operation":"analyze-execution","overlay_id":key,"reused":false}),
     )?;
     Ok(
-        json!({"view_id":v.id,"context":ctx,"execution_id":execution,"coverage":coverage,"limitations":limitations,
+        json!({"view_id":v.id,"context":ctx,"execution_id":execution,"coverage":coverage,"native_analysis":native_analysis,"limitations":limitations,
             "state":if resolution_complete {"complete"} else {"partial"},"retryable":!resolution_complete,
             "workspace_status":analyzer.workspace_status,"reused":false}),
     )
@@ -630,4 +612,76 @@ pub(crate) fn analyze_retained(
         json!({"view_id":v.id,"context":ctx,"execution_id":execution,"coverage":produced.diagnostics["call_coverage"],
         "reused":reused,"limitations":produced.diagnostics["limitations"]}),
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    fn definition(path:&str,key:&str,position:usize)->Definition {
+        Definition {path:path.into(),start:0,end:100,name_start:position,key:key.into(),kind:"symbol",function:true}
+    }
+    fn site(path:&str,caller:&str,position:usize)->Site {
+        Site {path:path.into(),module:"crate".into(),caller:Some(caller.into()),start:position,end:position+1,
+            position:Some(position),reason:"dynamic_property"}
+    }
+    #[test]
+    fn more_than_four_thousand_functions_and_calls_do_not_hit_a_fixed_ceiling() {
+        let mut syntax=Syntax::default();
+        syntax.definitions=(0..5000).map(|index|definition("src/unused.rs",&format!("unused_{index}"),index)).collect();
+        syntax.definitions.extend([definition("src/z.rs","caller",0),definition("src/z.rs","callee",1)]);
+        let declared=syntax.definitions.iter().map(|definition|definition.key.clone()).collect();
+        let calls:Vec<_>=(2..5003).map(|position|site("src/z.rs","caller",position)).collect();
+        let result=resolve_sites(&calls,&syntax,&declared,Instant::now()+Duration::from_secs(30),|path,position| {
+            assert_eq!(path,"src/z.rs","unused functions must not cause native requests");
+            Ok(Some((if position==0 {"caller"}else{"callee"}).into()))
+        });
+        assert_eq!(result.resolved.len(),5001);assert!(result.unknown.is_empty());
+        assert_eq!(result.native_requests,5002);assert_eq!(result.verified.len(),2);
+        assert!(result.failed_callers.is_empty());
+    }
+    #[test]
+    fn native_work_is_fair_across_files_and_reuses_caller_identity() {
+        let mut syntax=Syntax::default();
+        syntax.definitions=vec![definition("src/a.rs","a",0),definition("src/z.rs","z",0),definition("src/end.rs","target",0)];
+        let declared=syntax.definitions.iter().map(|definition|definition.key.clone()).collect();
+        let mut calls:Vec<_>=(10..210).map(|position|site("src/a.rs","a",position)).collect();calls.push(site("src/z.rs","z",10));
+        let mut requested=vec![];
+        let result=resolve_sites(&calls,&syntax,&declared,Instant::now()+Duration::from_secs(30),|path,position| {
+            requested.push((path.to_owned(),position));
+            Ok(Some((if position!=0 {"target"}else if path=="src/a.rs" {"a"}else{"z"}).into()))
+        });
+        assert_eq!(result.resolved.len(),201);
+        assert!(requested.iter().take(4).any(|(path,_)|path=="src/z.rs"));
+        assert_eq!(requested.iter().filter(|(_,position)|*position==0).count(),2);
+    }
+    #[test]
+    fn failed_caller_checks_are_cached_and_expired_work_makes_no_native_requests() {
+        let mut syntax=Syntax::default();syntax.definitions=vec![definition("src/a.rs","a",0)];
+        let declared=BTreeSet::from(["a".into()]);let calls:Vec<_>=(10..20).map(|position|site("src/a.rs","a",position)).collect();
+        let result=resolve_sites(&calls,&syntax,&declared,Instant::now()+Duration::from_secs(30),|_,_|Ok(None));
+        assert_eq!(result.native_requests,1);assert_eq!(result.failed_callers.len(),1);assert_eq!(result.unknown.len(),calls.len());
+        let result=resolve_sites(&calls,&syntax,&declared,Instant::now()-Duration::from_millis(1),|_,_|panic!("expired lookup"));
+        assert_eq!(result.native_requests,0);assert_eq!(result.completed,0);
+        assert!(result.unknown.iter().all(|(_,reason)|*reason=="extraction_failure"));
+    }
+    #[test]
+    fn native_locations_cannot_choose_arbitrarily_between_shared_target_contexts() {
+        let root=Path::new("/captured-source");
+        let capture=Capture {root:root.into(),files:BTreeMap::from([("src/a.rs".into(),b"fn work() {}\n".to_vec())]),
+            diagnostics:vec![],exclusions:vec![],complete:true,inventory:Value::Null,captured_at_unix_ms:None};
+        let mut syntax=Syntax::default();syntax.definitions=vec![definition("src/a.rs","test::a::work",3),definition("src/a.rs","test::b::work",3)];
+        let response=json!({"uri":analyzer::uri(&root.join("src/a.rs")),"range":{"start":{"line":0,"character":3}}});
+        assert!(function_target(&syntax,&capture,root,&response).unwrap().is_none());
+        syntax.definitions.pop();assert_eq!(function_target(&syntax,&capture,root,&response).unwrap(),Some("test::a::work".into()));
+    }
+    #[test]
+    fn localized_parse_errors_keep_valid_sibling_calls_available() {
+        let capture=Capture {root:".".into(),files:BTreeMap::from([
+            ("Cargo.toml".into(),b"[package]\nname='demo'\nversion='0.1.0'\n".to_vec()),
+            ("src/lib.rs".into(),b"fn before() {}\n@\nfn after() { before(); }\n".to_vec())]),
+            diagnostics:vec![],exclusions:vec![],complete:true,inventory:Value::Null,captured_at_unix_ms:None};
+        let syntax=rust::syntax(&capture).unwrap();let found=sites(&capture,&syntax).unwrap();
+        assert!(found.iter().any(|site|site.position.is_some()&&site.caller.as_ref().is_some_and(|caller|caller.starts_with("after#"))));
+        assert!(found.iter().filter(|site|site.reason=="extraction_failure").all(|site|site.start>0&&site.end<capture.files["src/lib.rs"].len()));
+    }
 }

@@ -80,6 +80,9 @@ class TaskCaseSchemaTests(unittest.TestCase):
         case = self.case()
         case["candidates"] = [{"path": "src/a.rs", "rank": 1, "score": 10000, "selected": True}]
         case["request"].update(max_files=32, exclude_facets=["history"])
+        case["slice"]["impl"] = [{"path": "src/a.rs", "artifact_id": "artifact:a", "digest": "sha256:a",
+            "role": "impl", "language": "rust", "bytes": 10, "selection": "ranked_candidate", "rank": 1,
+            "candidate_rank": 12, "candidate_ref": "/candidates/11", "reached_by": {"depth": 0, "via_link": None}}]
         case["not_covered"].append({"area": "candidate_selection", "dimension": "slice", "reason": "bounded retrieval"})
         validate(case, self.case_schema)
         for change in ({"max_files": 0}, {"exclude_facets": ["invented"]}):

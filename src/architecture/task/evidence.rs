@@ -10,7 +10,7 @@ pub struct Artifact {
     pub language: String,
     pub bytes: usize,
 }
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Witness {
     pub path: String,
     pub artifact_id: String,

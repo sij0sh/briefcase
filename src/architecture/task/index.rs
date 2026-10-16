@@ -4,7 +4,7 @@ use regex::Regex;
 
 // Snapshot decoding and record definitions affect the derived index too.
 const INDEX_SOURCES:&[&[u8]]=&[include_bytes!("mod.rs"),include_bytes!("evidence.rs"),
-    include_bytes!("index.rs"),include_bytes!("producers.rs"),include_bytes!("../source.rs"),include_bytes!("../retained_source.rs")];
+    include_bytes!("index.rs"),include_bytes!("producers.rs"),include_bytes!("../source.rs"),include_bytes!("../retained_source.rs"),include_bytes!("../rust.rs")];
 fn implementation_digest(sources:&[&[u8]]) -> String {identity::bytes_digest(&sources.concat())}
 
 fn cache_key(s: &Snapshot) -> Result<String> {
@@ -50,6 +50,8 @@ pub(crate) fn precompute(l: &Ledger, view: &str) -> Result<Value> {
 /// Bounded health metadata; the pinned index and producer reports own details.
 pub(super) fn summary(ix:&Index) -> Value {
     json!({"source_view":ix.source_view,"files":ix.files.len(),"relationships":ix.links.len(),
+        "rust_syntax":{"parse_errors":ix.coverage["rust_syntax"]["parse_errors"],"test_targets":ix.coverage["rust_syntax"]["test_targets"],
+            "details":{"operation":"explain","arguments":{"report_id":ix.id,"ref":"/coverage/rust_syntax"}}},
         "profile_count":rows(&ix.coverage,"profile_views").len(),"languages":ix.coverage["languages"],
         "unresolved_occurrences":rows(&ix.coverage,"producer_boundaries").iter().map(|p|
             p["count"].as_u64().unwrap_or(rows(p,"unresolved").len() as u64)).sum::<u64>(),
@@ -158,6 +160,7 @@ fn build(s: &Snapshot, id: String) -> Result<Index> {
         qualified_files.entry(name.clone()).or_default().extend(entity.files.clone());
     }}
     for (path,content) in &s.contents {
+        if source::is_evaluation_artifact(path) {continue;}
         for found in path_token.find_iter(content) {
             let literal=found.as_str().trim_end_matches(['.', ',', ';', ':']);
             let token = literal.replace('\\',"/");
@@ -190,6 +193,7 @@ fn build(s: &Snapshot, id: String) -> Result<Index> {
             }
         }
     }
+    let rust_syntax=rust_test_links(s,&mut links,&mut omitted)?;
     config_links(s,&mut links,&mut omitted)?;
     // Feature membership uses only declared implementation/workflow bindings.
     let mut memberships: BTreeMap<String,BTreeSet<String>> = entities.iter().filter(|(_,e)|e.kind == "feature")
@@ -257,7 +261,7 @@ fn build(s: &Snapshot, id: String) -> Result<Index> {
         .map(|r|json!({"resolution_id":r["id"],"context":r["context"],"owner":by_id.get(&text(&r,"owner_entity_id")),
             "status":if r["status"]=="resolved" {json!("withdrawn")} else {r["status"].clone()},"predicate":r["predicate"],
             "requested_key":r["requested_key"],"requested_kind":r["requested_kind"],"reason":r["reason"]})).collect();
-    let coverage = json!({"source_view":v.id,"profile_views":s.profiles.iter().chain(s.evidence_views.iter()).map(|p|p.id.clone()).collect::<Vec<_>>(),
+    let coverage = json!({"source_view":v.id,"rust_syntax":rust_syntax,"profile_views":s.profiles.iter().chain(s.evidence_views.iter()).map(|p|p.id.clone()).collect::<Vec<_>>(),
         "evidence_producers":s.evidence_views.iter().map(|p|json!({"view_id":p.id,"scope":p.scope,"diagnostics":p.diagnostics})).collect::<Vec<_>>(),
         "analysis_profiles":s.profiles.iter().map(|p|json!({"view_id":p.id,"coverage":p.diagnostics["coverage"],
             "call_coverage":p.diagnostics["call_coverage"],
@@ -280,6 +284,60 @@ fn normalize_relative(path: &str, token: &str) -> Option<String> {
     Some(parts.join("/"))
 }
 
+/// Cargo roots and real module declarations carry test ownership through
+/// #[path] includes. This is a static association, never executed coverage.
+fn rust_test_links(s:&Snapshot,links:&mut BTreeMap<String,Link>,omitted:&mut usize)->Result<Value> {
+    let syntax=crate::architecture::rust::context_syntax(&s.contents)?;
+    let mut parents=BTreeMap::<String,BTreeSet<String>>::new();
+    for inclusion in &syntax.inclusions {
+        parents.entry(inclusion.to.clone()).or_default().insert(inclusion.from.clone());
+        if links.values().any(|link|link.predicate=="CONTAINS"&&link.from==inclusion.from&&link.to==inclusion.to) {continue;}
+        let link=Link::new("CONTAINS",&inclusion.from,&inclusion.to,"derived",
+            &format!("Rust module inclusion {}; retained syntax and exact path",inclusion.module),vec![],
+            vec![s.witness(&inclusion.from,inclusion.start,inclusion.end)],
+            BTreeSet::from([inclusion.from.clone()]),BTreeSet::from([inclusion.to.clone()]))?;
+        insert_link(links,link,omitted);
+    }
+    let associations:Vec<_>=links.values().filter(|link|["TESTS","IMPORTS","REFERENCES","CALLS_STATIC","DEPENDS_ON","REFERENCES_ARTIFACT"]
+        .contains(&link.predicate.as_str())).cloned().collect();
+    for association in associations {
+        for origin in &association.from_files {
+            let Some(roots)=syntax.test_owners.get(origin) else {continue};
+            let mut owners=roots.clone();let mut frontier=BTreeSet::from([origin.clone()]);let mut visited=BTreeSet::new();
+            while !frontier.is_empty() {
+                let mut next=BTreeSet::new();
+                for child in frontier {
+                    if !visited.insert(child.clone()) {continue;}
+                    for parent in parents.get(&child).into_iter().flatten() {
+                        if syntax.test_owners.get(parent).is_some_and(|p|!p.is_disjoint(roots)) {
+                            owners.insert(parent.clone());next.insert(parent.clone());
+                        }
+                    }
+                }
+                frontier=next;
+            }
+            let mut witnesses=association.witnesses.clone();
+            for inclusion in syntax.inclusions.iter().filter(|edge|visited.contains(&edge.to)&&owners.contains(&edge.from)) {
+                witnesses.push(s.witness(&inclusion.from,inclusion.start,inclusion.end));
+            }
+            for manifest in roots.iter().flat_map(|root|syntax.test_manifests.get(root).into_iter().flatten()) {
+                let witness=s.witness(manifest,0,s.contents[manifest].len());
+                if !witnesses.contains(&witness) {witnesses.push(witness);}
+            }
+            for owner in owners {
+                for implementation in association.to_files.iter().filter(|path|s.files.get(*path).is_some_and(|file|file.role=="impl")) {
+                    if owner==*implementation {continue;}
+                    let link=Link::new("TESTS",&owner,implementation,"derived",
+                        "Cargo test module ownership and retained association; not executed coverage",association.assertion_ids.clone(),witnesses.clone(),
+                        BTreeSet::from([owner.clone()]),BTreeSet::from([implementation.clone()]))?;
+                    insert_link(links,link,omitted);
+                }
+            }
+        }
+    }
+    Ok(crate::architecture::rust::syntax_diagnostics(&syntax))
+}
+
 fn config_links(s: &Snapshot, links: &mut BTreeMap<String,Link>, omitted: &mut usize) -> Result<()> {
     let access = Regex::new(r#"(?:env::var(?:_os)?|std::env::var(?:_os)?|os\.getenv|getenv)\s*\(\s*["']([A-Za-z_][A-Za-z0-9_]*)["']|process\.env\.([A-Za-z_][A-Za-z0-9_]*)|os\.environ\s*\[\s*["']([A-Za-z_][A-Za-z0-9_]*)["']"#)?;
     let declaration = Regex::new(r#"(?m)^\s*["']?([A-Z][A-Z0-9_]+)["']?\s*[:=]"#)?;
@@ -288,6 +346,7 @@ fn config_links(s: &Snapshot, links: &mut BTreeMap<String,Link>, omitted: &mut u
     let plan = Regex::new(r"briefcase:\s*implements-plan\s+([\p{L}\p{N}_./-]+)(?:#([\p{L}\p{N}_-]+))?")?;
     let install = Regex::new(r#"(?m)^\s*(?:cp|install)\s+([A-Za-z0-9_./-]+)\s+["']?((?:\$\{?HOME\}?|~|/etc|/usr|/opt)/[A-Za-z0-9_./{}$-]+)["']?\s*$"#)?;
     for (path,content) in &s.contents {
+        if source::is_evaluation_artifact(path) {continue;}
         let role = &s.files[path].role;
         if ["impl","script","install","test"].contains(&role.as_str()) {
             for found in access.captures_iter(content) {

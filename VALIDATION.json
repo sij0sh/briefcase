@@ -1,16 +1,16 @@
 {
   "date": "2026-10-16",
   "status": "partial_validation",
-  "scope": "Stage 1: compact agent routing projection, separate anchor, shared pinned source fetch, compact freshness and one final transport-aware byte budget. Retained selection/ranking unchanged.",
+  "scope": "Stage 2: validated facet arrays; duty-aware reading selection with evidence-rank provenance; evaluation artifact exclusions; Cargo/module test ownership; localized Rust syntax diagnostics; on-demand, deadline-bounded native call analysis without fixed item ceilings.",
   "executed_tests": {
-    "total": 43,
-    "passed": 43,
+    "total": 44,
+    "passed": 44,
     "failed": 0,
     "suites": [
       {
         "command": "python3 -B -m unittest discover -s scripts -p 'test_*.py'",
         "exit_code": 0,
-        "tests": 19,
+        "tests": 20,
         "result": "passed"
       },
       {
@@ -20,7 +20,7 @@
         "result": "passed"
       },
       {
-        "command": "node --test tests/briefcase-task-adapter.test.mjs",
+        "command": "node --test --test-reporter=spec tests/briefcase-task-adapter.test.mjs",
         "exit_code": 0,
         "tests": 16,
         "result": "passed"
@@ -30,7 +30,7 @@
   "static_checks": {
     "changed_python_syntax": "passed",
     "contract_json_parsing": "passed",
-    "owned_schema_vocabulary": "passed in schema tests",
+    "owned_schema_vocabulary": "passed for all 10 owned contract schemas",
     "javascript_syntax": {
       "files": [
         "src/architecture/typescript.cjs",
@@ -40,13 +40,13 @@
     },
     "git_diff_whitespace": "passed",
     "changed_documentation_links": {
-      "count": 15,
+      "count": 16,
       "result": "passed"
     }
   },
   "rust_regressions_authored": {
-    "new_unit_tests": 5,
-    "new_integration_tests": 2,
+    "new_unit_tests": 20,
+    "new_integration_tests": 3,
     "updated_integration_tests": 1,
     "executed": false,
     "command": "cargo test --locked --lib --test context"
@@ -55,7 +55,7 @@
     {
       "command": "cargo test --locked --lib --test context",
       "exit_code": 127,
-      "reason": "Cargo is absent; rustc, rustfmt and Clippy also unavailable. Compilation, Rust tests and actual runtime delivery are unverified."
+      "reason": "Cargo is absent; rustc, rustfmt and Clippy are also unavailable. Stage 2 compilation, Rust regressions, native behavior and runtime delivery are unverified."
     },
     {
       "command": "python3 -B tools/check_package.py",
@@ -67,14 +67,15 @@
     "Rust build, type checking, formatting and Clippy",
     "Binary-backed Pi integration tests",
     "Source sync and original/held-out task corpus measurements",
-    "Facet ablations; array-validator repair remains Stage 2"
+    "Runtime facet ablations; the array-validator fix and ablation regressions are implemented but not executed here"
   ],
   "compatibility": {
     "agent_context_projection": "2.0; shared fetch_source plus per-file ref/source_offset, reason string, separate anchor, compact freshness with Boolean fallback",
-    "case_and_brief": "Existing retained contracts and selection/ranking untouched",
+    "case_and_brief": "Optional candidate_rank and delivery_rank distinguish reading order from global evidence rank. Omitted fields remain omitted on legacy candidate roundtrip; stored cases are not rewritten.",
     "legacy_limit": "Accepted for compatibility, ignored for agent_context delivery",
-    "evaluator": "Supports legacy v1 per-file fetches and compact v2 shared fetches; anchor paths count toward delivered recall",
-    "harness_delivery": "Pi/Claude automatic; existing Codex/Muse explicit-only status unchanged"
+    "evaluator": "Supports legacy v1 and compact v2 source fetches, includes anchor paths in delivered recall, and reports reading rank and global evidence rank separately",
+    "harness_delivery": "Pi/Claude automatic; existing Codex/Muse explicit-only status unchanged",
+    "typed_knowledge_coverage": "Unchanged closed schema; native-request and Rust parser metrics are diagnostics"
   },
   "remaining_acceptance": [
     "cargo build --locked",
@@ -83,8 +84,14 @@
     "cargo fmt --all -- --check",
     "cargo clippy --locked --lib --bins --tests",
     "node --test tests/briefcase-pi.test.mjs",
-    "Original/held-out delivery evaluation at matched capture/index inputs",
+    "Original/held-out retrieval evaluation and facet ablations with frozen inputs/budgets",
+    "Native sync timing, memory, request counts and partial/completeness measurements",
     "Restore original conformance fixtures before full package checks"
   ],
-  "details": "evaluation/STAGE1.md"
+  "details": "evaluation/STAGE2.md",
+  "user_reported_stage1_baseline": {
+    "original_manifest_recall": "26/36; equal to brief",
+    "heldout_manifest_recall": "17/19; equal to brief",
+    "source": "User-provided Stage 1 results. Not a Stage 2 measurement."
+  }
 }

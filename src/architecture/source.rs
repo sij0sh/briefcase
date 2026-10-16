@@ -21,6 +21,19 @@ pub fn code_extension(path: &str) -> Option<&'static str> {
 
 /// Stable artifact roles for task composition, independent of language parsing.
 pub const ARTIFACT_ROLES: &[&str] = &["impl", "test", "config", "script", "build", "install", "doc", "adr", "plan", "fixture", "generated"];
+
+/// Evaluation questions, answer keys and result reports are retained for
+/// inspection, but cannot seed normal task retrieval or bridge its graph.
+pub(crate) fn is_evaluation_artifact(path: &str) -> bool {
+    let lower = path.replace('\\', "/").to_ascii_lowercase();
+    let lower = lower.trim_start_matches("./");
+    if lower.starts_with("evaluation/") || lower.starts_with("evaluations/") { return true; }
+    let name = lower.rsplit('/').next().unwrap_or(lower);
+    let document = ["md", "rst", "adoc", "txt", "json", "jsonl", "csv", "html"]
+        .contains(&name.rsplit('.').next().unwrap_or(""));
+    document && ["evaluation.", "evaluation_", "evaluation-", "eval-results", "eval-recommendations", "eval-findings", "eval-rerun"]
+        .iter().any(|prefix| name.starts_with(prefix))
+}
 pub fn artifact_role(path: &str) -> &'static str {
     let lower = path.to_lowercase();
     let name = lower.rsplit('/').next().unwrap_or(&lower);
@@ -178,6 +191,18 @@ pub fn split_oversized(text: &str, max_chars: usize) -> Vec<(String, usize, usiz
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn evaluation_outputs_are_distinct_from_product_source_and_user_documentation() {
+        for path in ["evaluation/STAGE1.md","evaluation/task-scenarios.json","evaluation/sources/demo.rs",
+            "EVALUATION_FINDINGS.md","EVALUATION_RERUN.md","docs/Evaluation-Results.json","eval-recommendations.md"] {
+            assert!(is_evaluation_artifact(path),"{path}");
+        }
+        for path in ["src/evaluation.rs","src/evaluation_engine.rs","scripts/task-evaluate.py",
+            "tests/test_evaluation_support.py","docs/architecture.md","contracts/v1/task-case.schema.json"] {
+            assert!(!is_evaluation_artifact(path),"{path}");
+        }
+    }
 
     #[test]
     fn path_categories_and_key_prefixes_preserve_existing_rules() {

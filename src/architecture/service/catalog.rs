@@ -90,6 +90,7 @@ pub fn catalog() -> Vec<Operation> {
         if kind==AgentContext {s["properties"]["limit"]["description"]=json!("Deprecated compatibility argument; ignored. max_files bounds the retained case; max_bytes bounds delivery.");}
         if kind==Neighbors {s["properties"]["direction"]["enum"]=json!(["in","out","both"]);}
         if kind==Search {
+            s["properties"]["include_evaluation"]=json!({"type":"boolean","description":"Explicitly search retained evaluation inputs/reports; excluded from normal retrieval."});
             s["properties"]["history"]=json!({"type":"boolean"});
             s["properties"]["sessions"]=json!({"type":"boolean"});
             // Legacy query flags must not silently change search authority.

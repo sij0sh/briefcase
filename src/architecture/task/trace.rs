@@ -125,7 +125,7 @@ pub(super) fn build(l:&Ledger,s:&Snapshot,ix:&Index,r:&Request) -> Result<Trace>
     let mut strong:Vec<_>=candidates.values().filter(|c|c.score>=60).collect();
     strong.sort_by_key(|c|(std::cmp::Reverse(c.score),c.path.clone()));
     let mut initial:BTreeSet<_>=strong.iter().take(8).map(|c|c.path.clone()).collect();
-    initial.extend(seed.paths.clone());
+    initial.extend(seed.paths.iter().filter(|path|retrieval::path_allowed(path,&seed)).cloned());
     let (hints,join_coverage)=joins::discover(l,s,r,&initial)?;
     for hint in hints {
         let path=text(&hint,"path");
@@ -140,7 +140,7 @@ pub(super) fn build(l:&Ledger,s:&Snapshot,ix:&Index,r:&Request) -> Result<Trace>
     let paths:BTreeSet<_>=candidates.iter().filter(|c|c.selected).map(|c|c.path.clone()).collect();
     let reached_by=candidates.iter().filter(|c|c.selected).map(|c|(c.path.clone(),c.reach())).collect();
     let keys=ix.entities.iter().filter(|(_,e)|!paths.is_disjoint(&e.files)).map(|(k,_)|k.clone()).collect();
-    let links=ix.links.iter().filter(|e|!paths.is_disjoint(&e.from_files)||!paths.is_disjoint(&e.to_files))
+    let links=ix.links.iter().filter(|e|retrieval::link_allowed(e,&seed)&&(!paths.is_disjoint(&e.from_files)||!paths.is_disjoint(&e.to_files)))
         .map(|e|e.id.clone()).collect();
     let joins=joins::build(l,s,ix,&paths)?;
     let mut boundaries=joins.boundaries.clone();
@@ -149,7 +149,10 @@ pub(super) fn build(l:&Ledger,s:&Snapshot,ix:&Index,r:&Request) -> Result<Trace>
         boundaries.push(Boundary::RuntimeObservationScope(json!({"view_id":producer.id,"interval":producer.diagnostics["interval"],
             "sampling":producer.diagnostics["sampling"],"reason":"Retained runtime observations describe one interval; missing observations do not establish absence."})));
     }
-    let retrieval=json!({"method":"faceted-retrieval-v1","max_files":r.max_files,"minimum_score":24,
+    let retrieval=json!({"method":"faceted-retrieval-v2","max_files":r.max_files,"minimum_score":24,
+        "selection_policy":retrieval::selection_policy(r.duty),
+        "evaluation_artifacts":{"policy":"excluded from automatic discovery and graph bridges; exact anchors may opt in",
+            "retained_count":s.files.keys().filter(|path|source::is_evaluation_artifact(path)).count()},
         "candidate_count":candidates.len(),"selected_files":paths.len(),"omitted_candidates":candidates.len()-paths.len(),
         "excluded_facets":r.exclude_facets,"lexical_discovery":lexical_coverage,"join_discovery":join_coverage,
         "semantics":"Scores rank reading context, never assertion authority, implementation membership or task completion."});

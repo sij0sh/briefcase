@@ -57,12 +57,15 @@ pub(super) fn assemble(r:&Request,s:&Snapshot,ix:&Index,t:&Trace,policy:&CasePol
     }
     let mut slice=serde_json::Map::new();
     for role in source::ARTIFACT_ROLES {slice.insert((*role).into(),json!([]));}
-    for candidate in t.candidates.iter().filter(|c|c.selected) {
+    let mut selected:Vec<_>=t.candidates.iter().filter(|c|c.selected).collect();
+    selected.sort_by_key(|c|c.delivery_rank.unwrap_or(c.rank));
+    for candidate in selected {
         let path=&candidate.path;
         let Some(file)=s.files.get(path) else {continue};
         let mut row=serde_json::to_value(file)?;
         row["selection"]=json!(if t.seed.status==trace::AnchorStatus::Resolved&&t.seed.paths.contains(path) {"resolved_anchor"} else {"ranked_candidate"});
-        row["rank"]=json!(candidate.rank);row["score"]=json!(candidate.score);
+        row["rank"]=json!(candidate.delivery_rank.unwrap_or(candidate.rank));row["score"]=json!(candidate.score);
+        row["candidate_rank"]=json!(candidate.rank);
         row["candidate_ref"]=json!(format!("/candidates/{}",candidate.rank-1));
         row["selection_reasons"]=json!(candidate.signals.iter().map(|s|json!({"facet":s.facet,"kind":s.kind,
             "strength":s.strength,"confidence":s.confidence,"via_link":s.via_link})).collect::<Vec<_>>());
@@ -78,6 +81,7 @@ pub(super) fn assemble(r:&Request,s:&Snapshot,ix:&Index,t:&Trace,policy:&CasePol
     pinned.sort();pinned.dedup();
     let uncovered:BTreeSet<_>=assessment.gaps.iter().map(|g|String::from(g.area.clone())).collect();
     let coverage=json!({"capture":inventory_summary(&s.view.diagnostics["capture"]["inventory"]),
+        "rust_syntax":{"operation":"explain","arguments":{"report_id":ix.id,"ref":"/coverage/rust_syntax"}},
         "profiles":ix.coverage["languages"],"analysis_profiles":ix.coverage["analysis_profiles"],"producer":s.view.diagnostics["coverage"],
         "artifact_roles":assessment.role_coverage,"required_roles":policy.required_roles,"neighborhood_depth":t.depth,
         "producer_boundary_scope":{"outside_selected_slice":assessment.outside_boundaries,"unlocalized":assessment.unlocalized_boundaries,

@@ -70,6 +70,15 @@ same pass. Generic presentation limits no longer cap agent files. Complete
 tables and diagnostics remain in the case, including the candidate inventory
 whose continuation starts at zero. See [evaluation/STAGE1.md](evaluation/STAGE1.md).
 
+Stage 2 keeps candidate evidence rank/score intact and selects a separate duty
+reading order. Slice `candidate_rank` and candidate `delivery_rank` make both
+orders inspectable; legacy candidates omit the new optional field on roundtrip.
+Evaluation artifacts are excluded before normal lexical indexing and graph
+expansion, with explicit inspection still available. Cargo test ownership follows
+real module declarations into included files and their runner. Native calls use
+cached required endpoints and a shared deadline, with no fixed 4,096-item caps.
+See [evaluation/STAGE2.md](evaluation/STAGE2.md) for scope and validation.
+
 Run these checks on a Rust-enabled host:
 
 ```sh

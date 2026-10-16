@@ -37,8 +37,9 @@ fn bounded_selection_is_ranked_pinned_and_keeps_omitted_candidates_pageable() {
     assert_eq!(packet["slice"]["impl"][0]["rank"],1);
     assert!(rows(&packet,"not_covered").iter().any(|g|g["area"]=="candidate_selection"));
     assert_ne!(packet["outcome"],"complete");
-    let alternatives=f.call("page",json!({"report_id":packet["case_id"],"section":"/candidates","offset":6,"limit":1000,"max_bytes":1048576}));
-    assert!(!rows(&alternatives,"items").is_empty());assert!(rows(&alternatives,"items").iter().all(|c|c["selected"]==false));
+    let alternatives=f.call("page",json!({"report_id":packet["case_id"],"section":"/candidates","offset":0,"limit":1000,"max_bytes":1048576}));
+    assert!(rows(&alternatives,"items").iter().any(|c|c["selected"]==false));
+    assert_eq!(rows(&alternatives,"items").iter().filter(|c|c["selected"]==true).count(),6);
     args["limit"]=json!(12);args["max_bytes"]=json!(8000);
     let manifest=f.call("agent_context",args);
     assert_eq!(manifest["case_id"],packet["case_id"]);assert_eq!(manifest["kind"],"agent_context");

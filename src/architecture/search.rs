@@ -71,22 +71,23 @@ pub(crate) fn chunks(text: &str) -> Vec<(usize, usize)> {
 /// analysis but which never describe this repository.
 pub(crate) fn is_disposable(path: &str) -> bool {
     path.split('/')
-        .any(|segment| super::capture::EXCLUDED.contains(&segment) || segment == "vendor")
+        .any(|segment| super::capture::EXCLUDED.contains(&segment) || ["vendor", ".exitcode"].contains(&segment))
 }
 
 /// Evaluation inputs and outputs (gold questions, fixtures, reports) are
 /// retained and searchable, but they are about the product, not the product.
 pub(crate) fn is_evaluation_archive(path: &str) -> bool {
-    path.starts_with("evaluation/")
+    source::is_evaluation_artifact(path)
 }
 
-fn recalled(v: &View) -> Vec<&Value> {
+fn recalled(v: &View, include_evaluation: bool) -> Vec<&Value> {
     rows(&v.bundle, "artifacts")
         .iter()
         .filter(|a| {
             a["availability"] == "available"
                 && RECALLED_KINDS.contains(&a["source_kind"].as_str().unwrap_or(""))
                 && !is_disposable(&text(a, "path"))
+                && (include_evaluation || !is_evaluation_archive(&text(a, "path")))
         })
         .collect()
 }
@@ -161,16 +162,19 @@ fn session_hits(l: &Ledger, text_query: &str) -> Result<(Vec<Value>, usize, bool
 /// Build the recall projection for a pinned source view when it is absent.
 /// Returns the configuration digest and unit count.
 pub fn ensure_index(l: &Ledger, v: &View) -> Result<(String, u64)> {
+    ensure_index_with_policy(l, v, false)
+}
+fn ensure_index_with_policy(l: &Ledger, v: &View, include_evaluation: bool) -> Result<(String, u64)> {
     require(
         v.scope == "source",
         "SCOPE",
         "Recall reads a source capture",
     )?;
-    let config = identity::digest(&configuration())?;
+    let config = identity::digest(&json!({"configuration":configuration(),"include_evaluation":include_evaluation}))?;
     if let Some(count) = l.recall_ready(&v.id, &config)? {
         return Ok((config, count));
     }
-    let artifacts = recalled(v);
+    let artifacts = recalled(v, include_evaluation);
     let ids: Vec<String> = artifacts.iter().map(|a| text(a, "id")).collect();
     let payloads = l.payloads_for(&ids)?;
     let mut units = Vec::new();
@@ -245,6 +249,13 @@ pub(crate) fn recall_unbounded(
     include_history: bool,
     include_sessions: bool,
 ) -> Result<Value> {
+    recall_unbounded_with_policy(l, text_query, o, max_bytes, include_history, include_sessions, false)
+}
+
+fn recall_unbounded_with_policy(
+    l: &Ledger, text_query: &str, o: &query::Options, max_bytes: usize,
+    include_history: bool, include_sessions: bool, include_evaluation: bool,
+) -> Result<Value> {
     require(
         !text_query.trim().is_empty() && text_query.len() <= 4096,
         "RECALL",
@@ -260,7 +271,7 @@ pub(crate) fn recall_unbounded(
     // block in the result reports that state instead of hiding it.
     let v = l.retained(&o.view)?;
     require((1..=1000).contains(&o.limit),"ARGUMENTS","Limit must be 1..1000")?;
-    let (config, unit_count) = ensure_index(l, &v)?;
+    let (config, unit_count) = ensure_index_with_policy(l, &v, include_evaluation)?;
     let history_config = identity::digest(&git_history::configuration())?;
     // Retained commits stay searchable under the configuration that indexed
     // them; a different running implementation is reported, not hidden.
@@ -294,7 +305,7 @@ pub(crate) fn recall_unbounded(
     let demoted_evaluation = archived.len();
     ordered.extend(archived);
     let candidates = ordered;
-    let digests: BTreeMap<String, Value> = recalled(&v)
+    let digests: BTreeMap<String, Value> = recalled(&v, include_evaluation)
         .into_iter()
         .map(|a| (text(a, "id"), a["digest"].clone()))
         .collect();
@@ -422,6 +433,7 @@ pub(crate) fn recall_unbounded(
         (_, false) => json!({"included":false,"reason":"Excluded by the request"}),
     };
     let mut not_included = vec!["files outside the capture's source selection"];
+    if !include_evaluation {not_included.push("evaluation fixtures, questions and result reports; opt in with include_evaluation");}
     if !include_sessions {
         not_included.insert(0, "agent session history");
     }
@@ -490,6 +502,9 @@ pub(crate) fn recall_unbounded(
             "terms":{"matched":matched_terms,"unmatched":unmatched_terms},
             "excluded_disposable_artifacts":disposable_count(&v),
             "demoted_evaluation_candidates":demoted_evaluation,
+            "evaluation_artifacts":{"included":include_evaluation,
+                "excluded_artifacts":if include_evaluation {0} else {rows(&v.bundle,"artifacts").iter().filter(|a|is_evaluation_archive(&text(a,"path"))).count()},
+                "policy":"excluded before source FTS candidate limits unless explicitly requested"},
             "indexed_units":unit_count,
             "candidate_limit":CANDIDATE_LIMIT,
             "candidate_limit_reached":candidate_count==CANDIDATE_LIMIT,
@@ -553,8 +568,9 @@ pub fn search(l: &Ledger, a: &Value) -> Result<Value> {
     require((1..=1000).contains(&limit), "ARGUMENTS", "Limit must be 1..1000")?;
     let component = a["component"].as_str().unwrap_or("").trim_start_matches("./").trim_end_matches('/');
     let o = query::Options { view: view.into(), limit: 1000, allow_partial: true, ..Default::default() };
-    let mut doc = recall_unbounded(l, text_query, &o, response::MAX_MAX_BYTES,
-        a["history"].as_bool().unwrap_or(true), a["sessions"].as_bool().unwrap_or(false))?;
+    let mut doc = recall_unbounded_with_policy(l, text_query, &o, response::MAX_MAX_BYTES,
+        a["history"].as_bool().unwrap_or(true), a["sessions"].as_bool().unwrap_or(false),
+        a["include_evaluation"].as_bool().unwrap_or(false))?;
     let v = l.retained(view)?;
     let refs: BTreeMap<_, _> = rows(&v.bundle, "evidence_refs").iter().map(|r| (text(r,"id"), r)).collect();
     let mut by_artifact: BTreeMap<String, Vec<Value>> = BTreeMap::new();

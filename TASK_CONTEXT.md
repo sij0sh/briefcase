@@ -20,6 +20,12 @@ Stage 1 changes, protocol migration and validation are recorded in
 [evaluation/STAGE1.md](evaluation/STAGE1.md). Retained case construction and
 retrieval ranking are unchanged by that stage.
 
+[Stage 2](evaluation/STAGE2.md) adds validated facet-array ablations, duty-aware
+reading selection, Cargo/module test ownership, evaluation-artifact exclusions
+and on-demand native endpoint verification. Global evidence scores remain
+inspectable separately from selected reading order. No new corpus measurements
+are claimed until the Rust-enabled evaluation is run.
+
 The [task evaluator](scripts/task-evaluate.py) measures labelled file recall,
 Recall@K, required-file ranks, labelled precision, selected source/response
 bytes, actionable gaps, false-complete outcomes and actual harness delivery. Scenarios must supply authored

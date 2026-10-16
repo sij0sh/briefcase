@@ -181,6 +181,17 @@ class TaskEvaluationTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "not pinned"):
             task_evaluate.evaluate_scenario(scenario, call, manifest_bytes=8000)
 
+    def test_delivery_rank_and_global_evidence_rank_are_reported_separately(self):
+        packet = {"id": "task-case:diverse", "case_id": "task-case:diverse", "outcome": "partial",
+                  "slice": {role: [] for role in task_evaluate.ROLES}, "not_covered": [],
+                  "coverage": {"delivery": {"/not_covered": {"omitted": 0}, **{
+                      f"/slice/{role}": {"omitted": 0} for role in task_evaluate.ROLES}}}}
+        packet["slice"]["impl"] = [{"path": "code.rs", "rank": 1, "candidate_rank": 12}]
+        packet["slice"]["doc"] = [{"path": "guide.md", "rank": 2, "candidate_rank": 1}]
+        result = task_evaluate.evaluate_scenario({"id": "diverse", "task": "repair", "required_paths": ["code.rs", "guide.md"]}, lambda *_: packet)
+        self.assertEqual(result["required_path_ranks"], {"code.rs": 1, "guide.md": 2})
+        self.assertEqual(result["required_path_evidence_ranks"], {"code.rs": 12, "guide.md": 1})
+
 
     def test_harness_framing_matches_the_actual_adapter_sources(self):
         import re

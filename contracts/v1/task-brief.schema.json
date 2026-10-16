@@ -369,6 +369,10 @@
           "items": {
             "type": "object"
           }
+        },
+        "candidate_rank": {
+          "type": "integer",
+          "minimum": 1
         }
       },
       "additionalProperties": false

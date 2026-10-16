@@ -23,13 +23,15 @@ pub(super) struct Candidate {
     pub rank:usize,
     pub score:u64,
     pub selected:bool,
+    #[serde(default,skip_serializing_if="Option::is_none")]
+    pub delivery_rank:Option<usize>,
     pub authority:String,
     pub signals:Vec<Signal>,
     pub spans:Vec<Value>,
 }
 impl Candidate {
     fn new(path:&str)->Self {Self {path:path.into(),rank:0,score:0,selected:false,
-        authority:"retrieval_hint; not implementation membership".into(),signals:vec![],spans:vec![]}}
+        delivery_rank:None,authority:"retrieval_hint; not implementation membership".into(),signals:vec![],spans:vec![]}}
     pub fn reach(&self)->Reach {
         let signal=self.signals.iter().min_by_key(|s|(std::cmp::Reverse(s.strength),s.depth));
         Reach {depth:signal.map_or(0,|s|s.depth),via_link:signal.and_then(|s|s.via_link.clone())}
@@ -37,6 +39,7 @@ impl Candidate {
 }
 pub(super) type Candidates=BTreeMap<String,Candidate>;
 pub(super) fn contribute(candidates:&mut Candidates,path:&str,signal:Signal) {
+    if source::is_evaluation_artifact(path) && !(signal.facet=="anchors" && signal.kind=="exact_anchor") { return; }
     let candidate=candidates.entry(path.into()).or_insert_with(||Candidate::new(path));
     // At most one contribution per facet/kind/link. Repeated occurrences and
     // repeated passes cannot inflate scores. Keep strongest explanations first.
@@ -154,6 +157,7 @@ pub(super) fn expand(ix:&Index,r:&Request,seed:&Seed,candidates:&mut Candidates)
     let mut neighbors=BTreeMap::<String,BTreeSet<String>>::new();
     let mut key_neighbors=BTreeMap::<&str,BTreeSet<&str>>::new();
     for e in &ix.links {
+        if !link_allowed(e,seed) {continue;}
         if facet(&e.predicate).is_none() {continue;}
         key_neighbors.entry(&e.from).or_default().insert(&e.to);
         key_neighbors.entry(&e.to).or_default().insert(&e.from);
@@ -165,12 +169,13 @@ pub(super) fn expand(ix:&Index,r:&Request,seed:&Seed,candidates:&mut Candidates)
     let mut starters:Vec<_>=candidates.values().filter(|c|c.score>=50).collect();
     starters.sort_by_key(|c|(std::cmp::Reverse(c.score),c.path.clone()));
     let mut frontier_paths:BTreeSet<_>=starters.iter().take(8).map(|c|c.path.clone()).collect();
-    frontier_paths.extend(seed.paths.clone());
+    frontier_paths.extend(seed.paths.iter().filter(|path|path_allowed(path,seed)).cloned());
     let mut frontier_keys=seed.candidates.clone();
     let (mut visited_paths,mut visited_keys)=(frontier_paths.clone(),frontier_keys.clone());
     for depth in 1..=r.depth {
         let (mut next_paths,mut next_keys)=(BTreeSet::new(),BTreeSet::new());
         for e in &ix.links {
+            if !link_allowed(e,seed) {continue;}
             let Some((facet,base))=facet(&e.predicate) else {continue};
             if !r.duty.policy().trace.predicates.contains(&e.predicate.as_str()) {continue;}
             if !r.enabled(facet) {continue;}
@@ -205,10 +210,46 @@ pub(super) fn expand(ix:&Index,r:&Request,seed:&Seed,candidates:&mut Candidates)
     if r.enabled("dependency") {
         let readers:BTreeSet<_>=candidates.values().filter(|c|c.score>=50).map(|c|c.path.clone()).collect();
         let keys:BTreeSet<_>=ix.links.iter().filter(|e|e.predicate=="READS_CONFIG"&&!readers.is_disjoint(&e.from_files)).map(|e|e.to.clone()).collect();
-        for e in ix.links.iter().filter(|e|e.predicate=="DECLARES_CONFIG_KEY"&&keys.contains(&e.to)) {for path in &e.from_files {
+        for e in ix.links.iter().filter(|e|link_allowed(e,seed)&&e.predicate=="DECLARES_CONFIG_KEY"&&keys.contains(&e.to)) {for path in &e.from_files {
             contribute(candidates,path,signal("dependency","config_key_join",65,"retained_relationship",2,Some(&e.id),json!({"key":e.to,"index_id":ix.id})));
         }}
     }
+}
+
+pub(super) fn path_allowed(path:&str,seed:&Seed)->bool {
+    !source::is_evaluation_artifact(path) || seed.status==AnchorStatus::Resolved && seed.paths.contains(path)
+}
+pub(super) fn link_allowed(link:&Link,seed:&Seed)->bool {
+    link.from_files.iter().chain(&link.to_files).all(|path|path_allowed(path,seed))
+}
+
+/// Keep evidence scores/ranks intact. A separate, deterministic reading queue
+/// protects anchors and interleaves implementation, tests and supporting roles.
+pub(super) fn selection_policy(duty:Duty)->Value {
+    json!({"method":if duty.delivery_cycle().is_empty(){"evidence_rank"}else{"duty_roles_v1"},
+        "cycle":duty.delivery_cycle(),"anchors":"exact anchors first",
+        "rank_semantics":"candidates.rank is evidence rank; selected slice rank is delivery order"})
+}
+
+fn delivery_order(ix:&Index,r:&Request,ranked:&[Candidate])->Vec<usize> {
+    let mut order=vec![];
+    let mut queues=BTreeMap::<&str,std::collections::VecDeque<usize>>::new();
+    let cycle=r.duty.delivery_cycle();
+    for (index,candidate) in ranked.iter().enumerate().filter(|(_,c)|c.score>=MIN_SCORE) {
+        if candidate.signals.iter().any(|s|s.facet=="anchors"&&s.kind=="exact_anchor") {order.push(index);continue;}
+        let role=ix.files[&candidate.path].role.as_str();
+        let band=if cycle.is_empty(){"evidence"}else if ["impl","test"].contains(&role){role}else{"support"};
+        queues.entry(band).or_default().push_back(index);
+    }
+    if cycle.is_empty() {order.extend(queues.remove("evidence").unwrap_or_default());return order;}
+    loop {
+        let before=order.len();
+        for band in cycle {
+            if let Some(index)=queues.get_mut(*band).and_then(|queue|queue.pop_front()) {order.push(index);}
+        }
+        if order.len()==before {break;}
+    }
+    order
 }
 
 pub(super) fn rank(ix:&Index,r:&Request,candidates:Candidates)->Vec<Candidate> {
@@ -217,11 +258,13 @@ pub(super) fn rank(ix:&Index,r:&Request,candidates:Candidates)->Vec<Candidate> {
         if r.duty.policy().case.required_roles.contains(&ix.files[&candidate.path].role.as_str()) {candidate.score+=6;}
     }
     ranked.sort_by_key(|c|(std::cmp::Reverse(c.score),c.path.clone()));
-    let mut selected=0;
     for (i,candidate) in ranked.iter_mut().enumerate() {
         candidate.rank=i+1;
-        candidate.selected=selected<r.max_files&&candidate.score>=MIN_SCORE;
-        if candidate.selected {selected+=1;}
+        candidate.selected=false;candidate.delivery_rank=None;
+    }
+    let order=delivery_order(ix,r,&ranked);
+    for (position,index) in order.into_iter().take(r.max_files).enumerate() {
+        ranked[index].selected=true;ranked[index].delivery_rank=Some(position+1);
     }
     ranked
 }
@@ -277,6 +320,67 @@ mod tests {
             BTreeSet::from(["src/a.rs".into()]),BTreeSet::from(["src/b.rs".into()])).unwrap();
         link.support_files.insert("src/proof.rs".into());
         Index {id:"ix".into(),source_view:"v".into(),retraction_epoch:0,files,entities:BTreeMap::new(),links:vec![link],coverage:json!({})}
+    }
+
+    #[test]
+    fn coding_selection_balances_roles_without_rewriting_evidence_ranks_or_scores() {
+        let mut ix=ix();let mut candidates=Candidates::new();
+        for (role,count,strength) in [("doc",30,200),("impl",20,50),("test",10,70)] {
+            for index in 0..count {
+                let path=format!("{role}/{index}.txt");
+                ix.files.insert(path.clone(),Artifact {path:path.clone(),artifact_id:path.clone(),digest:"digest".into(),
+                    role:role.into(),language:"text".into(),bytes:0});
+                contribute(&mut candidates,&path,signal("lexical","text",strength,"candidate",0,None,json!({})));
+            }
+        }
+        contribute(&mut candidates,"doc/0.txt",signal("anchors","exact_anchor",10000,"exact",0,None,json!({})));
+        let mut previous=Vec::<String>::new();
+        for bound in [1,4,12,32] {
+            let request=super::super::request::parse(&json!({"task":"repair","duty":"debug","max_files":bound})).unwrap().0;
+            let ranked=rank(&ix,&request,candidates.clone());
+            assert!(ranked.windows(2).all(|pair|pair[0].score>=pair[1].score));
+            let mut selected:Vec<_>=ranked.iter().filter(|candidate|candidate.selected).collect();
+            selected.sort_by_key(|candidate|candidate.delivery_rank);
+            assert_eq!(selected.len(),bound);assert_eq!(selected[0].path,"doc/0.txt");
+            let paths:Vec<_>=selected.iter().map(|candidate|candidate.path.clone()).collect();
+            assert!(paths.starts_with(&previous));previous=paths;
+            if bound==12 {
+                assert!(selected.iter().filter(|candidate|ix.files[&candidate.path].role=="impl").count()>=5);
+                assert!(selected.iter().filter(|candidate|ix.files[&candidate.path].role=="test").count()>=3);
+                assert!(ranked.iter().any(|candidate|!candidate.selected&&candidate.path.starts_with("doc/")));
+                assert!(selected.iter().any(|candidate|candidate.rank>12));
+            }
+        }
+        let request=super::super::request::parse(&json!({"task":"explain","duty":"explain","max_files":12})).unwrap().0;
+        let ranked=rank(&ix,&request,candidates);
+        assert!(ranked.iter().take(12).all(|candidate|candidate.selected));
+    }
+
+    #[test]
+    fn evaluation_paths_cannot_enter_through_hints_or_bridge_task_adjacency() {
+        let mut ix=ix();let path="EVALUATION_RERUN.md";
+        ix.files.insert(path.into(),Artifact {path:path.into(),artifact_id:path.into(),digest:"digest".into(),role:"doc".into(),language:"text".into(),bytes:0});
+        ix.links.push(Link::new("REFERENCES_ARTIFACT",path,"src/a.rs","derived","answer key",vec![],vec![],
+            BTreeSet::from([path.into()]),BTreeSet::from(["src/a.rs".into()])).unwrap());
+        let request=super::super::request::parse(&json!({"task":"repair","target":"src/a.rs"})).unwrap().0;
+        let seed=super::super::trace::seed(&ix,"src/a.rs",true);
+        let mut candidates=Candidates::new();
+        for facet in ["lexical","history","sessions","dependency"] {
+            contribute(&mut candidates,path,signal(facet,"hint",100,"candidate",0,None,json!({})));
+        }
+        contribute(&mut candidates,"src/a.rs",signal("anchors","exact_anchor",10000,"exact",0,None,json!({})));
+        expand(&ix,&request,&seed,&mut candidates);assert!(!candidates.contains_key(path));
+        let seed=super::super::trace::seed(&ix,path,true);
+        contribute(&mut candidates,path,signal("anchors","exact_anchor",10000,"exact",0,None,json!({})));
+        assert!(path_allowed(path,&seed));assert!(candidates.contains_key(path));
+    }
+
+    #[test]
+    fn legacy_candidates_omit_the_new_optional_delivery_field_on_roundtrip() {
+        let candidate=Candidate::new("src/a.rs");let original=serde_json::to_value(candidate).unwrap();
+        assert!(original.get("delivery_rank").is_none());
+        let decoded:Candidate=serde_json::from_value(original.clone()).unwrap();
+        assert_eq!(serde_json::to_value(decoded).unwrap(),original);
     }
     #[test]
     fn provenance_files_are_never_traversal_endpoints_and_facets_can_be_ablated() {

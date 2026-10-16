@@ -116,6 +116,8 @@ def evaluate_scenario(scenario, call, *, manifest_bytes=None, exclude_facets=(),
     metrics = {
         "ranking_available": ranked,
         "required_path_ranks": {path: ranks.get(path) for path in sorted(expected)},
+        "required_path_evidence_ranks": {path: next((row.get("candidate_rank", row.get("rank"))
+            for row in selected if row["path"] == path), None) for path in sorted(expected)},
         "recall_at_k": {str(k): len(expected.intersection(row["path"] for row in selected[:k])) / len(expected)
                         for k in (5, 10, 20, 32)} if ranked else None,
         "labelled_precision_at_k": {str(k): len(expected.intersection(row["path"] for row in selected[:k])) / min(k, len(selected))

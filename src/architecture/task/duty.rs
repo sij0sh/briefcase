@@ -44,6 +44,13 @@ const RELATIONSHIPS: &[&str] = &[
     "MAPS_TO_SERVICE", "MAPS_TO", "TRANSFORMS", "DECLARES_CONNECTION", "INCLUDES_SOURCE", "READS_CONFIG", "DECLARES_CONFIG_KEY", "INSTALLS_TO",
 ];
 impl Duty {
+    pub(crate) fn delivery_cycle(self)->&'static [&'static str] {
+        match self {
+            Self::Debug|Self::Refactor|Self::Extend|Self::Review|Self::Impact => &["impl","impl","test","impl","test","support"],
+            Self::Test => &["test","test","test","impl","support"],
+            _ => &[],
+        }
+    }
     pub fn names() -> Vec<String> {
         Self::value_variants().iter().map(|d| serde_json::to_value(d).unwrap().as_str().unwrap().to_owned()).collect()
     }

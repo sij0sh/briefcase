@@ -63,6 +63,28 @@ The default selected slice has at most **32 files**; `--max-files` or the
 These integer weights are initial heuristics, not calibrated probabilities.
 `/candidates` retains the complete discovered ranking, including unselected files.
 
+Stage 2 separates evidence ranking from reading order. Debug/refactor/extend/
+review/impact tasks interleave implementation, tests and supporting roles;
+test tasks prioritize tests. Exact anchors remain first, and empty role queues
+yield their capacity to the others. Scores and `/candidates[].rank` preserve
+evidence ranking. Selected slice `rank` is reading order, `candidate_rank`
+preserves its evidence rank and `candidate_ref` addresses the original candidate.
+`coverage.retrieval.selection_policy` records the deterministic policy. Existing
+retained cases remain readable; the new candidate `delivery_rank` is optional.
+
+Cargo test targets and literal Rust module includes carry static test ownership
+to included modules and their runner. These associations have retained source
+witnesses and do not establish executed test coverage. Rust syntax diagnostics
+are reachable through the pinned `coverage.rust_syntax` explanation call.
+
+Evaluation trees and report/answer-key documents such as `EVALUATION_RERUN.md`
+are excluded before normal source lexical indexing and cannot bridge task
+adjacency. They remain captured for explicit inspection. An exact task target
+can select one; `search` accepts `include_evaluation:true` to inspect the archive.
+Source recall projections for the two policies are independently keyed, so
+answer-key chunks cannot exhaust the normal candidate limit. Product files such
+as `src/evaluation.rs` and general documentation remain eligible.
+
 Git co-change can add files before selection. Complete non-merge commits receive
 inverse-size weighting, so a large initial commit contributes little per file.
 Session discovery uses cached successful reads/confirmed edits and recorded
@@ -91,8 +113,8 @@ Each file has one short `why`, a case-local `ref`, an optional `source_offset`
 `fetch_source.arguments`, add that file's `ref` and `source_offset`, then call
 `fetch_source.operation` (`explain`). The anchor uses the same template. Per-file
 `fetch` objects and structured reason arrays from projection v1 are replaced by
-this shared template and the primary reason string. Retained cases and briefs
-keep their existing contracts and identities.
+this shared template and the primary reason string. Stage 2 adds optional rank
+metadata to new cases/briefs; stored case identities remain readable unchanged.
 
 `sections` lists all nonempty evidence tables. Copy `fetch_evidence.arguments`,
 set `section` to one of those keys, then call `page` and follow its cursor.
@@ -113,6 +135,14 @@ anchor and supplemental paths. Ordinary reads retain the full freshness envelope
 For controlled evaluation, `exclude_facets` accepts any of `structure`,
 `dependency`, `tests`, `domain`, `execution`, `data`, `runtime`, `history`,
 `sessions` or `lexical`. Disabling a facet changes case identity and records a gap.
+Array types, item enums and uniqueness are validated before reading the ledger.
+
+Rust static-call analysis verifies required endpoints on demand, caches caller
+identity checks, and schedules calls across files. It has no fixed 4,096-function
+or callsite ceiling. The native work deadline reserves up to five seconds (10%
+of the total budget) for publication. `native_analysis` reports request counts,
+verified endpoints and syntax diagnostics. Methods, generated/conditional code
+and native locations ambiguous between target contexts remain explicitly partial.
 
 ## Reports and source authority
 

@@ -43,6 +43,22 @@ pub(crate) struct Syntax {
     pub(crate) diagnostics: Vec<String>,
     pub(crate) visited: BTreeSet<String>,
     pub(crate) unsupported: usize,
+    pub(crate) parse_error_count: usize,
+    pub(crate) inclusions: Vec<ModuleInclusion>,
+    pub(crate) test_owners: BTreeMap<String,BTreeSet<String>>,
+    pub(crate) test_manifests: BTreeMap<String,BTreeSet<String>>,
+    contexts: BTreeSet<(String,String)>,
+    active_paths: BTreeSet<String>,
+    test_root: Option<String>,
+    trees: BTreeMap<String,tree_sitter::Tree>,
+}
+#[derive(Clone)]
+pub(crate) struct ModuleInclusion {
+    pub(crate) from: String,
+    pub(crate) to: String,
+    pub(crate) module: String,
+    pub(crate) start: usize,
+    pub(crate) end: usize,
 }
 fn source<'a>(capture: &'a Capture, path: &str) -> Result<&'a str> {
     Ok(std::str::from_utf8(
@@ -61,9 +77,10 @@ fn module_dir(path: &str) -> PathBuf {
         p.with_extension("")
     }
 }
-/// File-level literal #[path] modules are syntax declarations over retained
-/// bytes. Conditional/inline paths and paths escaping the capture stay unknown.
-fn literal_module_path(attribute: &str, source: &str) -> Option<String> {
+/// Literal #[path] modules are syntax declarations over retained bytes. The
+/// caller supplies the source or inline directory; conditional/escaping paths
+/// remain unknown.
+fn literal_module_path(attribute: &str, base: &Path) -> Option<String> {
     let value = attribute.strip_prefix("#[")?.strip_suffix(']')?.trim();
     let value = value
         .strip_prefix("path")?
@@ -71,14 +88,17 @@ fn literal_module_path(attribute: &str, source: &str) -> Option<String> {
         .strip_prefix('=')?
         .trim();
     let relative: String = serde_json::from_str(value).ok()?;
+    relative_source_path(base,&relative)
+}
+fn relative_source_path(base:&Path,relative:&str)->Option<String> {
     if relative.is_empty() || relative.contains(['\\', '\0']) {
         return None;
     }
-    let relative = Path::new(&relative);
+    let relative = Path::new(relative);
     if relative.is_absolute() {
         return None;
     }
-    let joined = Path::new(source).parent()?.join(relative);
+    let joined = base.join(relative);
     let mut parts = Vec::new();
     for part in joined.components() {
         match part {
@@ -106,12 +126,20 @@ fn visit_module(
     path: &str,
     key: &str,
     parser: &mut Parser,
+    root_directory: Option<PathBuf>,
 ) -> Result<()> {
-    if !s.visited.insert(path.to_owned()) {
+    if !s.active_paths.insert(path.to_owned()) {
+        s.unsupported+=1;s.diagnostics.push(format!("cyclic Rust module inclusion: {path}"));
         return Ok(());
     }
+    if !s.contexts.insert((path.into(),key.into())) {s.active_paths.remove(path);return Ok(());}
+    let first_visit=s.visited.insert(path.into());
+    if let Some(root)=&s.test_root {s.test_owners.entry(path.into()).or_default().insert(root.clone());}
     let code = source(c, path)?;
-    let tree = parser.parse(code, None).ok_or("Rust parse failed")?;
+    let tree=if let Some(tree)=s.trees.get(path) {tree.clone()}else{
+        let tree=parser.parse(code,None).ok_or("Rust parse failed")?;
+        s.trees.insert(path.into(),tree.clone());tree
+    };
     s.modules.insert(key.to_owned(), path.to_owned());
     s.definitions.push(Definition {
         path: path.into(),
@@ -122,11 +150,17 @@ fn visit_module(
         kind: "module",
         function: false,
     });
-    if tree.root_node().has_error() {
+    if first_visit && tree.root_node().has_error() {
         s.unsupported += 1;
-        s.diagnostics.push(format!("parse errors in {path}"));
+        let errors=parse_errors(tree.root_node());
+        s.parse_error_count+=errors.len();
+        for (start,end) in errors.iter().take(8) {
+            let line=1+code[..*start].bytes().filter(|b|*b==b'\n').count();
+            s.diagnostics.push(format!("parse errors in {path}:{line} at bytes {start}..{end}"));
+        }
+        if errors.len()>8 {s.diagnostics.push(format!("{} additional parse boundaries in {path}",errors.len()-8));}
     }
-    walk(
+    let result=walk(
         s,
         c,
         path,
@@ -134,8 +168,20 @@ fn visit_module(
         tree.root_node(),
         code,
         parser,
-        module_dir(path),
-    )
+        root_directory.unwrap_or_else(||module_dir(path)),
+    );
+    s.active_paths.remove(path);
+    result
+}
+
+/// Localize parser failures instead of treating a whole file as one failed
+/// callsite. Valid sibling declarations/calls remain independently inspectable.
+pub(crate) fn parse_errors(node:Node<'_>)->Vec<(usize,usize)> {
+    fn collect(node:Node<'_>,out:&mut Vec<(usize,usize)>) {
+        if node.is_error() || node.is_missing() {out.push((node.start_byte(),node.end_byte()));return;}
+        if node.has_error() {let mut cursor=node.walk();for child in node.children(&mut cursor) {collect(child,out);}}
+    }
+    let mut errors=vec![];collect(node,&mut errors);errors
 }
 fn leaves(node: Node, out: &mut Vec<(usize, usize)>) {
     if node.kind() == "use_as_clause" {
@@ -266,7 +312,9 @@ fn walk(
                         .filter(|p| c.files.contains_key(*p))
                         .collect();
                     if targets.len() == 1 {
-                        visit_module(s, c, targets[0], &key, parser)?;
+                        let target=targets[0];
+                        s.inclusions.push(ModuleInclusion {from:path.into(),to:target.into(),module:key.clone(),start:n.start_byte(),end:n.end_byte()});
+                        visit_module(s, c, target, &key, parser, None)?;
                     } else {
                         s.unsupported += 1;
                         s.occurrences.push(Occurrence {
@@ -345,8 +393,9 @@ fn walk(
             }
             "macro_invocation" | "attribute_item" | "inner_attribute_item" => {
                 let attr = node_text(n, code);
-                if node.kind() == "source_file" && pending_path.is_none() {
-                    if let Some(target) = literal_module_path(attr, path) {
+                if pending_path.is_none() {
+                    let base=if node.kind()=="source_file" {Path::new(path).parent().unwrap_or(Path::new(""))}else{&directory};
+                    if let Some(target) = literal_module_path(attr, base) {
                         if c.files.contains_key(&target) {
                             pending_path = Some(target);
                             continue;
@@ -408,87 +457,127 @@ fn collect_dynamic(s: &mut Syntax, path: &str, module: &str, node: Node, code: &
         collect_dynamic(s, path, module, n, code);
     }
 }
+fn target_key(prefix:&str,kind:&str,name:&str)->String {
+    if prefix=="crate" {format!("{kind}::{name}")}else{format!("{prefix}::{kind}::{name}")}
+}
+fn visit_root(s:&mut Syntax,c:&Capture,path:&str,key:&str,is_test:bool,parser:&mut Parser)->Result<()> {
+    if !c.files.contains_key(path) {return Ok(());}
+    s.test_root=is_test.then(||path.to_owned());
+    let directory=Path::new(path).parent().unwrap_or(Path::new("")).to_path_buf();
+    let result=visit_module(s,c,path,key,parser,Some(directory));
+    s.test_root=None;
+    result
+}
+
+/// Reuse the same Cargo/module parser for text-only task captures. No native
+/// resolver or repository code executes while constructing these syntax links.
+pub(crate) fn context_syntax(contents:&BTreeMap<String,String>)->Result<Syntax> {
+    let mut diagnostics=vec![];
+    let files=contents.iter().filter_map(|(path,content)| {
+        if super::source::is_evaluation_artifact(path) {return None;}
+        if path.ends_with("Cargo.toml") && content.parse::<toml_edit::DocumentMut>().is_err() {
+            diagnostics.push(format!("Invalid Cargo manifest {path}; Rust module hints unavailable for this package"));return None;
+        }
+        Some((path.clone(),content.as_bytes().to_vec()))
+    }).collect();
+    let capture=Capture {root:PathBuf::from("."),files,diagnostics:vec![],exclusions:vec![],complete:true,
+        inventory:Value::Null,captured_at_unix_ms:None};
+    let mut syntax=match syntax(&capture) {
+        Ok(syntax)=>syntax,
+        Err(error)=>{diagnostics.push(format!("Rust module hints unavailable: {error}"));Syntax::default()},
+    };
+    syntax.unsupported+=diagnostics.len();syntax.diagnostics.extend(diagnostics);Ok(syntax)
+}
+
+pub(crate) fn syntax_diagnostics(s:&Syntax)->Value {
+    json!({"retained_rust_files":s.visited.len(),"module_inclusions":s.inclusions.len(),
+        "unsupported_occurrences":s.unsupported,
+        "test_targets":s.test_manifests.len(),"parse_errors":s.parse_error_count,
+        "unconfigured_files":s.diagnostics.iter().filter(|message|message.starts_with("Rust file outside")).count(),
+        "diagnostics":s.diagnostics.iter().take(8).collect::<Vec<_>>(),"omitted_diagnostics":s.diagnostics.len().saturating_sub(8),
+        "scope":"retained Cargo targets and literal module includes; conditions/macros remain explicitly unsupported"})
+}
+
 pub(crate) fn syntax(c: &Capture) -> Result<Syntax> {
     let mut p = Parser::new();
     p.set_language(&tree_sitter_rust::LANGUAGE.into())?;
     let mut s = Syntax::default();
-    let manifests: Vec<_> = c
-        .files
-        .keys()
-        .filter(|p| p.ends_with("Cargo.toml"))
-        .cloned()
-        .collect();
+    let manifests: Vec<_> = c.files.keys().filter(|path|path.ends_with("Cargo.toml")
+        && !super::source::is_evaluation_artifact(path)).cloned().collect();
     for manifest in &manifests {
-        let base = Path::new(manifest).parent().unwrap_or(Path::new(""));
-        let cfg: toml_edit::DocumentMut = source(c, manifest)?.parse()?;
-        let Some(package) = cfg
-            .get("package")
-            .and_then(|p| p.get("name"))
-            .and_then(|p| p.as_str())
-        else {
-            continue;
-        };
-        let prefix = if manifests.len() > 1 {
-            package.to_owned()
-        } else {
-            "crate".into()
-        };
-        let lib = cfg
-            .get("lib")
-            .and_then(|t| t.get("path"))
-            .and_then(|p| p.as_str())
-            .unwrap_or("src/lib.rs");
-        let lib = base.join(lib).to_string_lossy().to_string();
-        if c.files.contains_key(&lib) {
-            visit_module(&mut s, c, &lib, &prefix, &mut p)?;
+        let base=Path::new(manifest).parent().unwrap_or(Path::new(""));
+        let cfg:toml_edit::DocumentMut=source(c,manifest)?.parse()?;
+        let Some(package)=cfg.get("package").and_then(|p|p.get("name")).and_then(|v|v.as_str()) else {continue};
+        let prefix=if manifests.len()>1 {package.to_owned()}else{"crate".into()};
+        let lib=cfg.get("lib").and_then(|t|t.get("path")).and_then(|v|v.as_str()).unwrap_or("src/lib.rs");
+        let Some(lib)=relative_source_path(base,lib) else {s.unsupported+=1;s.diagnostics.push(format!("Rust library path escapes capture in {manifest}"));continue;};
+        if cfg.get("lib").is_some() || cfg["package"].get("autolib").and_then(|v|v.as_bool())!=Some(false) {
+            visit_root(&mut s,c,&lib,&prefix,false,&mut p)?;
         }
-        if let Some(bins) = cfg.get("bin").and_then(|x| x.as_array_of_tables()) {
-            for bin in bins {
-                if let Some(path) = bin.get("path").and_then(|x| x.as_str()) {
-                    let path = base.join(path).to_string_lossy().to_string();
-                    if c.files.contains_key(&path) {
-                        visit_module(
-                            &mut s,
-                            c,
-                            &path,
-                            &format!(
-                                "bin::{}",
-                                bin.get("name").and_then(|x| x.as_str()).unwrap_or(package)
-                            ),
-                            &mut p,
-                        )?;
-                    }
+        let old_auto=cfg["package"].get("edition").and_then(|v|v.as_str()).unwrap_or("2015")=="2015"
+            && ["bin","test","example","bench"].iter().any(|table|cfg.get(table).is_some());
+        for (kind,directory,flag) in [("bin","src/bin","autobins"),("test","tests","autotests"),
+            ("example","examples","autoexamples"),("bench","benches","autobenches")] {
+            let mut explicit=BTreeSet::new();
+            if let Some(targets)=cfg.get(kind).and_then(|v|v.as_array_of_tables()) {
+                for target in targets {
+                    let name=target.get("name").and_then(|v|v.as_str()).unwrap_or(package);
+                    let path=match target.get("path").and_then(|v|v.as_str()) {
+                        Some(path)=>relative_source_path(base,path).map(PathBuf::from),
+                        None=>{
+                            let mut paths=vec![base.join(directory).join(format!("{name}.rs")),base.join(directory).join(name).join("main.rs")];
+                            if kind=="bin" && name==package {paths.insert(0,base.join("src/main.rs"));}
+                            paths.into_iter().find(|path|c.files.contains_key(path.to_string_lossy().as_ref()))
+                        },
+                    };
+                    if let Some(path)=path {
+                        let path=path.to_string_lossy().to_string();explicit.insert(path.clone());
+                        if !c.files.contains_key(&path) {s.unsupported+=1;s.diagnostics.push(format!("Rust {kind} target {path} is not retained in {manifest}"));continue;}
+                        visit_root(&mut s,c,&path,&target_key(&prefix,kind,name),kind=="test"||kind=="bench",&mut p)?;
+                        if kind=="test"||kind=="bench" {s.test_manifests.entry(path).or_default().insert(manifest.clone());}
+                    } else {s.unsupported+=1;s.diagnostics.push(format!("Rust {kind} target {name} has no retained source in {manifest}"));}
                 }
             }
-        }
-        // The implicit binary is named after the package unless an explicit
-        // [[bin]] target already claimed src/main.rs (Cargo gives it the
-        // target's name), so two binaries never share one module key.
-        let main = base.join("src/main.rs").to_string_lossy().to_string();
-        if c.files.contains_key(&main) && !s.visited.contains(&main) {
-            let key = if c.files.contains_key(&lib) {
-                format!("bin::{package}")
-            } else {
-                prefix.clone()
-            };
-            visit_module(&mut s, c, &main, &key, &mut p)?;
+            let automatic=cfg["package"].get(flag).and_then(|v|v.as_bool()).unwrap_or(!old_auto);
+            if !automatic {continue;}
+            if kind=="bin" {
+                let main=base.join("src/main.rs").to_string_lossy().to_string();
+                if !explicit.contains(&main) {
+                    let key=if !c.files.contains_key(&lib) && manifests.len()==1 {prefix.clone()}else{target_key(&prefix,kind,package)};
+                    visit_root(&mut s,c,&main,&key,false,&mut p)?;
+                }
+            }
+            let folder=format!("{}/",base.join(directory).to_string_lossy());
+            let discovered:Vec<_>=c.files.keys().filter_map(|path| {
+                let relative=path.strip_prefix(&folder)?;
+                let name=if !relative.contains('/') {relative.strip_suffix(".rs")?}
+                    else {let (name,rest)=relative.split_once('/')?;if rest!="main.rs" {return None;}name};
+                (!explicit.contains(path)).then(||(path.clone(),name.to_owned()))
+            }).collect();
+            for (path,name) in discovered {
+                visit_root(&mut s,c,&path,&target_key(&prefix,kind,&name),kind=="test"||kind=="bench",&mut p)?;
+                if kind=="test"||kind=="bench" {s.test_manifests.entry(path).or_default().insert(manifest.clone());}
+            }
         }
     }
     // An unconfigured Rust file is still retained and described, with explicit unsupported coverage.
-    for path in c.files.keys().filter(|p| p.ends_with(".rs")) {
+    for path in c.files.keys().filter(|p| p.ends_with(".rs") && !super::source::is_evaluation_artifact(p)) {
         if !s.visited.contains(path) {
             s.unsupported += 1;
             s.diagnostics.push(format!(
                 "Rust file outside supported Cargo module roots: {path}"
             ));
-            visit_module(&mut s, c, path, &format!("unconfigured::{path}"), &mut p)?;
+            visit_module(&mut s, c, path, &format!("unconfigured::{path}"), &mut p, None)?;
         }
     }
     s.occurrences
         .sort_by_key(|o| (o.path.clone(), o.start, o.position));
     s.occurrences.dedup_by(|a, b| {
-        a.path == b.path && a.start == b.start && a.position == b.position && a.kind == b.kind
+        a.path == b.path && a.module == b.module && a.start == b.start && a.position == b.position && a.kind == b.kind
     });
+    // Trees are shared only while discovering target contexts. Native work
+    // needs the retained definitions, not the discovery cache's allocation.
+    s.trees.clear();
     Ok(s)
 }
 pub(crate) fn entity(
@@ -616,22 +705,15 @@ fn resolved_module(s: &Syntax, c: &Capture, root: &Path, result: &Value) -> Resu
         let Some(position) = byte_position(code, &range["start"]) else {
             continue;
         };
-        // A module declaration in its parent's file is a definition of that module itself.
-        let enclosing = s
-            .definitions
-            .iter()
-            .filter(|d| d.path == path && (position == d.name_start || position == d.start))
-            .min_by_key(|d| d.end - d.start);
-        if let Some(d) = enclosing {
-            let key = if d.kind == "module" {
-                d.key.clone()
-            } else {
-                s.modules
-                    .keys()
-                    .filter(|m| d.key.starts_with(&format!("{m}::")))
-                    .max_by_key(|m| m.len())
-                    .cloned()
-                    .unwrap_or("crate".into())
+        // Several Cargo targets may include the same physical source. A
+        // location alone cannot choose between their distinct module keys.
+        let definitions:Vec<_>=s.definitions.iter().filter(|d|d.path==path
+            && (position==d.name_start||position==d.start)).collect();
+        let smallest=definitions.iter().map(|d|d.end-d.start).min();
+        for d in definitions.into_iter().filter(|d|Some(d.end-d.start)==smallest) {
+            let key=if d.kind=="module" {d.key.clone()}else{
+                s.modules.keys().filter(|module|d.key.starts_with(&format!("{module}::")))
+                    .max_by_key(|module|module.len()).cloned().unwrap_or_else(||"crate".into())
             };
             keys.insert(key);
         }
@@ -854,6 +936,13 @@ pub fn produce(
             )?;
         }
     }
+    for inclusion in &s.inclusions {
+        let from=entity(&mut b,&ctx,"file",&inclusion.from,&provider,"syntax")?;
+        let to=entity(&mut b,&ctx,"file",&inclusion.to,&provider,"syntax")?;
+        let witness=evidence(&mut b,&inclusion.from,inclusion.start,inclusion.end)?;
+        assertion(&mut b,&ctx,"evidence",&from,"CONTAINS",target(&to),
+            json!({"run_id":run_id}),vec![witness],None)?;
+    }
     // Bind the actual module body, not an external mod declaration in its
     // parent. This locator is retained independently of the working tree.
     for (key, path) in &s.modules {
@@ -916,7 +1005,7 @@ pub fn produce(
     }
     super::passes::produce(&mut b, &mut payloads, &ctx, &coverage)?;
     super::declarations::apply(&mut b, &c, &ctx, &provider, &mut limitations)?;
-    let diagnostics = json!({"requested_analyses":json!({"dependencies":true,"static_calls":false,"data":false}),"capture":c.metadata(),"limitations":limitations,"excluded_directories":EXPLICIT_EXCLUSIONS,"excluded_directories_scope":"Default untracked exclusions; tracked text overrides except internal state","exclusions":c.exclusions,"coverage":coverage,"provider":producer,"duration_ms":started.elapsed().as_millis() as u64,"supported_scope":"Rust explicit, non-glob imports in discovered Cargo modules; no callgraph/negative runtime guarantee","mapping_assumption":"Canonical module/source keys identify versions; across snapshots equal keys are locator correspondence, not rename proof."});
+    let diagnostics = json!({"requested_analyses":json!({"dependencies":true,"static_calls":false,"data":false}),"capture":c.metadata(),"limitations":limitations,"excluded_directories":EXPLICIT_EXCLUSIONS,"excluded_directories_scope":"Default untracked exclusions; tracked text overrides except internal state","exclusions":c.exclusions,"coverage":coverage,"provider":producer,"duration_ms":started.elapsed().as_millis() as u64,"rust_syntax":syntax_diagnostics(&s),"supported_scope":"Rust explicit, non-glob imports in discovered Cargo modules; no callgraph/negative runtime guarantee","mapping_assumption":"Canonical module/source keys identify versions; across snapshots equal keys are locator correspondence, not rename proof."});
     Prepared::seal(b, payloads, generation, diagnostics)
 }
 const EXPLICIT_EXCLUSIONS: &[&str] = super::capture::EXCLUDED;
@@ -938,6 +1027,89 @@ mod tests {
             captured_at_unix_ms: None,
             inventory: serde_json::Value::Null,
         }
+    }
+
+    #[test]
+    fn cargo_test_roots_own_regular_and_path_included_modules() {
+        let c=capture(&[("Cargo.toml","[package]\nname='demo'\nversion='0.1.0'\nedition='2021'\nautotests=false\n[[test]]\nname='runner'\npath='tests/runner.rs'\n"),
+            ("src/lib.rs","pub fn entry() {}"),("tests/runner.rs","mod suite;"),
+            ("tests/suite.rs","#[path=\"parts/leaf.rs\"] mod cases;"),("tests/parts/leaf.rs","fn checks() {}")]);
+        let s=syntax(&c).unwrap();
+        assert_eq!(s.modules["test::runner::suite"],"tests/suite.rs");
+        assert_eq!(s.modules["test::runner::suite::cases"],"tests/parts/leaf.rs");
+        assert!(s.test_owners["tests/parts/leaf.rs"].contains("tests/runner.rs"));
+        assert!(s.test_manifests["tests/runner.rs"].contains("Cargo.toml"));
+        assert_eq!(s.inclusions.len(),2);assert!(s.diagnostics.is_empty(),"{:?}",s.diagnostics);
+    }
+
+    #[test]
+    fn disabled_test_discovery_does_not_invent_a_test_owner() {
+        let c=capture(&[("Cargo.toml","[package]\nname='demo'\nversion='0.1.0'\nedition='2021'\nautotests=false\n"),
+            ("src/lib.rs","fn entry() {}"),("tests/disabled.rs","fn checks() {}")]);
+        let s=syntax(&c).unwrap();assert!(!s.test_owners.contains_key("tests/disabled.rs"));
+        assert!(!s.modules.contains_key("test::disabled"));
+    }
+
+    #[test]
+    fn automatic_cargo_targets_use_root_directories_and_configure_nested_main_files() {
+        let c=capture(&[("Cargo.toml","[package]\nname='demo'\nversion='0.1.0'\nedition='2021'\n"),
+            ("src/lib.rs","fn live() {}"),("src/bin/tool/main.rs","mod helper;"),("src/bin/tool/helper.rs","fn helper() {}"),
+            ("tests/api/main.rs","mod helper;"),("tests/api/helper.rs","fn check() {}")]);
+        let s=syntax(&c).unwrap();assert_eq!(s.modules["bin::tool::helper"],"src/bin/tool/helper.rs");
+        assert_eq!(s.modules["test::api::helper"],"tests/api/helper.rs");
+        assert!(s.test_owners["tests/api/helper.rs"].contains("tests/api/main.rs"));
+        assert!(s.diagnostics.is_empty(),"{:?}",s.diagnostics);
+    }
+
+    #[test]
+    fn malformed_manifest_is_diagnostic_for_optional_context_hints() {
+        let contents=BTreeMap::from([("Cargo.toml".into(),"not valid [".into()),("src/lib.rs".into(),"fn live() {}".into())]);
+        let s=context_syntax(&contents).unwrap();assert!(s.diagnostics.iter().any(|message|message.contains("Invalid Cargo manifest")));
+        assert!(s.unsupported>0);assert!(s.visited.contains("src/lib.rs"));assert!(s.test_owners.is_empty());
+    }
+
+    #[test]
+    fn shared_test_modules_keep_each_cargo_target_context() {
+        let c=capture(&[("Cargo.toml","[package]\nname='demo'\nversion='0.1.0'\nedition='2021'\nautotests=false\n[[test]]\nname='a'\npath='tests/a.rs'\n[[test]]\nname='b'\npath='tests/b.rs'\n"),
+            ("src/lib.rs","fn entry() {}"),("tests/a.rs","#[path=\"shared.rs\"] mod helper;"),
+            ("tests/b.rs","#[path=\"shared.rs\"] mod helper;"),("tests/shared.rs","fn checks() {}")]);
+        let s=syntax(&c).unwrap();assert_eq!(s.test_owners["tests/shared.rs"].len(),2);
+        assert_eq!(s.modules["test::a::helper"],"tests/shared.rs");assert_eq!(s.modules["test::b::helper"],"tests/shared.rs");
+        assert_eq!(s.definitions.iter().filter(|d|d.function&&d.path=="tests/shared.rs").count(),2);
+        assert!(s.diagnostics.is_empty(),"{:?}",s.diagnostics);
+    }
+
+    #[test]
+    fn module_cycles_are_bounded_and_remain_explicitly_incomplete() {
+        let c=capture(&[("Cargo.toml","[package]\nname='demo'\nversion='0.1.0'\n"),
+            ("src/lib.rs","#[path=\"child.rs\"] mod child;"),("src/child.rs","#[path=\"lib.rs\"] mod back;")]);
+        let s=syntax(&c).unwrap();assert!(s.diagnostics.iter().any(|message|message.contains("cyclic Rust module")));
+        assert!(s.unsupported>0);assert!(s.contexts.len()<10);
+    }
+
+    #[test]
+    fn inline_path_modules_resolve_against_the_inline_directory() {
+        let c=capture(&[("Cargo.toml","[package]\nname='demo'\nversion='0.1.0'\n"),
+            ("src/lib.rs","mod inline { #[path=\"part.rs\"] mod child; }"),("src/inline/part.rs","fn live() {}")]);
+        let s=syntax(&c).unwrap();assert_eq!(s.modules["inline::child"],"src/inline/part.rs");
+        assert!(s.diagnostics.is_empty(),"{:?}",s.diagnostics);
+    }
+
+    #[test]
+    fn parse_failures_are_localized_without_discarding_valid_sibling_declarations() {
+        let c=capture(&[("Cargo.toml","[package]\nname='demo'\nversion='0.1.0'\n"),
+            ("src/lib.rs","pub fn before() {}\n@\npub fn after() {}\n")]);
+        let s=syntax(&c).unwrap();assert!(s.parse_error_count>0);
+        for name in ["before#","after#"] {assert!(s.definitions.iter().any(|d|d.key.starts_with(name)));}
+        assert!(s.diagnostics.iter().any(|message|message.contains("src/lib.rs:2 at bytes")));
+    }
+
+    #[test]
+    fn evaluation_fixture_manifests_and_invalid_source_do_not_poison_product_syntax() {
+        let c=capture(&[("Cargo.toml","[package]\nname='demo'\nversion='0.1.0'\n"),("src/lib.rs","fn live() {}"),
+            ("evaluation/fixtures/Cargo.toml","invalid manifest ["),("evaluation/sources/input.rs","not valid Rust @@@")]);
+        let s=syntax(&c).unwrap();assert_eq!(s.parse_error_count,0);assert!(s.diagnostics.is_empty());
+        assert!(!s.visited.contains("evaluation/sources/input.rs"));assert_eq!(s.modules["crate"],"src/lib.rs");
     }
 
     #[test]

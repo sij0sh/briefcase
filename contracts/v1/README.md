@@ -13,6 +13,12 @@
 | `agent-context.schema.json` | V2 disposable harness routing projection: target anchor, ranked supplemental files, primary reason strings, shared source fetch template and pinned evidence handles; case/brief contracts remain v1 |
 | `session-activity.schema.json` | Derived cross-session activity per repository path in a time window, with net change and retained commits kept separate (ADR-0030; not a knowledge record) |
 
+Stage 2 adds optional slice `candidate_rank` to case/brief schemas. Slice `rank`
+is selected reading order; `/candidates[].rank` remains global evidence rank.
+Selected candidates also carry optional `delivery_rank`. Legacy omitted fields
+remain omitted on retained-case roundtrip. Typed knowledge Coverage remains
+unchanged; Rust scheduling/parser metrics live in diagnostics.
+
 Optional `fixture_label` is review metadata, not a production identity input. Readable fixture IDs are aliases used in isolated examples. Production constructors must implement the semantic identity keys in the canonical constructors under `src/architecture/identity.rs`.
 
 ## Offline structural profile
