@@ -12,8 +12,8 @@ pub(crate) enum Dispatch {
 /// Core reads use the path gateway, including validation before first capture.
 pub(crate) fn context_request(command:&Command)->Option<(&'static str,Value)> {
     Some(match command {
-        Command::Brief {task,target,duty,view,depth,limit,max_bytes}=>("brief",
-            json!({"task":task,"target":target,"duty":duty,"view":view,"depth":depth,"limit":limit,"max_bytes":max_bytes})),
+        Command::Brief {task,target,duty,view,depth,limit,max_bytes,max_files,agent_context}=>(if *agent_context {"agent_context"} else {"brief"},
+            json!({"task":task,"target":target,"duty":duty,"view":view,"depth":depth,"limit":limit,"max_bytes":max_bytes,"max_files":max_files})),
         Command::Occurrences {text,path,view,offset,limit,max_bytes}=>("occurrences",
             json!({"text":text,"path":path,"view":view,"offset":offset,"limit":limit,"max_bytes":max_bytes})),
         Command::Neighbors {target,direction,predicate,view,depth,offset,limit,max_bytes}=>("neighbors",

@@ -26,7 +26,8 @@ readiness, pending captures and the relationship to live Git state stay visible.
 
 | Operation | Purpose |
 | --- | --- |
-| `brief` | A presentation of a retained task case: anchors, files by role, relationships, history, sessions and typed gaps |
+| `brief` | A presentation of a retained task case: ranked files by role, relationships, history, sessions and typed gaps |
+| `agent_context` | A budgeted harness manifest over the same case, with ranked source fetches, spans, reasons and evidence continuations |
 | `search` | One lexical ranking over retained text, Git history and optional session requests; eligible assertion annotations keep their own authority |
 | `occurrences` | Exhaustive retained literal matches, including overlaps, in path/byte order |
 | `neighbors` | Shared incoming/outgoing adjacency for source, test, configuration, data, deployment and runtime relationships |
@@ -45,6 +46,41 @@ routing and coverage templates: debug, refactor, impact, extend, continue,
 explain, history, run, review and test. Specify it to override keyword inference.
 The enum order breaks ties. Explain/history/test default to depth 1; other
 duties default to depth 2. Depth is bounded at 3.
+
+## Task retrieval
+
+One evidence index serves structure, dependencies, tests, declared domains,
+execution, data, runtime, Git history and recorded sessions. Lexical retrieval
+runs beside a resolved target as well as an ambiguous or missing target.
+Located ambiguous identities remain candidates. Eligible domain Claims can
+suggest files, but never enter authoritative adjacency or establish membership.
+
+Candidates combine the strongest signal in each facet, an independent-signal
+bonus, duty/role relevance, traversal distance, endpoint fanout and hub degree.
+Traversal uses localized endpoint files. Holding/support files remain provenance.
+The default selected slice has at most **32 files**; `--max-files` or the
+`max_files` operation argument changes that bound. Exact anchors dominate rank.
+These integer weights are initial heuristics, not calibrated probabilities.
+`/candidates` retains the complete discovered ranking, including unselected files.
+
+Git co-change can add files before selection. Complete non-merge commits receive
+inverse-size weighting, so a large initial commit contributes little per file.
+Session discovery uses cached successful reads/confirmed edits and recorded
+requests, requires the same repository/root, and excludes failed reads, edit
+attempts and transcript-only path mentions. Discovery considers at most 200
+publications, 64 paths per relevant session and 64 bounded requests per summary.
+Limits and omissions remain explicit in `coverage.retrieval` and typed gaps.
+
+```sh
+briefcase --json brief "debug the retry handler" --target src/retry.rs \
+  --max-files 24 --agent-context --max-bytes 12000
+briefcase --json call agent_context --args \
+  '{"task":"review storage migration","target":"src/store.rs","max_files":32,"max_bytes":8000}'
+```
+
+For controlled evaluation, `exclude_facets` accepts any of `structure`,
+`dependency`, `tests`, `domain`, `execution`, `data`, `runtime`, `history`,
+`sessions` or `lexical`. Disabling a facet changes case identity and records a gap.
 
 ## Reports and source authority
 
@@ -75,9 +111,19 @@ remain partial under the current retained evidence model. `coverage.delivery`
 only counts delivered and omitted rows. Gaps are ordered by dimension name
 and area; their reasons retain producer scope.
 
-Slice rows include `reached_by: {depth, via_link}`. Anchors have depth 0 and no
-link. Other rows name a retained relationship that can be inspected with
-`explain` using the brief's `report_id` and that link as `ref`.
+Slice rows include global `rank`, integer `score`, `selection_reasons`, relevant
+`spans`, a `/candidates` reference and `reached_by: {depth, via_link}`. A graph
+signal can be inspected with `explain` using its link ID. Lexical/history/session
+hints may have no graph link; their candidate records retain their original
+report, commit or recorded-event references. A retrieved file does not establish
+feature ownership or executed test coverage. Candidate-only files cannot satisfy
+a required role's established-association count.
+
+`neighbors` returns compact coverage counts and a pinned index detail call.
+Producer occurrences are retained once per content-addressed detail report.
+Task gaps aggregate local occurrences by producer/run with predicate/reason
+counts, at most three examples and an exact detail continuation. Outside-task
+counts stay in health metadata. Unlocalized health is explicitly non-actionable.
 
 Search is bounded to 1,000 lexical candidates and 1 MiB of excerpts before
 path/class filtering. `component` filters an exact retained file or directory
@@ -113,6 +159,13 @@ Mixed projects use explicit profiles in `.briefcase/sync.json`:
 Compatible profiles compose only at the same source snapshot. Static call
 extraction defaults to enabled when supported; set `calls:false` or use
 `--no-calls` to opt out. Missing providers and exhausted budgets remain gaps.
+Rust LSP startup/version, one workspace-readiness window and native lookups share
+one deadline. Null definitions are single misses after that window. Build scripts,
+proc macros and network fetching stay disabled; installed sysroot discovery and
+all Cargo targets are enabled. Partial native call runs remain retryable and
+carry a `native_resolved_subset` guarantee scope. They cannot satisfy complete
+static-call readiness. Deadline checks surround cooperative phases and atomic
+publication; this is not hard real-time process preemption.
 Profile scope is operator-selected; Briefcase does not silently guess a
 mixed-language/project analysis matrix.
 
@@ -121,12 +174,19 @@ files against retained source digests. Its derived `INSTALLED_FROM` association
 means observed byte equality. It does not establish installation causality,
 active configuration, process identity or execution.
 
-Pi adds bounded prompt context and stores a post-task advisory coverage report.
+Pi and Claude prompt hooks request `agent_context`, with a default 8,000-byte
+context budget including framing text. Set `BRIEFCASE_CONTEXT_MAX_BYTES` to an
+integer from 4,096 to 60,000 to change it. Ranked files yield to the byte budget,
+and omitted evidence stays addressable through pinned `page`/`explain` calls.
+Pi also stores a post-task advisory coverage report.
 Its report keeps initial/review case IDs and completeness dimension changes.
 Claude's completion hook also compares full case slices, opened/closed gaps
 and advisory dirty paths outside the initial case.
 Set `BRIEFCASE_CONTEXT=0` to disable it. Claude hooks use supported prompt/stop
-events. Codex and Muse keep their supported session-start bootstrap hooks.
+events. Codex and Muse retain session-start bootstrap; per-prompt delivery is
+not automatic for those adapters. Start their coding tasks with the shared
+`agent_context` operation through CLI/MCP. Integration status reports this
+delivery distinction explicitly.
 Completion feedback never submits another agent prompt or blocks task completion.
 
 ## Migration and validation
@@ -142,5 +202,7 @@ See [CONSOLIDATION.md](CONSOLIDATION.md) for implementation changes and remainin
 validation work, and [VALIDATION.json](VALIDATION.json) for the check record.
 Rust compilation, Rust tests and lints were not run in the implementation
 host because the Rust toolchain is unavailable. The supplied archive also
-omits the original evaluation fixtures. This source needs Rust validation
-before release.
+omits the original package/conformance fixtures. Eight regression scenarios
+from the findings are now in [evaluation/task-scenarios.json](evaluation/task-scenarios.json).
+See [the implementation record](evaluation/IMPLEMENTATION.md) for validation and
+remaining empirical checks. This source needs Rust validation before release.

@@ -189,7 +189,8 @@ fn run(
     lock: &workspace::WriterLock,
     started: Instant,
 ) -> Result<Value> {
-    let alignment = reconcile::check(o, domains)?;
+    let mut check_options=o.clone();check_options.timeout=o.timeout.saturating_sub(started.elapsed());
+    let alignment = reconcile::check(&check_options, domains)?;
     let mut result = json!({"sync":"up-to-date","ready":true,"alignment":alignment,"sessions":{}});
     let mut ledger = None;
     let mut changed = false;
@@ -198,7 +199,14 @@ fn run(
             a.detail.clone()
         } else if a.source == "project" {
             if a.dirty() {
-                project::apply(o, lock, started).unwrap_or_else(failure)
+                let mut project_options=o.clone();
+                if alignment.iter().any(|other|other.source!="project") {
+                    // Leave part of the shared budget for Git/session domains,
+                    // even when semantic analysis cannot finish in this run.
+                    let reserve=Duration::from_millis((o.timeout.as_millis()/10).min(10000) as u64);
+                    project_options.timeout=o.timeout.saturating_sub(reserve);
+                }
+                project::apply(&project_options, lock, started).unwrap_or_else(failure)
             } else {
                 let mut v = a.detail.clone();
                 v["sync"] = json!("up-to-date");
@@ -240,6 +248,9 @@ fn run(
                 .is_some_and(|ss| ss.iter().any(|s| s["result"]["status"] == "published"));
         if !good {
             result["ready"] = json!(false);
+        }
+        if a.source=="project" && matches!(value["static_calls"]["state"].as_str(),Some("partial"|"failed"|"budget_exhausted"|"partial_or_not_run")) {
+            result["ready"]=json!(false);
         }
         if a.source == "project" {
             // Preserve the established source result fields for CLI consumers.

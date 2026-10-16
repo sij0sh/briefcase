@@ -700,7 +700,7 @@ pub fn produce(
         Some(Analyzer::start(
             exe,
             sandbox.path(),
-            options.timeout,
+            options.timeout.saturating_sub(started.elapsed()),
             &options.features,
         )?)
     } else {

@@ -34,6 +34,9 @@ pub struct Link {
     pub report_ids: Vec<String>,
     pub from_files: BTreeSet<String>,
     pub to_files: BTreeSet<String>,
+    /// Files that support an assertion but are not traversal endpoints.
+    #[serde(default, skip_serializing_if="BTreeSet::is_empty")]
+    pub support_files: BTreeSet<String>,
 }
 impl Link {
     #[allow(clippy::too_many_arguments)] // One explicit, explainable relationship record.
@@ -42,7 +45,8 @@ impl Link {
         from_files: BTreeSet<String>, to_files: BTreeSet<String>) -> Result<Self> {
         let id = identity::id("task-link", &json!([METHOD,predicate,from,to,class,basis,assertion_ids,witnesses]))?;
         Ok(Self { id, predicate: predicate.into(), from: from.into(), to: to.into(), class: class.into(),
-            basis: basis.into(), assertion_ids, witnesses, value:None, report_ids:vec![], from_files, to_files })
+            basis: basis.into(), assertion_ids, witnesses, value:None, report_ids:vec![], from_files, to_files,
+            support_files:BTreeSet::new() })
     }
 }
 

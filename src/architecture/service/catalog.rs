@@ -4,7 +4,7 @@ use serde_json::{json, Value};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Kind {
-    Describe, Brief, Search, Occurrences, Neighbors, Reachability, Page, Explain,
+    Describe, Brief, AgentContext, Search, Occurrences, Neighbors, Reachability, Page, Explain,
     Compare, HistoryLineage, Evolution, Policy, Unresolved, Domains, Drift,
     Sessions, Session, SessionEvents, SessionFiles, SessionCommands, SessionChanges,
     SessionActivity, Status,
@@ -39,6 +39,7 @@ pub fn catalog() -> Vec<Operation> {
     let entries = [
         (Describe,"describe","Discover supported read operations and their arguments without a database."),
         (Brief,"brief","Trace retained evidence to build a case around a task, delivered as a brief: exact anchors, role-based files, relationships, history, sessions and typed coverage gaps. Feature and endpoint identities are optional targets."),
+        (AgentContext,"agent_context","Budgeted coding-harness manifest: ranked files, selection reasons, spans, role coverage, significant relationships/history/sessions, compact gaps and exact retained fetch instructions. Shares the brief's case."),
         (Search,"search","Rank retained text, evidence, Git history and optional session requests. A match is a candidate, never proof of ownership; use occurrences for exhaustive matching."),
         (Occurrences,"occurrences","Enumerate every retained literal match in path and byte order, including overlaps. Continue with the returned pinned view."),
         (Neighbors,"neighbors","Incoming/outgoing adjacency for any retained entity or file. Filter predicates for dependencies, callers, tests, data, deployment or runtime relationships."),
@@ -64,8 +65,9 @@ pub fn catalog() -> Vec<Operation> {
     entries.into_iter().map(|(kind,name,description)| {
         let mut s=match kind {
             Describe=>discovery_schema(),
-            Brief=>schema(&["task","target","view","duty","deployment_view","runtime_environment","runtime_from","runtime_to"],&["task"],
-                json!({"depth":integer(1,3),"limit":integer(1,1000)})),
+            Brief|AgentContext=>schema(&["task","target","view","duty","deployment_view","runtime_environment","runtime_from","runtime_to"],&["task"],
+                json!({"depth":integer(1,3),"limit":integer(1,1000),"max_files":integer(1,1000),
+                    "exclude_facets":{"type":"array","items":{"type":"string","enum":crate::architecture::task::retrieval_facets()},"uniqueItems":true}})),
             Search=>common(&["text","classes"],&["text"]),
             Occurrences=>schema(&["text","path","view"],&["text"],json!({"limit":integer(1,1000),"offset":integer(0,u64::MAX)})),
             Neighbors=>schema(&["target","direction","predicate","view","index_id","deployment_view","runtime_environment","runtime_from","runtime_to"],&["target"],
@@ -84,7 +86,7 @@ pub fn catalog() -> Vec<Operation> {
             SessionActivity=>common(&["base","since","until","format"],&[]),
             Status=>schema(&[],&[],json!({"summary":{"type":"boolean"}})),
         };
-        if kind==Brief {s["properties"]["duty"]["enum"]=json!(Duty::names());}
+        if matches!(kind,Brief|AgentContext) {s["properties"]["duty"]["enum"]=json!(Duty::names());}
         if kind==Neighbors {s["properties"]["direction"]["enum"]=json!(["in","out","both"]);}
         if kind==Search {
             s["properties"]["history"]=json!({"type":"boolean"});
@@ -95,7 +97,7 @@ pub fn catalog() -> Vec<Operation> {
             }
             s["properties"]["component"]["description"]=json!("Retained file or directory path prefix; filtering follows bounded lexical candidate selection.");
         }
-        let text_field=match kind {Brief=>Some(("task",16384)),Search|Occurrences=>Some(("text",4096)),_=>None};
+        let text_field=match kind {Brief|AgentContext=>Some(("task",16384)),Search|Occurrences=>Some(("text",4096)),_=>None};
         if let Some((field,max))=text_field {
             s["properties"][field]["minLength"]=json!(1);
             s["properties"][field]["maxLength"]=json!(max);

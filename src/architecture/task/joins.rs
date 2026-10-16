@@ -22,6 +22,72 @@ fn add_link(out: &mut Joins, predicate: &str, from: &str, to: &str, basis: Value
     Ok(())
 }
 
+/// Retrieval precedes final slice selection. Only retained changed paths and
+/// normalized read/confirmed-edit events can introduce files, never transcript
+/// prose or failed edit attempts. Foreign repository recordings cannot seed.
+pub(super) fn discover(l:&Ledger,s:&Snapshot,r:&super::request::Request,paths:&BTreeSet<String>)->Result<(Vec<Value>,Value)> {
+    let terms=super::retrieval::terms(&r.task);
+    let mut hints=vec![];
+    let mut scores=BTreeMap::<String,(u64,Vec<String>)>::new();
+    if r.enabled("history") {for commit in l.history_commits()? {
+        let touched:BTreeSet<_>=commit.changes.iter().flat_map(|c|std::iter::once(c.path.clone()).chain(c.old_path.clone())).collect();
+        let overlap=!paths.is_disjoint(&touched);
+        let task_match=super::retrieval::matches(&commit.message,&terms)>=terms.len().clamp(1,2) && !terms.is_empty();
+        if !overlap&&!task_match || commit.parents.len()>1 || commit.changes.len()!=commit.files_total {continue;}
+        for path in touched.iter().filter(|p|s.files.contains_key(*p)) {
+            let entry=scores.entry(path.clone()).or_default();
+            entry.0=(entry.0+(if task_match {100} else {80})/commit.files_total.max(2) as u64).min(80);
+            if entry.1.len()<8 {entry.1.push(commit.oid.clone());}
+        }
+    }}
+    for (path,(strength,commits)) in scores {hints.push(json!({"path":path,"facet":"history","kind":"retained_cochange_or_message",
+        "strength":strength,"confidence":"observational_candidate","provenance":{"commits":commits,
+            "meaning":"complete non-merge changed paths; inverse commit-size weighting; co-change and message relevance are not dependencies"}}));}
+    let publications=l.session_publications()?;
+    let mut considered=0;
+    let mut omitted_paths=0;
+    let mut omitted_requests=0;
+    if r.enabled("sessions") {
+        let repository=rows(&s.view.bundle,"snapshots").first().map(|v|text(v,"repository_id")).unwrap_or_default();
+        let root=s.view.diagnostics["capture"]["repository_root"].as_str().and_then(session::paths::normalize);
+        for publication in publications.iter().take(200) {
+            let recorded_root=publication["context"]["repository_root"].as_str().and_then(session::paths::normalize);
+            if publication["context"]["repository_id"]!=repository ||
+                !root.as_ref().zip(recorded_root.as_ref()).is_some_and(|(a,b)|a==b) {continue;}
+            considered+=1;
+            if publication["context"]["retention"]=="metadata" {continue;}
+            let view=text(publication,"view_id");
+            let summary=session::touch_summary(l,&view)?;
+            if summary["invalidated"]==true {continue;}
+            omitted_requests+=summary["omitted_requests"].as_u64().unwrap_or(0)+u64::from(summary["omitted_request_bytes"].as_u64().unwrap_or(0)>0);
+            let mut touches=BTreeMap::<String,&Value>::new();
+            for event in rows(&summary,"activities") {
+                let path=text(&event["path"],"path");
+                if !s.files.contains_key(&path) {continue;}
+                if touches.get(&path).is_none_or(|old|old["kind"]!="file_edit_confirmed") {touches.insert(path,event);}
+            }
+            let overlap=touches.keys().any(|p|paths.contains(p));
+            let request=rows(&summary,"user_requests").iter().find(|e|!terms.is_empty() &&
+                super::retrieval::matches(&text(e,"text"),&terms)>=terms.len().clamp(1,2));
+            if !overlap&&request.is_none() {continue;}
+            let fanout=1+touches.len()/8;
+            omitted_paths+=touches.len().saturating_sub(64);
+            for (path,event) in touches.into_iter().take(64) {
+                hints.push(json!({"path":path,"facet":"sessions","kind":event["kind"],
+                    "strength":(if event["kind"]=="file_edit_confirmed" {60} else {40})/fanout as u64,
+                    "confidence":"recorded_activity_candidate","provenance":{"session_view":view,"event_id":event["id"],
+                        "summary_report_id":summary["id"],
+                        "request_event_id":request.map(|e|&e["id"]),"matched_by":if overlap {"seed_path_overlap"} else {"recorded_request_terms"},
+                        "meaning":"recorded read or confirmed edit; source-change ownership and causality unestablished"}}));
+            }
+        }
+    }
+    Ok((hints,json!({"history_enabled":r.enabled("history"),"sessions_enabled":r.enabled("sessions"),
+        "session_publications":publications.len(),"session_discovery_limit":200,"sessions_considered":considered,
+        "omitted_session_publications":if r.enabled("sessions") {publications.len().saturating_sub(200)} else {0},
+        "omitted_session_paths":omitted_paths,"omitted_or_truncated_requests":omitted_requests})))
+}
+
 pub(super) fn build(l: &Ledger, s: &Snapshot, ix: &Index, paths: &BTreeSet<String>) -> Result<Joins> {
     let mut out = Joins::default();
     out.history_tip=l.history_tip()?.map(|(tip,_)|tip);

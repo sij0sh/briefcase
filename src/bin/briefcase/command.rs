@@ -35,6 +35,11 @@ pub(crate) enum Command {
         view: String,
         #[arg(long,value_parser=clap::value_parser!(u64).range(1..=3))]
         depth: Option<u64>,
+        #[arg(long,default_value_t=32,value_parser=clap::value_parser!(u64).range(1..=1000))]
+        max_files:u64,
+        /// Emit the budgeted manifest used by automatic coding-harness context.
+        #[arg(long)]
+        agent_context:bool,
         #[arg(long,default_value_t=10,value_parser=clap::value_parser!(u64).range(1..=1000))]
         limit: u64,
         #[arg(long,default_value_t=24576,value_parser=clap::value_parser!(u64).range(256..=1048576))]

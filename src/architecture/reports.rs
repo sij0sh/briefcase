@@ -57,7 +57,12 @@ pub fn page(l:&Ledger,a:&Value) -> Result<Value> {
     let limit=a["limit"].as_u64().unwrap_or(100) as usize;
     require((1..=1000).contains(&limit),"PAGINATION","Limit must be 1..1000")?;
     let doc=load_report(l,id)?;
-    let sections=match doc["kind"].as_str() {Some("case")=>task::case::sections(&doc),Some("brief")=>task::report_sections(&doc),_=>report_sections(&doc)};
+    let sections=if id.starts_with("task-index:") {
+        // Entity name/file arrays are not a useful section inventory. Listing
+        // thousands of them would itself exhaust the graph response budget.
+        ["/links","/coverage/producer_boundaries","/coverage/unresolved_bindings","/coverage/analysis_profiles","/coverage/languages","/coverage/profile_views"]
+            .into_iter().filter(|p|doc.pointer(p).is_some_and(Value::is_array)).map(str::to_owned).collect()
+    } else {match doc["kind"].as_str() {Some("case")=>task::case::sections(&doc),Some("brief")=>task::report_sections(&doc),_=>report_sections(&doc)}};
     if section.is_empty() {
         section=if doc["enumerator"].is_string()||doc["items"].is_array() {"/items".into()}
             else if doc["response"].is_object(){"/response/results".into()}

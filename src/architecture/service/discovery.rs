@@ -16,7 +16,7 @@ pub fn describe() -> Value {
 
 pub(super) fn examples(name:&str)->Vec<Value>{
     let args=match name {
-        "brief"=>json!({"task":"rename the session importer safely","target":"src/session.rs","duty":"refactor"}),
+        "brief"|"agent_context"=>json!({"task":"rename the session importer safely","target":"src/session.rs","duty":"refactor"}),
         "search"=>json!({"text":"payment authorization retry"}),
         "occurrences"=>json!({"text":"old-binary-name","limit":100}),
         "neighbors"=>json!({"target":"src/session.rs","direction":"in","predicate":"TESTS"}),
@@ -38,6 +38,7 @@ fn description(o: &Operation) -> Value {
 fn search_terms(name:&str)->&'static str{
     match name {
         "brief"=>"coding duty debug refactor rename impact extend resume plan review patch complete tests context packet uncovered feature endpoint workflow",
+        "agent_context"=>"coding harness automatic prompt manifest budget ranked files selection spans fetch",
         "occurrences"=>"exhaustive literal occurrence rename every match all files completion search",
         "neighbors"=>"what calls this function caller callee reverse dependents tests configuration references blast radius imports uses dependency data lineage deployment runtime",
         "reachability"=>"can reach path between functions transitive static execution",

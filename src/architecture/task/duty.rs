@@ -36,6 +36,8 @@ pub struct CasePolicy {
 }
 const CODE: &[&str] = &["impl", "test", "config", "script", "build", "install", "doc", "adr", "plan", "fixture"];
 const RELATIONSHIPS: &[&str] = &[
+    "CONTAINS", "DECLARES", "BELONGS_TO_DOMAIN", "IMPLEMENTS_FEATURE", "REALIZES_FEATURE",
+    "SUBFEATURE_OF", "ENTRYPOINT_FOR", "PARTICIPATES_IN", "REFERENCES_TOUCHPOINT",
     "TESTS", "REFERENCES_ARTIFACT", "IMPLEMENTS_PLAN_SECTION", "DEPENDS_ON", "IMPORTS",
     "REFERENCES", "CALLS_STATIC", "ROUTES_TO", "READS", "WRITES", "DERIVES_FROM",
     "BUILDS", "DEPLOYS_AS", "CONNECTS_TO", "CALLS_OBSERVED", "CONNECTION_OBSERVED",

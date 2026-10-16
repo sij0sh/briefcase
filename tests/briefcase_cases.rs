@@ -46,7 +46,10 @@ fn retained_case_paging_and_explanation_keep_all_rows_and_reach_links() {
         if let Some(link)=row["reached_by"]["via_link"].as_str() {
             let why=f.call("explain",json!({"report_id":id,"ref":link,"max_bytes":1048576}));
             assert_eq!(why["link_id"],link);
-        } else {assert_eq!(row["path"],"src/lib.rs");assert_eq!(row["reached_by"]["depth"],0);}
+        } else {
+            assert!(row["selection"]=="resolved_anchor" || rows(row,"selection_reasons").iter().any(|s|s["facet"]=="lexical"),"{row}");
+            assert_eq!(row["reached_by"]["depth"],0);
+        }
     }
     let metadata=f.call("explain",json!({"report_id":id,"ref":"/coverage/completeness","max_bytes":8000}));
     assert_eq!(metadata["entry"],full["coverage"]["completeness"]);

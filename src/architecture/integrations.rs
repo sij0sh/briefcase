@@ -116,6 +116,7 @@ pub fn inspect(agent: &str, root: &Path, binary: &Path) -> Result<Value> {
     };
     Ok(
         json!({"agent":agent,"state":state,"detected":detected(agent,root),"plan":plan,
+        "context_delivery":if ["pi","claude-code"].contains(&agent) {"automatic_per_prompt_agent_context"} else {"explicit_agent_context_tool; no automatic per-prompt hook"},
         "session_sync":if agent == "muse" {"unsupported"} else {"supported"}}),
     )
 }

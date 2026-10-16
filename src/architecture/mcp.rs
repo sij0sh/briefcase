@@ -73,8 +73,8 @@ pub fn tools_for(surface: Surface) -> Value {
             tool("briefcase_status", "Inspect database publication and run diagnostics. Capture and sync are explicit CLI lifecycle actions.", service::find("status").unwrap().schema)
         ]}),
         Surface::Compact => json!({"tools":[
-            tool("context", "Search the code, documentation and configuration text that Briefcase retained from this repository's latest capture, and the Git commits (messages and diffs) reachable from the synced HEAD. Results are file excerpts with paths and line ranges, or commit excerpts with hashes. Earlier agent sessions are searched only when sessions is true, as labelled session hits. For task context, use the briefcase tool with operation brief.", search_schema()),
-            tool("briefcase", "Start coding duties with operation brief: anchors, implementation/tests/config/scripts/docs/plans, history, sessions/errors, external touchpoints and not_covered. Use occurrences for exhaustive literal search and neighbors for reverse callers/dependents/tests. page and explain expand retained reports; describe discovers schemas. Answers keep pins, coverage and provenance; unknown does not mean absent.", query_schema())
+            tool("context", "Search the code, documentation and configuration text that Briefcase retained from this repository's latest capture, and the Git commits (messages and diffs) reachable from the synced HEAD. Results are file excerpts with paths and line ranges, or commit excerpts with hashes. Earlier agent sessions are searched only when sessions is true, as labelled session hits. For budgeted task context, use the briefcase tool with operation agent_context; brief exposes full case sections.", search_schema()),
+            tool("briefcase", "Start coding duties with operation agent_context or brief: anchors, implementation/tests/config/scripts/docs/plans, history, sessions/errors, external touchpoints and not_covered. Use occurrences for exhaustive literal search and neighbors for reverse callers/dependents/tests. page and explain expand retained reports; describe discovers schemas. Answers keep pins, coverage and provenance; unknown does not mean absent.", query_schema())
         ]}),
     }
 }
@@ -247,7 +247,7 @@ pub fn serve_path_for_root(surface:Surface,db:&Path,root:Option<&Path>,input:imp
             else if ["briefcase","briefcase_query"].contains(&name) {service::validate(&query_schema(),arguments).is_ok()}else{true};
         let context_read=accepted&&wrapper_valid&&service::find(operation).is_some_and(|op| {
             let normalized=service::normalize(operation,&op,&args);
-            service::validate(&op.schema,&normalized).is_ok() && matches!(op.kind,service::Kind::Brief|service::Kind::Search|service::Kind::Occurrences|service::Kind::Neighbors)
+            service::validate(&op.schema,&normalized).is_ok() && matches!(op.kind,service::Kind::Brief|service::Kind::AgentContext|service::Kind::Search|service::Kind::Occurrences|service::Kind::Neighbors)
         });
         if request["method"]=="tools/call" && context_read && ledger.as_ref().is_none_or(|l|l.resolve("latest").is_err()) {
             if let Some(root)=root {

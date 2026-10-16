@@ -16,6 +16,15 @@ pub(super) struct Request {
     pub depth: usize,
     pub view: String,
     pub scope: EvidenceScope,
+    #[serde(default="default_max_files",skip_serializing_if="is_default_max_files")]
+    pub max_files: usize,
+    #[serde(default,skip_serializing_if="Vec::is_empty")]
+    pub exclude_facets: Vec<String>,
+}
+fn default_max_files()->usize {32}
+fn is_default_max_files(value:&usize)->bool {*value==default_max_files()}
+impl Request {
+    pub fn enabled(&self,facet:&str)->bool {!self.exclude_facets.iter().any(|f|f==facet)}
 }
 #[derive(Clone, Copy, Debug)]
 pub(super) struct Presentation {
@@ -35,12 +44,16 @@ pub(super) fn parse(a: &Value) -> Result<(Request, Presentation)> {
         runtime_from:a["runtime_from"].as_str().map(str::to_owned),
         runtime_to:a["runtime_to"].as_str().map(str::to_owned),
     };
+    let mut exclude_facets=crate::architecture::contracts::strings(&a["exclude_facets"]);
+    exclude_facets.sort();
+    require(exclude_facets.iter().all(|f|super::retrieval::FACETS.contains(&f.as_str())),"ARGUMENTS","Unknown retrieval facet")?;
     let from=scope.runtime_from.as_deref().map(crate::architecture::runtime_observations::seconds).transpose()?;
     let to=scope.runtime_to.as_deref().map(crate::architecture::runtime_observations::seconds).transpose()?;
     require(from.zip(to).is_none_or(|(f,t)|f<t),"ARGUMENTS","runtime_from must precede runtime_to")?;
     Ok((Request {task:task.into(),duty,target:a["target"].as_str().map(str::to_owned),
         depth:a["depth"].as_u64().unwrap_or(duty.policy().trace.depth as u64) as usize,
-        view:a["view"].as_str().unwrap_or("latest").into(),scope},
+        view:a["view"].as_str().unwrap_or("latest").into(),scope,
+        max_files:a["max_files"].as_u64().unwrap_or(default_max_files() as u64) as usize,exclude_facets},
         Presentation {limit:a["limit"].as_u64().unwrap_or(10) as usize,
             max_bytes:a["max_bytes"].as_u64().map(|n|n as usize)}))
 }

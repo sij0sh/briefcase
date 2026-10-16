@@ -8,8 +8,10 @@ pub fn schema(value: &Value, name: &str, definition: Option<&str>) -> Result<()>
     static DECLARATION: OnceLock<Value> = OnceLock::new();
     static SESSION_ACTIVITY: OnceLock<Value> = OnceLock::new();
     static TASK_CASE: OnceLock<Value> = OnceLock::new();
+    static AGENT_CONTEXT: OnceLock<Value> = OnceLock::new();
     static TASK_BRIEF: OnceLock<Value> = OnceLock::new();
     let (cell, raw) = match name {
+        "agent-context" => (&AGENT_CONTEXT, include_str!("../../../contracts/v1/agent-context.schema.json")),
         "task-case" => (&TASK_CASE, include_str!("../../../contracts/v1/task-case.schema.json")),
         "task-brief" => (&TASK_BRIEF, include_str!("../../../contracts/v1/task-brief.schema.json")),
         "knowledge" => (&KNOWLEDGE, include_str!("../../../contracts/v1/knowledge.schema.json")),

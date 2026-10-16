@@ -100,12 +100,65 @@ class TaskEvaluationTests(unittest.TestCase):
             for option, key in [("--scenarios", "scenarios"), ("--cases", "cases")]:
                 source.write_text(json.dumps({key: [{"id": "x", "task": "x", "required_paths": ["a"]}]}))
                 output = io.StringIO()
-                with patch("sys.argv", ["task-evaluate.py", option, str(source)]), \
+                with patch("sys.argv", ["task-evaluate.py", option, str(source), "--skip-manifest"]), \
                      patch.object(task_evaluate, "execute", return_value=packet), contextlib.redirect_stdout(output):
                     self.assertEqual(task_evaluate.main(), 0)
                 report = json.loads(output.getvalue())
                 self.assertEqual(report["scenarios"][0]["case_id"], "task-case:test")
                 self.assertEqual(report["false_complete_rate"], 0)
+
+
+    def test_ranked_recall_and_actual_manifest_delivery_are_scored_separately(self):
+        packet = {"case_id": "task-case:ranked", "id": "task-case:ranked", "outcome": "partial",
+                  "slice": {role: [] for role in task_evaluate.ROLES},
+                  "not_covered": [{"area": "producer_boundary", "count": 2000},
+                                  {"area": "producer_boundary_scope", "actionable": False}],
+                  "coverage": {"delivery": {f"/slice/{role}": {"omitted": 0} for role in task_evaluate.ROLES}}}
+        packet["coverage"]["delivery"]["/not_covered"] = {"omitted": 0}
+        packet["slice"]["impl"] = [{"path": "a", "rank": 1, "bytes": 20}, {"path": "b", "rank": 2, "bytes": 40}]
+        manifest = {"kind": "agent_context", "case_id": "task-case:ranked", "files": [
+            {"path": "a", "fetch": {"operation": "explain", "arguments": {"report_id": "task-case:ranked", "ref": "/slice/impl/0"}}}],
+            "continue_with": {"operation": "page"}, "coverage": {"delivery": {"files": {"omitted": 1}}}}
+        calls = []
+        def call(operation, arguments):
+            calls.append((operation, arguments))
+            return manifest if operation == "agent_context" else packet
+        result = task_evaluate.evaluate_scenario({"id": "ranked", "task": "inspect a", "required_paths": ["a", "b"]}, call,
+                                                manifest_bytes=8000, exclude_facets=("history",))
+        self.assertEqual(result["recall_at_k"]["5"], 1)
+        self.assertEqual(result["required_path_ranks"], {"a": 1, "b": 2})
+        self.assertEqual(result["harness_context"]["required_path_recall"], 0.5)
+        self.assertEqual(result["harness_context"]["omitted_files"], 1)
+        self.assertEqual(result["actionable_gap_rows"], 1)
+        self.assertEqual(result["producer_boundary_occurrences"], 2000)
+        self.assertEqual(calls[0][1]["exclude_facets"], ["history"])
+        self.assertEqual(result["selected_source_bytes"], 60)
+        manifest["case_id"] = "task-case:other"
+        with self.assertRaisesRegex(ValueError, "another retained case"):
+            task_evaluate.evaluate_scenario({"id": "x", "task": "x", "required_paths": ["a"]}, call, manifest_bytes=8000)
+
+    def test_manifest_byte_limit_and_unpinned_fetches_fail_evaluation(self):
+        packet = {"case_id": "task-case:x", "id": "task-case:x", "outcome": "partial", "not_covered": [],
+                  "slice": {role: [] for role in task_evaluate.ROLES},
+                  "coverage": {"delivery": {f"/slice/{role}": {"omitted": 0} for role in task_evaluate.ROLES}}}
+        packet["coverage"]["delivery"]["/not_covered"] = {"omitted": 0}
+        manifest = {"kind": "agent_context", "case_id": "task-case:x", "files": [{"path": "a", "fetch": {}}], "continue_with": {}}
+        call = lambda op, _: manifest if op == "agent_context" else packet
+        scenario = {"id": "x", "task": "x", "required_paths": ["a"]}
+        with self.assertRaisesRegex(ValueError, "not pinned"):
+            task_evaluate.evaluate_scenario(scenario, call, manifest_bytes=8000)
+        manifest["detail"] = "é" * 20000
+        with self.assertRaisesRegex(ValueError, "UTF-8 byte budget"):
+            task_evaluate.evaluate_scenario(scenario, call, manifest_bytes=8000)
+
+
+    def test_harness_framing_matches_the_actual_adapter_sources(self):
+        import re
+        root = Path(__file__).resolve().parents[1]
+        for harness, path in [("pi", root / "extensions/briefcase-pi.ts"),
+                              ("claude-code", root / "src/architecture/adoption.rs")]:
+            literal = re.search(r'const CONTEXT_PREFIX[^=]*=\s*("(?:[^"\\]|\\.)*")', path.read_text()).group(1)
+            self.assertEqual(task_evaluate.FRAMING[harness], json.loads(literal))
 
 
 if __name__ == "__main__":

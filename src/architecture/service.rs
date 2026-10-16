@@ -95,9 +95,9 @@ pub fn call_path(db:&std::path::Path,root:Option<&std::path::Path>,name:&str,arg
     let normalized=normalize(name,&operation,args);
     validate(&operation.schema,&normalized)?;
     if operation.kind==Kind::Describe {return discover(&normalized);}
-    if operation.kind==Kind::Brief {super::task::validate_request(&normalized)?;}
+    if matches!(operation.kind,Kind::Brief|Kind::AgentContext) {super::task::validate_request(&normalized)?;}
     let l=match (operation.kind,root) {
-        (Kind::Brief|Kind::Search|Kind::Occurrences|Kind::Neighbors,Some(root))=>open_context(db,root)?,
+        (Kind::Brief|Kind::AgentContext|Kind::Search|Kind::Occurrences|Kind::Neighbors,Some(root))=>open_context(db,root)?,
         _=>Ledger::open_existing(db)?,
     };
     call_validated(&l,&operation,&normalized,root,fallback)
@@ -145,7 +145,7 @@ fn call_validated(
         return Ok(result);
     }
     if fallback.is_none() && fallback_published
-        && matches!(operation.kind,Kind::Brief|Kind::Search|Kind::Occurrences|Kind::Neighbors)
+        && matches!(operation.kind,Kind::Brief|Kind::AgentContext|Kind::Search|Kind::Occurrences|Kind::Neighbors)
         && args["view"].as_str().is_none_or(|view|view=="latest") && l.pending_source()? {
         fallback=Some(json!({"used":true,"reason":"pending_source_capture","argument":"view",
             "requested":"latest","pinned_view":result["view_id"],"mode":"retained_context_read"}));

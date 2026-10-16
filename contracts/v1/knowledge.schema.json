@@ -478,6 +478,10 @@
             "unknown",
             "recorded_tools_only"
           ]
+        },
+        "scope": {
+          "type": "string",
+          "description": "Explicit subset covered by this guarantee; resolution_complete separately describes exhaustive coverage."
         }
       },
       "required": [

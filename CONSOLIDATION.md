@@ -11,18 +11,19 @@ pipeline; task reads do not inspect live source files.
 | --- | --- |
 | `task/request.rs` | Pure validation of task, duty, target, depth and producer scope; separate presentation limits |
 | `task/evidence.rs` | Retained snapshots, artifacts, links and witnesses; digest verification |
-| `task/trace.rs` | Exact/candidate seeding, lexical fallback, bounded expansion, reach provenance and typed boundaries |
-| `task/joins.rs` | History and session traversal; boundary facts without duty input |
+| `task/trace.rs` | Candidate orchestration before final selection, ranked reach provenance and typed boundaries |
+| `task/joins.rs` | Preselection history/session discovery and postselection evidence joins |
+| `task/retrieval.rs` | Declarative facets, independent signal fusion, degree-aware traversal, localization and bounded ranking |
+| `task/agent.rs` | Budgeted harness projection, precise source fetches and retained evidence continuations |
 | `task/case.rs` | Pure assembly from traced facts and captured ledger state; retention, loading, sections and comparison |
 | `task/completeness.rs` | Typed gap areas, exhaustive dimension mapping, duty policy and derived outcome |
 | `task/brief.rs` | V1 projection, instruction, previews, delivery counts, continuation and byte-budget trimming |
 
-`DutyPolicy` separates traversal predicates/depth from case obligations. Shared
-expansion preserves the brief's undirected accumulating closure and neighbors'
-directed frontier semantics. Differential unit tests retain the original loops
-as independent traversal oracles. The brief output intentionally changes, so
-the pre-completeness byte-equality oracle is not part of the final test suite.
-That intermediate guard could not be executed on this host.
+`DutyPolicy` separates traversal predicates/depth from case obligations. Task
+selection uses scored, directed frontiers with degree/fanout costs and structural
+localization. `neighbors` retains exhaustive directed frontier semantics. Legacy
+closure/frontier oracles remain in unit tests for the enumerator; the task engine
+no longer uses uniform accumulating closure.
 
 Cases are schema-validated before retention and use `task-case:<hash>`. The
 identity covers the complete case without its ID, including request scope,
@@ -56,22 +57,31 @@ invocations; their relative edits cannot become local edits or commit ownership.
 
 The index implementation key includes `evidence.rs`. Vocabulary uses
 `knowledge::support_closure`, evaluator scenarios, and runtime spans or OTLP
-traces. Existing OTLP `trace_id` and `span_id` fields are unchanged. No new
-agent-callable trace/case operation or v2 contract was added.
+traces. Existing OTLP `trace_id` and `span_id` fields are unchanged. The v1 case/brief contracts accept additive ranking/candidate fields.
+`agent_context` is one new projection operation over the existing case, not
+a new graph product. Its owned contract is `agent-context.schema.json`.
+Original cases that omit the new optional fields keep their load identity.
 
 Run these checks on a Rust-enabled host:
 
 ```sh
 cargo build --locked
 cargo test --locked --lib
-cargo test --locked --test context -- --skip response_budget_pagination_does_not_skip_undelivered_matches
+cargo test --locked --test context
 cargo fmt --all -- --check
 cargo clippy --locked --lib --bins --tests
 node --test tests/briefcase-task-adapter.test.mjs
 node --test tests/briefcase-pi.test.mjs
 ```
 
-The occurrences budget test remains unchanged and should be investigated
-separately, as specified by the plan. Full package/conformance checks and real
-recall measurements also require the evaluation files omitted from the supplied
-archive. No Rust pass/fail baseline or recall numbers were inferred here.
+The structured-page budget path now fits a contiguous prefix with logarithmic
+measurements; the occurrences regression should run without a skip. New fixtures
+cover candidate fusion/ablations, hub damping, test includes, positive Git/session
+discovery, foreign/failed session activity, retained source fetches and large
+producer inventories. Real Rust execution is still unverified on this host.
+
+The eight recovered task scenarios exercise regression recall, rank, labelled
+precision, source/response bytes, actionable gaps and actual harness manifest
+delivery. Per-facet ablations are available through the evaluator's `--ablations`
+option. The full original conformance corpus is absent; weights need a larger,
+held-out task corpus before making generalized retrieval-quality claims.

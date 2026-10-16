@@ -294,7 +294,8 @@ fn parse_language(name: &str) -> std::result::Result<Language, String> {
 }
 
 /// `rust-analyzer --version`, bounded, or `None` when it does not answer.
-fn analyzer_identity(exe: &Path) -> Option<String> {
+fn analyzer_identity(exe: &Path, deadline:Instant) -> Option<String> {
+    if Instant::now()>=deadline {return None;}
     let mut child = Command::new(exe)
         .arg("--version")
         .stdin(Stdio::null())
@@ -311,7 +312,7 @@ fn analyzer_identity(exe: &Path) -> Option<String> {
                 return Some(out.trim().to_owned());
             }
             Ok(Some(_)) | Err(_) => return None,
-            Ok(None) if started.elapsed() > Duration::from_secs(10) => {
+            Ok(None) if started.elapsed() > Duration::from_secs(5) || Instant::now()>=deadline => {
                 let _ = child.kill();
                 let _ = child.wait();
                 return None;
@@ -429,7 +430,7 @@ fn profile(o: &SyncOptions, deadline: Instant) -> std::result::Result<Profile, P
                 .analyzer
                 .clone()
                 .unwrap_or_else(|| PathBuf::from("rust-analyzer"));
-            match analyzer_identity(&exe) {
+            match analyzer_identity(&exe,deadline) {
                 Some(version) => analyzer = Some((exe, version)),
                 None if o.analyzer.is_some() => {
                     return Err(
@@ -655,11 +656,15 @@ fn key(repository: &str, capture: &Capture, profile: &Profile) -> Result<String>
     }))
 }
 
+fn rust_calls_complete(bundle:&Value)->bool {
+    super::super::contracts::rows(bundle,"runs").iter().any(|r|
+        r["status"]=="complete" && r["coverage"]["resolution_complete"]==true
+        && super::super::contracts::rows(&r["coverage"],"guarantees").iter().any(|g|g["predicate"]=="CALLS_STATIC"&&g["kind"]=="exact_supported"))
+}
 fn ensure_rust_calls(l:&mut Ledger,view:&str,profile:&Profile,deadline:Instant)->Result<Value>{
     if profile.language!=Language::Rust||!profile.calls {return Ok(json!({"state":"not_requested"}));}
     let retained=l.retained(view)?;
-    if super::super::contracts::rows(&retained.bundle,"runs").iter().any(|r|
-        super::super::contracts::rows(&r["coverage"],"guarantees").iter().any(|g|g["predicate"]=="CALLS_STATIC")) {
+    if rust_calls_complete(&retained.bundle) {
         return Ok(json!({"state":"retained"}));
     }
     let Some((analyzer,_))=&profile.analyzer else {return Ok(json!({"state":"unavailable","reason":"Rust static calls require rust-analyzer; retained syntax/text remains available."}));};
@@ -859,11 +864,11 @@ fn apply_one(o: &SyncOptions, _lock: &WriterLock, started: Instant, slot:Option<
     };
     ledger::recovery::check_deadline(deadline)?;
     ledger.publish(&view, true)?;
-    let static_calls=ensure_rust_calls(&mut ledger,&view,&profile,deadline)?;
     // A completed publication is durable even if the deadline expires in an
     // atomic phase. Record its input key so a retry can reuse and finish it.
     ledger.record_sync(&key, &view, &profile.summary)?;
     if let Some(slot)=slot {ledger.save_report(&profile_state_id(slot,&key)?,&json!({"view_id":view,"input_key":key,"profile":profile.summary}),&[])?;}
+    let static_calls=ensure_rust_calls(&mut ledger,&view,&profile,deadline)?;
     ledger::recovery::check_deadline(deadline)?;
     let (_, units) = recall::ensure_index(&ledger, &ledger.load(&view)?)?;
     let task_index = crate::architecture::task::precompute(&ledger,&view)?;
@@ -989,10 +994,28 @@ fn check_one(o: &SyncOptions, slot:Option<&str>) -> Result<crate::architecture::
                 if !view.stale && view.projections.len() == 2 && recall.is_some() {
                     alignment.state = AlignmentState::Aligned;
                 }
+                if input.profile.language==Language::Rust && input.profile.calls && input.profile.analyzer.is_some() {
+                    let complete=rust_calls_complete(&ledger.retained(&view_id)?.bundle);
+                    alignment.detail["static_calls"]=json!({"state":if complete {"complete"} else {"partial_or_not_run"},"retryable":!complete});
+                    if !complete {alignment.state=AlignmentState::Dirty;}
+                }
                 alignment.detail["view_id"] = json!(view_id);
                 alignment.detail["recall_units"] = json!(recall);
             }
         }
     }
     Ok(alignment)
+}
+
+#[cfg(test)]
+mod rust_call_cache_tests {
+    use super::*;
+    #[test]
+    fn a_guarantee_or_complete_status_alone_never_caches_partial_calls_as_final() {
+        for (status,resolved,expected) in [("complete",false,false),("partial",true,false),("partial",false,false),("complete",true,true)] {
+            let bundle=json!({"runs":[{"status":status,"coverage":{"resolution_complete":resolved,
+                "guarantees":[{"predicate":"CALLS_STATIC","kind":"exact_supported","scope":"native_resolved_subset"}]}}]});
+            assert_eq!(rust_calls_complete(&bundle),expected);
+        }
+    }
 }

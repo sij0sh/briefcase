@@ -6,6 +6,8 @@ mod completeness;
 mod evidence;
 mod request;
 mod trace;
+mod retrieval;
+mod agent;
 mod duty;
 pub use duty::{CasePolicy, Duty, DutyPolicy, TracePolicy};
 pub use evidence::{Artifact, Link, Witness};
@@ -16,6 +18,7 @@ mod queries;
 mod producers;
 
 pub use brief::{brief, page};
+pub use agent::agent_context;
 pub(crate) use brief::table_paths as report_sections;
 pub use queries::{explain, neighbors, occurrences};
 pub(crate) use index::precompute;
@@ -26,6 +29,8 @@ use crate::architecture::{
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::collections::{BTreeMap, BTreeSet};
+
+pub fn retrieval_facets()->Vec<String> {retrieval::FACETS.iter().map(|s|(*s).into()).collect()}
 
 pub const METHOD: &str = "task-context-v1";
 

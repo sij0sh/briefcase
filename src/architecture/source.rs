@@ -35,6 +35,8 @@ pub fn artifact_role(path: &str) -> &'static str {
     else if name == "install" || name.starts_with("install.") || dirs.contains(&"install") || dirs.contains(&"installers") { "install" }
     else if ["build.rs", "makefile", "gnumakefile", "justfile", "cmakelists.txt", "pom.xml", "build.gradle", "build.gradle.kts", "package.json", "cargo.toml", "go.mod", "pyproject.toml", "setup.py"].contains(&name)
         || super::capture::is_dockerfile(path) || name.ends_with(".csproj") { "build" }
+    // Cargo binary targets are application source, including nested workspaces.
+    else if name.ends_with(".rs") && dirs.windows(2).any(|p|p == ["src", "bin"]) { "impl" }
     else if dirs.iter().any(|d| ["scripts", "script", "bin", "hooks"].contains(d))
         || ["sh", "bash", "ps1", "bat", "cmd"].contains(&name.rsplit('.').next().unwrap_or("")) { "script" }
     else if dirs.iter().any(|d| ["docs", "doc", ".agents", ".codex"].contains(d))

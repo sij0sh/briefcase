@@ -17,6 +17,7 @@ pub(super) fn dispatch(l:&Ledger,op:&Operation,a:&Value) -> Result<Value> {
     match op.kind {
         Describe=>discover(a),
         Brief=>task::brief(l,a),
+        AgentContext=>task::agent_context(l,a),
         Search=>search::search(l,a),
         Occurrences=>task::occurrences(l,a),
         Neighbors=>task::neighbors(l,a),

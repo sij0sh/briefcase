@@ -38,6 +38,8 @@ pub(crate) struct Case {
     cochange: Vec<Value>,
     external_touchpoints: Vec<Value>,
     lexical_candidates: Vec<Value>,
+    #[serde(default,skip_serializing_if="Vec::is_empty")]
+    candidates: Vec<retrieval::Candidate>,
     not_covered: Vec<Gap>,
     coverage: Coverage,
     readiness: Value,
@@ -55,10 +57,16 @@ pub(super) fn assemble(r:&Request,s:&Snapshot,ix:&Index,t:&Trace,policy:&CasePol
     }
     let mut slice=serde_json::Map::new();
     for role in source::ARTIFACT_ROLES {slice.insert((*role).into(),json!([]));}
-    for path in &t.paths {
+    for candidate in t.candidates.iter().filter(|c|c.selected) {
+        let path=&candidate.path;
         let Some(file)=s.files.get(path) else {continue};
         let mut row=serde_json::to_value(file)?;
-        row["selection"]=json!(if t.seed.paths.contains(path) {"resolved_anchor"} else {"evidence_neighborhood"});
+        row["selection"]=json!(if t.seed.status==trace::AnchorStatus::Resolved&&t.seed.paths.contains(path) {"resolved_anchor"} else {"ranked_candidate"});
+        row["rank"]=json!(candidate.rank);row["score"]=json!(candidate.score);
+        row["candidate_ref"]=json!(format!("/candidates/{}",candidate.rank-1));
+        row["selection_reasons"]=json!(candidate.signals.iter().map(|s|json!({"facet":s.facet,"kind":s.kind,
+            "strength":s.strength,"confidence":s.confidence,"via_link":s.via_link})).collect::<Vec<_>>());
+        row["spans"]=json!(candidate.spans);
         row["reached_by"]=serde_json::to_value(t.reached_by.get(path).ok_or("TASK: Missing reach provenance")?)?;
         row["text_is_untrusted_repository_content"]=json!(true);
         slice.get_mut(&file.role).ok_or("TASK: Unknown artifact role")?.as_array_mut().unwrap().push(row);
@@ -66,11 +74,14 @@ pub(super) fn assemble(r:&Request,s:&Snapshot,ix:&Index,t:&Trace,policy:&CasePol
     let assessment=completeness::assess(s,ix,t,policy,&slice,&external);
     let mut pinned:Vec<_>=s.profiles.iter().chain(s.evidence_views.iter()).map(|v|v.id.clone()).collect();
     pinned.extend(t.joins.session_views.iter().cloned());pinned.sort();pinned.dedup();
+    pinned.extend(t.candidates.iter().flat_map(|c|&c.signals).filter_map(|s|s.provenance["session_view"].as_str()).map(str::to_owned));
+    pinned.sort();pinned.dedup();
     let uncovered:BTreeSet<_>=assessment.gaps.iter().map(|g|String::from(g.area.clone())).collect();
     let coverage=json!({"capture":inventory_summary(&s.view.diagnostics["capture"]["inventory"]),
         "profiles":ix.coverage["languages"],"analysis_profiles":ix.coverage["analysis_profiles"],"producer":s.view.diagnostics["coverage"],
         "artifact_roles":assessment.role_coverage,"required_roles":policy.required_roles,"neighborhood_depth":t.depth,
-        "producer_boundary_scope":{"outside_selected_slice":assessment.outside_boundaries,"unlocalized":assessment.unlocalized_boundaries},
+        "producer_boundary_scope":{"outside_selected_slice":assessment.outside_boundaries,"unlocalized":assessment.unlocalized_boundaries,
+            "details":index::summary(ix)["details"]},"retrieval":t.retrieval,
         "not_covered_areas":uncovered,"history_tip":t.joins.history_tip,"session_publications_considered":t.joins.sessions_considered,
         "completeness_contract":{"C1_anchors":t.seed.status,"C2_slice":"roles explicitly enumerated",
             "C3_neighborhood":"retained forward/reverse relationships with basis","C4_history":"retained Git history; live capture/HEAD comparison is advisory freshness",
@@ -80,7 +91,7 @@ pub(super) fn assemble(r:&Request,s:&Snapshot,ix:&Index,t:&Trace,policy:&CasePol
         view_id:s.view.id.clone(),index_id:ix.id.clone(),pinned_views:pinned,anchors:t.seed.clone(),
         slice:serde_json::from_value(json!(slice))?,neighborhood,external_touchpoints:external,
         history:t.joins.history.clone(),sessions:t.joins.sessions.clone(),errors:t.joins.errors.clone(),
-        joins:t.joins.links.clone(),cochange:t.joins.cochange.clone(),lexical_candidates:t.lexical_candidates.clone(),
+        joins:t.joins.links.clone(),cochange:t.joins.cochange.clone(),lexical_candidates:t.lexical_candidates.clone(),candidates:t.candidates.clone(),
         not_covered:assessment.gaps,coverage:Coverage {completeness:assessment.completeness,
             detail:coverage.as_object().unwrap().iter().map(|(k,v)|(k.clone(),v.clone())).collect()},
         readiness:json!({"source_text":"digest_verified","graph":"not_required; eligible durable assertions used",
@@ -111,7 +122,7 @@ pub(crate) fn load(l:&Ledger,id:&str) -> Result<Case> {
 
 pub(crate) fn sections(doc:&Value) -> Vec<String> {
     let mut tables=source::ARTIFACT_ROLES.iter().map(|r|format!("/slice/{r}")).collect::<Vec<_>>();
-    for field in ["neighborhood","history","sessions","errors","joins","cochange","external_touchpoints","lexical_candidates","not_covered"] {
+    for field in ["neighborhood","history","sessions","errors","joins","cochange","external_touchpoints","lexical_candidates","candidates","not_covered"] {
         if doc[field].is_array() {tables.push(format!("/{field}"));}
     }
     tables

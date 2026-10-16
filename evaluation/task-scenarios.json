@@ -1,0 +1,103 @@
+{
+  "scenarios": [
+    {
+      "id": "duty-variant-refactor",
+      "task": "add a new Duty variant called migrate and wire it through parsing, schema and routing",
+      "target": "src/architecture/task/duty.rs",
+      "duty": "extend",
+      "required_paths": [
+        "src/architecture/task/duty.rs",
+        "src/architecture/task/request.rs",
+        "src/architecture/task/mod.rs",
+        "src/architecture/task/trace.rs",
+        "src/architecture/service/catalog.rs",
+        "src/bin/briefcase/command.rs",
+        "tests/briefcase_task.rs"
+      ]
+    },
+    {
+      "id": "task-case-schema",
+      "task": "add a required field to the task case JSON schema",
+      "target": "contracts/v1/task-case.schema.json",
+      "duty": "extend",
+      "required_paths": [
+        "contracts/v1/task-case.schema.json",
+        "src/architecture/contracts/schema.rs",
+        "src/architecture/task/case.rs",
+        "tools/test_task_case_schema.py",
+        "tests/briefcase_cases.rs",
+        "contracts/v1/README.md"
+      ]
+    },
+    {
+      "id": "analyzer-timeout",
+      "task": "rust-analyzer static call analysis ignores the sync timeout and hangs; fix the per-request retry deadline",
+      "target": "src/architecture/analyzer.rs",
+      "duty": "debug",
+      "required_paths": [
+        "src/architecture/analyzer.rs",
+        "src/architecture/execution.rs",
+        "src/architecture/rust.rs",
+        "src/architecture/sync/project.rs",
+        "tests/briefcase_execution.rs"
+      ]
+    },
+    {
+      "id": "git-history-limits",
+      "task": "raise the git history max_commits limit and make it configurable",
+      "target": "src/architecture/git_history.rs",
+      "duty": "refactor",
+      "required_paths": [
+        "src/architecture/git_history.rs",
+        "src/architecture/sync/git.rs",
+        "src/architecture/search.rs",
+        "tests/briefcase_history.rs"
+      ]
+    },
+    {
+      "id": "pi-extension",
+      "task": "change how the Pi extension records post-task coverage case IDs",
+      "target": "extensions/briefcase-pi.ts",
+      "duty": "refactor",
+      "required_paths": [
+        "extensions/briefcase-pi.ts",
+        "src/architecture/pi.rs",
+        "tests/briefcase-pi.test.mjs",
+        "scripts/verify-pi"
+      ]
+    },
+    {
+      "id": "case-tests",
+      "task": "which tests exercise task case retention and loading",
+      "target": "src/architecture/task/case.rs",
+      "duty": "test",
+      "required_paths": [
+        "src/architecture/task/case.rs",
+        "tests/briefcase_cases.rs",
+        "tests/context.rs"
+      ]
+    },
+    {
+      "id": "new-harness-untargeted",
+      "task": "add support for importing sessions from a new agent harness similar to codex",
+      "duty": "extend",
+      "required_paths": [
+        "src/architecture/session/harness/mod.rs",
+        "src/architecture/session/harness/codex.rs",
+        "profiles/sessions/codex-v1.json",
+        "src/architecture/sync/sessions.rs",
+        "src/architecture/integrations.rs"
+      ]
+    },
+    {
+      "id": "occurrences-untargeted",
+      "task": "occurrences response budget pagination skips undelivered matches",
+      "duty": "debug",
+      "required_paths": [
+        "src/architecture/task/queries.rs",
+        "tests/briefcase_task.rs"
+      ]
+    }
+  ],
+  "provenance": "Eight authored scenarios from EVALUATION_FINDINGS.md, frozen before retrieval changes. Positive Git/session/foreign-root/hub fixtures live in tests/briefcase_retrieval.rs. These labels are a regression set, not a held-out tuning corpus."
+}

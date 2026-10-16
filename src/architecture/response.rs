@@ -388,6 +388,10 @@ fn notice(
         } else {
             result["continue_with"]=value["continue_with"].clone();result["continue_with"]["arguments"]["offset"]=json!(offset);
         }
+    } else if value["kind"] == "agent_context" {
+        result["outcome"]=value["outcome"].clone();
+        let section=if value["sections"].get("/candidates").is_some() {"/candidates"} else {"/not_covered"};
+        result["continue_with"]=super::reports::continuation(value["case_id"].as_str().unwrap_or(""),section,0,20);
     } else if value["kind"] == "brief" {
         if let Some(outcome)=value.get("outcome") {result["outcome"]=outcome.clone();}
         result["report_id"]=value["id"].clone();
@@ -423,6 +427,36 @@ fn notice(
 /// budget envelope. This changes presentation only, never retained support.
 pub fn bounded(value: Value, max_bytes: usize) -> Result<Value> {
     bounded_with(value, max_bytes, &serialized_bytes)
+}
+
+/// Structured pages have no excerpt to shorten. Find a fitting contiguous
+/// prefix in logarithmic measurements instead of serializing 1,000 rows once
+/// for each discarded row. The first omitted row is always the next cursor.
+fn fit_metadata_page(value:&mut Value,max_bytes:usize,size_of:&dyn Fn(&Value)->Result<usize>)->Result<bool> {
+    let count=rows(value,"items").len();
+    if count<2 || !value["page"].is_object() || !value["report_id"].is_string()
+        || rows(value,"items").iter().any(|i|i.get("text").is_some()||i.get("evidence_text").is_some()) {return Ok(false);}
+    let prefix=|keep:usize| {
+        let mut trial=value.clone();trial["items"].as_array_mut().unwrap().truncate(keep);
+        let removed=count-keep;
+        trial["omitted_candidate_count"]=json!(trial["omitted_candidate_count"].as_u64().unwrap_or(0)+removed as u64);
+        omitted(&mut trial,"/items",removed);
+        let offset=trial["page"]["offset"].as_u64().unwrap_or(0) as usize;
+        let total=trial["page"]["total"].as_u64().unwrap_or(0) as usize;
+        let end=offset.saturating_add(keep);
+        trial["page"]=json!({"offset":offset,"returned":keep,"total":total,"remaining":total.saturating_sub(end),"next_offset":(end<total).then_some(end)});
+        let id=text(&trial,"report_id");let section=trial["section"].as_str().unwrap_or("/items");
+        trial["continue_with"]=if end<total {super::reports::continuation(&id,section,end,100)} else {Value::Null};
+        trial
+    };
+    let (mut low,mut high)=(0,count-1);
+    while low<high {
+        let middle=(low+high+1)/2;let mut trial=prefix(middle);
+        if measure(&mut trial,max_bytes,size_of)?<=max_bytes {low=middle;} else {high=middle-1;}
+    }
+    if low==0 {return Ok(false);}
+    let mut fitted=prefix(low);measure(&mut fitted,max_bytes,size_of)?;
+    *value=fitted;Ok(true)
 }
 
 /// Transports supply their final serializer, including wrappers, JSON escaping
@@ -595,6 +629,7 @@ pub(crate) fn bounded_with(
         omitted(&mut value, "/freshness/duplicate_view_metadata", 1);
     }
     let original_quoted = quoted_bytes(&json!({ "items": original_items })) > 0;
+    if measure(&mut value,max_bytes,size_of)?>max_bytes && fit_metadata_page(&mut value,max_bytes,size_of)? {return Ok(value);}
     while measure(&mut value, max_bytes, size_of)? > max_bytes {
         if original_quoted && value.get("budget_floor").is_none() && quoted_bytes(&value) == 0 {
             let size = measure(&mut value, max_bytes, size_of)?;
@@ -925,5 +960,36 @@ mod tests {
         assert_eq!(result["response"]["resolution_complete"], false);
         assert_eq!(result["pinned_views"], json!(["view:1"]));
         assert!(serialized_bytes(&result).unwrap() <= 1600);
+    }
+}
+
+#[cfg(test)]
+mod metadata_page_tests {
+    use super::*;
+    #[test]
+    fn large_metadata_pages_fit_with_logarithmic_measurements_and_a_contiguous_cursor() {
+        let doc=json!({"kind":"occurrences","report_id":"context-report:fixture","view_id":"view:fixture",
+            "items":(11..1011).map(|n|json!({"start_byte":n,"path":"src/a.rs","detail":"x".repeat(180)})).collect::<Vec<_>>(),
+            "page":{"offset":11,"returned":1000,"total":1011}});
+        let calls=std::cell::Cell::new(0usize);
+        let measure_with=|value:&Value| {calls.set(calls.get()+1);serialized_bytes(value)};
+        let result=bounded_with(doc,8192,&measure_with).unwrap();
+        let returned=rows(&result,"items").len();assert!(returned>0&&returned<1000);
+        assert!(serialized_bytes(&result).unwrap()<=8192);
+        assert_eq!(result["items"][0]["start_byte"],11);
+        assert_eq!(result["items"][returned-1]["start_byte"],10+returned);
+        assert_eq!(result["page"]["next_offset"],11+returned);
+        let cursor:Value=serde_json::from_str(result["continue_with"]["arguments"]["cursor"].as_str().unwrap()).unwrap();
+        assert_eq!(cursor["offset"],11+returned);assert_eq!(cursor["section"],"/items");
+        assert!(calls.get()<100,"must not reserialize once per discarded row: {}",calls.get());
+    }
+    #[test]
+    fn an_oversized_agent_manifest_preserves_a_pinned_restart() {
+        let doc=json!({"kind":"agent_context","case_id":"task-case:fixture","report_id":"task-case:fixture","outcome":"partial",
+            "sections":{"/candidates":1},"files":[{"path":"src/a.rs","detail":"x".repeat(20000)}]});
+        let result=bounded(doc,1600).unwrap();
+        assert_eq!(result["case_id"],"task-case:fixture");
+        let cursor:Value=serde_json::from_str(result["continue_with"]["arguments"]["cursor"].as_str().unwrap()).unwrap();
+        assert_eq!(cursor["report_id"],"task-case:fixture");assert_eq!(cursor["section"],"/candidates");assert_eq!(cursor["offset"],0);
     }
 }

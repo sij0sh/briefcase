@@ -337,9 +337,39 @@
             }
           },
           "additionalProperties": false
+        },
+        "max_files": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1000
+        },
+        "exclude_facets": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "structure",
+              "dependency",
+              "tests",
+              "domain",
+              "execution",
+              "data",
+              "runtime",
+              "history",
+              "sessions",
+              "lexical"
+            ]
+          },
+          "uniqueItems": true
         }
       },
       "additionalProperties": false
+    },
+    "candidates": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
     }
   },
   "additionalProperties": false,
@@ -379,7 +409,8 @@
         "selection": {
           "enum": [
             "resolved_anchor",
-            "evidence_neighborhood"
+            "evidence_neighborhood",
+            "ranked_candidate"
           ]
         },
         "text_is_untrusted_repository_content": {
@@ -404,6 +435,29 @@
             }
           },
           "additionalProperties": false
+        },
+        "rank": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "score": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "candidate_ref": {
+          "type": "string"
+        },
+        "selection_reasons": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        },
+        "spans": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
         }
       },
       "additionalProperties": false
@@ -517,7 +571,8 @@
             "artifact_role:adr",
             "artifact_role:plan",
             "artifact_role:fixture",
-            "artifact_role:generated"
+            "artifact_role:generated",
+            "candidate_selection"
           ]
         },
         "dimension": {

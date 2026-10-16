@@ -3,6 +3,11 @@ use super::*;
 use super::request::{self,Presentation};
 
 pub fn brief(l:&Ledger,a:&Value) -> Result<Value> {
+    let (case,presentation)=build_case(l,a)?;
+    render(&case,presentation)
+}
+
+pub(super) fn build_case(l:&Ledger,a:&Value)->Result<(case::Case,Presentation)> {
     let (request,presentation)=request::parse(a)?;
     let scope=serde_json::to_value(&request.scope)?;
     let snapshot=Snapshot::load_with(l,&request.view,&scope)?;
@@ -10,7 +15,7 @@ pub fn brief(l:&Ledger,a:&Value) -> Result<Value> {
     let trace=trace::build(l,&snapshot,&ix,&request)?;
     let state=case::LedgerState {watermark:l.watermark()?,pending_source:l.pending_source()?,retraction_epoch:snapshot.view.retraction_watermark};
     let case=case::retain(l,case::assemble(&request,&snapshot,&ix,&trace,&request.duty.policy().case,state)?)?;
-    render(&case,presentation)
+    Ok((case,presentation))
 }
 
 pub(super) fn render(case:&case::Case,presentation:Presentation) -> Result<Value> {
@@ -27,7 +32,7 @@ pub(super) fn render(case:&case::Case,presentation:Presentation) -> Result<Value
 
 pub(crate) fn table_paths(doc:&Value) -> Vec<String> {
     let mut tables=source::ARTIFACT_ROLES.iter().map(|r|format!("/slice/{r}")).collect::<Vec<_>>();
-    for field in ["neighborhood","history","sessions","errors","joins","cochange","external_touchpoints","lexical_candidates","not_covered"] {
+    for field in ["neighborhood","history","sessions","errors","joins","cochange","external_touchpoints","lexical_candidates","candidates","not_covered"] {
         if doc[field].is_array() {tables.push(format!("/{field}"));}
     }
     tables
@@ -54,6 +59,7 @@ pub fn page(l:&Ledger,a:&Value)->Result<Value>{crate::architecture::reports::pag
 /// Preserve the packet contract while reducing presentation. Full tables stay
 /// in the retained case; every dropped row updates its section cursor.
 pub(crate) fn trim(value: &mut Value) -> bool {
+    if value["kind"]=="agent_context" {return super::agent::trim(value);}
     if value["kind"] != "brief" {return false;}
     let largest=table_paths(value).into_iter().filter(|p|p != "/not_covered")
         .filter_map(|p|value.pointer(&p).and_then(Value::as_array).map(|a|(p,a.len())))

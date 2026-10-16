@@ -1,0 +1,270 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:briefcase:agent-context:1.0",
+  "title": "Budgeted agent context manifest v1",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "kind",
+    "case_id",
+    "report_id",
+    "view_id",
+    "index_id",
+    "pinned_views",
+    "outcome",
+    "outcome_scope",
+    "files",
+    "relationships",
+    "history",
+    "sessions",
+    "not_covered",
+    "coverage",
+    "sections",
+    "fetch_evidence",
+    "continue_with",
+    "instruction"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "1.0"
+    },
+    "kind": {
+      "const": "agent_context"
+    },
+    "case_id": {
+      "type": "string"
+    },
+    "report_id": {
+      "type": "string"
+    },
+    "view_id": {
+      "type": "string"
+    },
+    "index_id": {
+      "type": "string"
+    },
+    "pinned_views": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "outcome": {
+      "enum": [
+        "complete",
+        "partial",
+        "unknown"
+      ]
+    },
+    "outcome_scope": {
+      "const": "retained_evidence"
+    },
+    "files": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "path",
+          "role",
+          "rank",
+          "score",
+          "why",
+          "spans",
+          "fetch"
+        ],
+        "properties": {
+          "path": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string"
+          },
+          "rank": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "score": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "why": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "spans": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "fetch": {
+            "type": "object",
+            "required": [
+              "operation",
+              "arguments"
+            ],
+            "properties": {
+              "operation": {
+                "const": "explain"
+              },
+              "arguments": {
+                "type": "object",
+                "required": [
+                  "report_id",
+                  "ref"
+                ],
+                "properties": {
+                  "report_id": {
+                    "type": "string"
+                  },
+                  "ref": {
+                    "type": "string"
+                  },
+                  "source_offset": {
+                    "type": "integer",
+                    "minimum": 0
+                  }
+                },
+                "additionalProperties": false
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "relationships": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "history": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "sessions": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "not_covered": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "coverage": {
+      "type": "object",
+      "required": [
+        "completeness",
+        "delivery"
+      ],
+      "properties": {
+        "completeness": {
+          "$ref": "#/$defs/Completeness"
+        },
+        "delivery": {
+          "type": "object"
+        }
+      },
+      "additionalProperties": true
+    },
+    "sections": {
+      "type": "object"
+    },
+    "fetch_evidence": {
+      "type": "object"
+    },
+    "continue_with": {
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "instruction": {
+      "type": "string"
+    },
+    "freshness": {
+      "type": "object"
+    },
+    "budget": {
+      "type": "object"
+    },
+    "omissions": {
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "Completeness": {
+      "type": "object",
+      "required": [
+        "anchors",
+        "slice",
+        "neighborhood",
+        "history",
+        "sessions",
+        "gap_inventory",
+        "verification"
+      ],
+      "properties": {
+        "anchors": {
+          "enum": [
+            "established",
+            "partial",
+            "unknown"
+          ]
+        },
+        "slice": {
+          "enum": [
+            "established",
+            "partial",
+            "unknown"
+          ]
+        },
+        "neighborhood": {
+          "enum": [
+            "established",
+            "partial"
+          ]
+        },
+        "history": {
+          "enum": [
+            "established",
+            "partial",
+            "unknown",
+            "not_required"
+          ]
+        },
+        "sessions": {
+          "enum": [
+            "established",
+            "partial",
+            "unknown",
+            "not_required"
+          ]
+        },
+        "gap_inventory": {
+          "enum": [
+            "established",
+            "partial"
+          ]
+        },
+        "verification": {
+          "enum": [
+            "unknown",
+            "not_required"
+          ]
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

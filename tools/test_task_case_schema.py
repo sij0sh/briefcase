@@ -13,6 +13,7 @@ class TaskCaseSchemaTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.case_schema = json.loads((ROOT / "contracts/v1/task-case.schema.json").read_text())
+        cls.agent_schema = json.loads((ROOT / "contracts/v1/agent-context.schema.json").read_text())
         cls.brief_schema = json.loads((ROOT / "contracts/v1/task-brief.schema.json").read_text())
 
     def case(self):
@@ -73,6 +74,35 @@ class TaskCaseSchemaTests(unittest.TestCase):
         legacy["coverage"].pop("completeness")
         legacy["id"] = legacy["report_id"] = "task-brief:old"
         validate(legacy, self.brief_schema)
+
+
+    def test_ranked_cases_admit_candidate_metadata_and_selection_bounds(self):
+        case = self.case()
+        case["candidates"] = [{"path": "src/a.rs", "rank": 1, "score": 10000, "selected": True}]
+        case["request"].update(max_files=32, exclude_facets=["history"])
+        case["not_covered"].append({"area": "candidate_selection", "dimension": "slice", "reason": "bounded retrieval"})
+        validate(case, self.case_schema)
+        for change in ({"max_files": 0}, {"exclude_facets": ["invented"]}):
+            invalid = copy.deepcopy(case)
+            invalid["request"].update(change)
+            with self.assertRaises(SchemaError):
+                validate(invalid, self.case_schema)
+
+    def test_agent_manifest_has_ranked_files_and_exact_pinned_source_fetches(self):
+        case = self.case()
+        manifest = {"schema_version": "1.0", "kind": "agent_context", "case_id": case["id"], "report_id": case["id"],
+                    "view_id": case["view_id"], "index_id": case["index_id"], "pinned_views": case["pinned_views"],
+                    "outcome": case["outcome"], "outcome_scope": "retained_evidence", "coverage": {**case["coverage"], "delivery": {}},
+                    "files": [{"path": "src/a.rs", "role": "impl", "rank": 1, "score": 10000, "why": [], "spans": [],
+                               "fetch": {"operation": "explain", "arguments": {"report_id": case["id"], "ref": "/slice/impl/0", "source_offset": 10}}}],
+                    "relationships": [], "history": [], "sessions": [], "not_covered": [], "sections": {},
+                    "fetch_evidence": {"operation": "page", "arguments": {"report_id": case["id"]}}, "continue_with": None,
+                    "instruction": "Retained evidence only"}
+        inspect_schema(self.agent_schema)
+        validate(manifest, self.agent_schema)
+        manifest["files"][0]["fetch"]["arguments"]["source_offset"] = -1
+        with self.assertRaises(SchemaError):
+            validate(manifest, self.agent_schema)
 
 
 if __name__ == "__main__":

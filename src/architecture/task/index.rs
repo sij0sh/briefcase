@@ -22,7 +22,20 @@ pub(super) fn load(l: &Ledger, s: &Snapshot) -> Result<Index> {
         require(ix.id == id && ix.source_view == s.view.id,"TASK","Mismatched task index")?;
         return Ok(ix);
     }
-    let ix = build(s,id)?;
+    let mut ix = build(s,id)?;
+    // Retain large occurrence inventories once, never in each task or response.
+    for producer in ix.coverage["producer_boundaries"].as_array_mut().unwrap() {
+        let unresolved=producer.as_object_mut().unwrap().remove("unresolved").unwrap_or(json!([]));
+        let report=json!({"kind":"producer_boundaries","view_id":producer["view_id"],
+            "scope":producer["scope"],"items":unresolved,"limitations":producer["limitations"]});
+        let detail_id=identity::id("producer-boundaries",&report)?;
+        l.save_report(&detail_id,&report,&[])?;
+        producer["count"]=json!(rows(&report,"items").len());
+        producer["detail_report_id"]=json!(detail_id);
+        let limitations=rows(producer,"limitations").len();
+        producer.as_object_mut().unwrap().remove("limitations");
+        producer["limitation_count"]=json!(limitations);
+    }
     l.save_report(&ix.id,&serde_json::to_value(&ix)?,&[])?;
     Ok(ix)
 }
@@ -31,7 +44,19 @@ pub(super) fn load(l: &Ledger, s: &Snapshot) -> Result<Index> {
 pub(crate) fn precompute(l: &Ledger, view: &str) -> Result<Value> {
     let s = Snapshot::load(l,view)?;
     let ix = load(l,&s)?;
-    Ok(json!({"index_id":ix.id,"files":ix.files.len(),"relationships":ix.links.len(),"coverage":ix.coverage}))
+    Ok(json!({"index_id":ix.id,"files":ix.files.len(),"relationships":ix.links.len(),"coverage":summary(&ix)}))
+}
+
+/// Bounded health metadata; the pinned index and producer reports own details.
+pub(super) fn summary(ix:&Index) -> Value {
+    json!({"source_view":ix.source_view,"files":ix.files.len(),"relationships":ix.links.len(),
+        "profile_count":rows(&ix.coverage,"profile_views").len(),"languages":ix.coverage["languages"],
+        "unresolved_occurrences":rows(&ix.coverage,"producer_boundaries").iter().map(|p|
+            p["count"].as_u64().unwrap_or(rows(p,"unresolved").len() as u64)).sum::<u64>(),
+        "unresolved_bindings":rows(&ix.coverage,"unresolved_bindings").len(),
+        "omitted_relationship_occurrences":ix.coverage["omitted_relationship_occurrences"],
+        "propagation":ix.coverage["propagation"],
+        "details":{"operation":"page","arguments":{"report_id":ix.id,"section":"/coverage/producer_boundaries","offset":0,"limit":20}}})
 }
 
 fn build(s: &Snapshot, id: String) -> Result<Index> {
@@ -64,9 +89,9 @@ fn build(s: &Snapshot, id: String) -> Result<Index> {
         }
         let mut names = BTreeSet::from([key.clone()]);
         if e["kind"] == "symbol" {names.insert(key.split('#').next().unwrap_or(&key).to_owned());}
-        if ["module","symbol","function","feature","workflow"].contains(&e["kind"].as_str().unwrap_or("")) {
+        if ["module","symbol","function","domain","feature","workflow"].contains(&e["kind"].as_str().unwrap_or("")) {
             let terminal = key.rsplit("::").next().unwrap_or(&key).split('#').next().unwrap_or(&key);
-            names.insert(terminal.trim_start_matches("feature:").trim_start_matches("workflow:").into());
+            names.insert(terminal.trim_start_matches("feature:").trim_start_matches("workflow:").trim_start_matches("domain:").into());
         }
         by_id.insert(text(e,"id"),key.clone());
         let entry=entities.entry(key.clone()).or_insert_with(||Entity {key,kind:text(e,"kind"),names:BTreeSet::new(),files:BTreeSet::new()});
@@ -96,14 +121,21 @@ fn build(s: &Snapshot, id: String) -> Result<Index> {
         let (to,value)=if let Some(to)=by_id.get(&text(&p["object"],"entity_version_id")) {(to.clone(),None)}
             else if let Some(value)=p["object"].get("value") {(identity::id("context-value",&json!([predicate,value]))?,Some(value.clone()))}
             else {continue};
-        let mut from_files=entities[from].files.clone();
+        let mut support_files=BTreeSet::new();
         for reference in crate::architecture::contracts::strings(&a["evidence_ref_ids"]) {
-            if let Some(path)=evidence_paths.get(&reference).filter(|p|s.files.contains_key(*p)) {from_files.insert(path.clone());}
+            if let Some(path)=evidence_paths.get(&reference).filter(|p|s.files.contains_key(*p)) {support_files.insert(path.clone());}
         }
+        // A source occurrence localizes a module-level import/reference. A
+        // declaration file never becomes another owner of the target symbol.
+        let from_files=if entities[from].kind=="module" && !support_files.is_empty()
+            && ["IMPORTS","REFERENCES","CALLS_STATIC","DEPENDS_ON"].contains(&predicate.as_str()) {
+            support_files.clone()
+        } else {entities[from].files.clone()};
         let to_files=entities.get(&to).map(|e|e.files.clone()).unwrap_or_default();
         let mut link=Link::new(&predicate,from,&to,&text(a,"class"),"retained_assertion",
             vec![text(a,"id")],vec![],from_files.clone(),to_files.clone())?;
         link.value=value;
+        link.support_files=support_files;
         insert_link(&mut links,link,&mut omitted);
         if ["IMPORTS","REFERENCES","CALLS_STATIC","DEPENDS_ON"].contains(&predicate.as_str()) {
             for test in from_files.iter().filter(|p|s.files.get(*p).is_some_and(|f|f.role == "test")) {
@@ -120,6 +152,11 @@ fn build(s: &Snapshot, id: String) -> Result<Index> {
     // Relative references are resolved against the referring artifact directory.
     let path_token = Regex::new(r#"[\p{L}\p{N}_@.+-]+(?:[/\\][\p{L}\p{N}_@.+-]+)+"#)?;
     let qualified = Regex::new(r"[A-Za-z_][A-Za-z0-9_]*(?:::[A-Za-z_][A-Za-z0-9_]*)+")?;
+    let quoted_path=Regex::new(r#"[\"']([^\"'\r\n]+\.(?:rs|py|ts|tsx|js|mjs|cjs|json|toml|yaml|yml))[\"']"#)?;
+    let mut qualified_files=BTreeMap::<String,BTreeSet<String>>::new();
+    for entity in entities.values() {for name in &entity.names {
+        qualified_files.entry(name.clone()).or_default().extend(entity.files.clone());
+    }}
     for (path,content) in &s.contents {
         for found in path_token.find_iter(content) {
             let literal=found.as_str().trim_end_matches(['.', ',', ';', ':']);
@@ -132,10 +169,20 @@ fn build(s: &Snapshot, id: String) -> Result<Index> {
                 vec![],vec![s.witness(path,found.start(),found.start()+literal.len())],BTreeSet::from([path.clone()]),BTreeSet::from([target.clone()]))?;
             insert_link(&mut links,link,&mut omitted);
         }
+        // Includes such as #[path="briefcase_cases.rs"] name a local file
+        // without a slash. The retained relative path is an exact association.
+        for capture in quoted_path.captures_iter(content) {
+            let literal=capture.get(1).unwrap();
+            let Some(target)=normalize_relative(path,literal.as_str()).filter(|p|p!=path&&s.files.contains_key(p)) else {continue};
+            let predicate=if s.files[path].role=="test"&&s.files[&target].role=="impl" {"TESTS"} else {"REFERENCES_ARTIFACT"};
+            let link=Link::new(predicate,path,&target,"derived","exact quoted relative path; static association, not executed coverage",vec![],
+                vec![s.witness(path,literal.start(),literal.end())],BTreeSet::from([path.clone()]),BTreeSet::from([target]))?;
+            insert_link(&mut links,link,&mut omitted);
+        }
         if s.files[path].role == "test" {
             for found in qualified.find_iter(content) {
-                let Some(target) = entities.get(found.as_str()) else {continue};
-                for implementation in target.files.iter().filter(|p|s.files.get(*p).is_some_and(|f|f.role == "impl")) {
+                let Some(target) = qualified_files.get(found.as_str()) else {continue};
+                for implementation in target.iter().filter(|p|s.files.get(*p).is_some_and(|f|f.role == "impl")) {
                     let link = Link::new("TESTS",path,implementation,"derived","test mentions exact qualified entity; static association, not executed coverage",
                         vec![],vec![s.witness(path,found.start(),found.end())],BTreeSet::from([path.clone()]),BTreeSet::from([implementation.clone()]))?;
                     insert_link(&mut links,link,&mut omitted);
@@ -181,7 +228,9 @@ fn build(s: &Snapshot, id: String) -> Result<Index> {
                 "DECLARES"|"CONTAINS" if entities.get(&edge.from).is_some_and(|e|e.kind=="file")
                     || (entities.get(&edge.from).is_some_and(|e|e.kind!="repository"&&e.kind!="package")
                         && entities.get(&edge.to).is_some_and(|e|!["module","file","package","repository"].contains(&e.kind.as_str()))) => {
-                    if let Some(files)=before.get(&edge.from) {if let Some(e)=entities.get_mut(&edge.to) {e.files.extend(files.clone());}}
+                    if let Some(files)=before.get(&edge.from) {if let Some(e)=entities.get_mut(&edge.to) {
+                        if e.files.is_empty() {e.files.extend(files.clone());}
+                    }}
                 },
                 "ROUTES_TO" => if let Some(files)=before.get(&edge.to) {if let Some(e)=entities.get_mut(&edge.from) {e.files.extend(files.clone());}},
                 "ENTRYPOINT_FOR"|"PARTICIPATES_IN"|"INCLUDES_SOURCE"|"DEPLOYS_AS"|"MAPS_TO" => {
@@ -195,8 +244,8 @@ fn build(s: &Snapshot, id: String) -> Result<Index> {
         if entities.iter().all(|(key,e)|before.get(key)==Some(&e.files)) {ownership_complete=true;break;}
     }
     for edge in links.values_mut() {
-        if let Some(e)=entities.get(&edge.from) {edge.from_files.extend(e.files.clone());}
-        if let Some(e)=entities.get(&edge.to) {edge.to_files.extend(e.files.clone());}
+        if edge.from_files.is_empty() {if let Some(e)=entities.get(&edge.from) {edge.from_files=e.files.clone();}}
+        if let Some(e)=entities.get(&edge.to) {edge.to_files=e.files.clone();}
     }
     let captured_languages: BTreeSet<_> = s.files.values().map(|f|f.language.clone()).filter(|l|l != "text").collect();
     let analyzed_languages: BTreeSet<_> = rows(&v.bundle,"entity_versions").iter().filter(|e|e["kind"] == "module")
@@ -284,8 +333,9 @@ fn config_links(s: &Snapshot, links: &mut BTreeMap<String,Link>, omitted: &mut u
                 let from=declaration.get(1).unwrap();let to=declaration.get(2).unwrap();
                 if !s.files.contains_key(from.as_str()) {continue;}
                 let target=format!("path:{}",to.as_str());let found=declaration.get(0).unwrap();
-                let link=Link::new("INSTALLS_TO",from.as_str(),&target,"derived","retained copy/install command; desired installation only, actual installed bytes unknown",vec![],
-                    vec![s.witness(path,found.start(),found.end())],BTreeSet::from([path.clone(),from.as_str().to_owned()]),BTreeSet::new())?;
+                let mut link=Link::new("INSTALLS_TO",from.as_str(),&target,"derived","retained copy/install command; desired installation only, actual installed bytes unknown",vec![],
+                    vec![s.witness(path,found.start(),found.end())],BTreeSet::from([from.as_str().to_owned()]),BTreeSet::new())?;
+                link.support_files.insert(path.clone());
                 insert_link(links,link,omitted);
             }
         }

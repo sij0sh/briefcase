@@ -234,6 +234,7 @@ pub(crate) fn retained_capture(l: &Ledger, bundle: &Value) -> Result<Capture> {
 }
 
 pub fn analyze(l: &mut Ledger, o: &query::Options, options: &ScanOptions) -> Result<Value> {
+    let deadline=std::time::Instant::now()+options.timeout;
     require(
         !o.historical,
         "EXECUTION",
@@ -267,10 +268,10 @@ pub fn analyze(l: &mut Ledger, o: &query::Options, options: &ScanOptions) -> Res
         "SCOPE",
         "Execution must inherit the captured build's feature selection",
     )?;
-    let mut analyzer = Analyzer::start(executable, sandbox.path(), options.timeout, &features)?;
+    let mut analyzer = Analyzer::start(executable, sandbox.path(), deadline.saturating_duration_since(std::time::Instant::now()), &features)?;
     let producer = analyzer.identity.clone();
     let implementation = identity::bytes_digest(include_bytes!("execution.rs"));
-    let key = identity::id(
+    let mut key = identity::id(
         "execution-overlay",
         &json!({"view_id":v.id,"context":ctx,"producer":producer,
         "implementation_digest":implementation,"pass_engine":identity::bytes_digest(include_bytes!("passes.rs"))}),
@@ -303,23 +304,18 @@ pub fn analyze(l: &mut Ledger, o: &query::Options, options: &ScanOptions) -> Res
     let mut opened = BTreeSet::new();
     let mut verified = BTreeSet::new();
     let mut unverified = 0;
+    let source_entities:BTreeMap<_,_>=rows(&v.bundle,"entity_versions").iter().filter(|e|e["context"]==ctx)
+        .map(|e|(text(e,"id"),e)).collect();
+    let declared:BTreeSet<_>=rows(&v.bundle,"assertions").iter().filter(|a|a["class"]=="evidence"
+        && a["proposition"]["predicate"]=="DECLARES" && !removed.contains(&text(a,"id")) && v.eligible.contains(&text(a,"id")))
+        .filter_map(|a|source_entities.get(&text(&a["proposition"]["object"],"entity_version_id"))).map(|e|text(e,"canonical_key")).collect();
     const MAX_FUNCTIONS: usize = 4096;
     for (index, definition) in syntax.definitions.iter().filter(|d| d.function).enumerate() {
-        if index >= MAX_FUNCTIONS {
+        if index >= MAX_FUNCTIONS || analyzer.expired() {
             unverified += 1;
             continue;
         }
-        let source_supported = rows(&v.bundle, "assertions").iter().any(|a| {
-            a["class"] == "evidence"
-                && a["proposition"]["predicate"] == "DECLARES"
-                && !removed.contains(&text(a, "id"))
-                && v.eligible.contains(&text(a, "id"))
-                && rows(&v.bundle, "entity_versions").iter().any(|e| {
-                    e["id"] == a["proposition"]["object"]["entity_version_id"]
-                        && e["canonical_key"] == definition.key
-                        && e["context"] == ctx
-                })
-        });
+        let source_supported=declared.contains(&definition.key);
         if !source_supported {
             unverified += 1;
             continue;
@@ -349,9 +345,12 @@ pub fn analyze(l: &mut Ledger, o: &query::Options, options: &ScanOptions) -> Res
     let mut resolved = Vec::new();
     let mut unknown = Vec::new();
     const MAX_SITES: usize = 4096;
+    let mut completed=0usize;
     for (index, site) in all_sites.iter().enumerate() {
+        let exhausted=index >= MAX_SITES || analyzer.expired();
+        if !exhausted {completed+=1;}
         let caller = site.caller.as_ref().filter(|key| verified.contains(*key));
-        let result = if index >= MAX_SITES {
+        let result = if exhausted {
             Ok(None)
         } else if let (Some(_), Some(position)) = (caller, site.position) {
             let code = std::str::from_utf8(&c.files[&site.path])?;
@@ -369,7 +368,7 @@ pub fn analyze(l: &mut Ledger, o: &query::Options, options: &ScanOptions) -> Res
             Ok(Some(target)) if verified.contains(&target) => resolved.push((site.clone(), target)),
             Ok(_) => unknown.push((
                 site.clone(),
-                if index >= MAX_SITES {
+                if exhausted {
                     "extraction_failure"
                 } else {
                     site.reason
@@ -384,11 +383,23 @@ pub fn analyze(l: &mut Ledger, o: &query::Options, options: &ScanOptions) -> Res
     if unverified > 0 {
         limitations.push(format!("{unverified} source function identities were not verified; the native-function limit is {MAX_FUNCTIONS}."));
     }
-    let coverage = json!({"attempted":all_sites.len(),"completed":all_sites.len().min(MAX_SITES),
+    let resolution_complete=c.complete && analyzer.workspace_ready() && unknown.is_empty() && unverified == 0 && syntax.diagnostics.is_empty() && limitations.len() == 1;
+    let coverage = json!({"attempted":all_sites.len(),"completed":completed,
         "unsupported_count":unknown.iter().filter(|(_,r)| *r == "unsupported_generated_source").count(),
         "unresolved_count":unknown.iter().filter(|(_,r)| *r != "unsupported_generated_source").count() + unverified,
-        "resolution_complete":c.complete && unknown.is_empty() && unverified == 0 && syntax.diagnostics.is_empty() && limitations.len() == 1,
-        "guarantees":[{"predicate":"CALLS_STATIC","kind":"exact_supported"}]});
+        "resolution_complete":resolution_complete,
+        "guarantees":[{"predicate":"CALLS_STATIC","kind":"exact_supported",
+            "scope":if resolution_complete {"retained_free_function_scope"} else {"native_resolved_subset"}}]});
+    if !resolution_complete {
+        // Partial results are retryable. Stable identical outcomes deduplicate,
+        // while improved native resolution can publish a new additive overlay.
+        let mut correspondence=json!(analyzer.witnesses);
+        rust::normalize_native(&mut correspondence,sandbox.path());
+        key=identity::id("execution-overlay",&json!({"base":key,"coverage":coverage,"correspondence":correspondence}))?;
+        if l.has_overlay(&key)? {
+            return Ok(json!({"view_id":v.id,"context":ctx,"coverage":coverage,"reused":true,"state":"partial","retryable":true}));
+        }
+    }
     let run_id = identity::id(
         "run",
         &json!({"context":ctx,"analysis_config_id":config_id,"coverage":coverage}),
@@ -397,7 +408,7 @@ pub fn analyze(l: &mut Ledger, o: &query::Options, options: &ScanOptions) -> Res
         &mut b,
         "runs",
         json!({"id":run_id,"producer_kind":"semantic","analysis_config_id":config_id,"context":ctx,
-        "status":if all_sites.len() <= MAX_SITES {"complete"} else {"partial"},"coverage":coverage}),
+        "status":if resolution_complete {"complete"} else {"partial"},"coverage":coverage}),
     );
     let mut functions = BTreeMap::new();
     for definition in syntax
@@ -405,6 +416,7 @@ pub fn analyze(l: &mut Ledger, o: &query::Options, options: &ScanOptions) -> Res
         .iter()
         .filter(|d| verified.contains(&d.key))
     {
+        super::ledger::recovery::check_deadline(deadline)?;
         let id = rust::entity(
             &mut b,
             &ctx,
@@ -434,6 +446,7 @@ pub fn analyze(l: &mut Ledger, o: &query::Options, options: &ScanOptions) -> Res
         functions.insert(definition.key.clone(), id);
     }
     for (site, target) in resolved {
+        super::ledger::recovery::check_deadline(deadline)?;
         let er = rust::evidence(&mut b, &site.path, site.start, site.end)?;
         let from = &functions[site.caller.as_ref().unwrap()];
         let to = &functions[&target];
@@ -450,6 +463,7 @@ pub fn analyze(l: &mut Ledger, o: &query::Options, options: &ScanOptions) -> Res
         )?;
     }
     for (site, reason) in unknown {
+        super::ledger::recovery::check_deadline(deadline)?;
         let er = rust::evidence(&mut b, &site.path, site.start, site.end)?;
         let module = rows(&v.bundle, "entity_versions")
             .iter()
@@ -482,6 +496,10 @@ pub fn analyze(l: &mut Ledger, o: &query::Options, options: &ScanOptions) -> Res
         .map(|a| text(a, "id"))
         .filter(|id| !original.contains(id))
         .collect();
+    limitations.sort();limitations.dedup();
+    // Native work and serialization must share the caller's deadline. Never
+    // start an expensive publication after its budget has expired.
+    super::ledger::recovery::check_deadline(deadline)?;
     let prepared = Prepared::extension(
         b,
         payloads,
@@ -491,8 +509,9 @@ pub fn analyze(l: &mut Ledger, o: &query::Options, options: &ScanOptions) -> Res
             contracts::Capability::Evidence,
             contracts::Capability::Derived,
         ],
-        json!({"coverage":coverage,"limitations":limitations}),
+        json!({"coverage":coverage,"limitations":limitations,"workspace_status":analyzer.workspace_status}),
     )?;
+    super::ledger::recovery::check_deadline(deadline)?;
     l.commit_extension(
         &key,
         "source",
@@ -507,7 +526,9 @@ pub fn analyze(l: &mut Ledger, o: &query::Options, options: &ScanOptions) -> Res
         &json!({"operation":"analyze-execution","overlay_id":key,"reused":false}),
     )?;
     Ok(
-        json!({"view_id":v.id,"context":ctx,"execution_id":execution,"coverage":coverage,"limitations":limitations,"reused":false}),
+        json!({"view_id":v.id,"context":ctx,"execution_id":execution,"coverage":coverage,"limitations":limitations,
+            "state":if resolution_complete {"complete"} else {"partial"},"retryable":!resolution_complete,
+            "workspace_status":analyzer.workspace_status,"reused":false}),
     )
 }
 

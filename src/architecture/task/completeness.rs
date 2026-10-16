@@ -14,7 +14,7 @@ impl Dimension {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(try_from="String",into="String")]
 pub(super) enum GapArea {
-    Anchors, ArtifactRole(String), Capture, CapturePath, CaptureExclusion, CaptureDiagnostic,
+    Anchors, ArtifactRole(String), CandidateSelection, Capture, CapturePath, CaptureExclusion, CaptureDiagnostic,
     RelationshipIndex, RelationshipPropagation, SemanticAnalysis, SemanticBinding, StaticCalls,
     LanguageProfile, ProducerBoundary, ProfileSnapshot, DeploymentSource, DeploymentPublications,
     RuntimeIdentity, RuntimeSelection, RuntimePublications, RuntimeObservationScope,
@@ -25,7 +25,7 @@ impl GapArea {
     pub fn dimension(&self) -> Dimension {
         match self {
             Self::Anchors=>Dimension::Anchors,
-            Self::ArtifactRole(_)|Self::Capture|Self::CapturePath|Self::CaptureExclusion|Self::CaptureDiagnostic=>Dimension::Slice,
+            Self::ArtifactRole(_)|Self::CandidateSelection|Self::Capture|Self::CapturePath|Self::CaptureExclusion|Self::CaptureDiagnostic=>Dimension::Slice,
             Self::RelationshipIndex|Self::RelationshipPropagation|Self::SemanticAnalysis|Self::SemanticBinding|Self::StaticCalls
                 |Self::LanguageProfile|Self::ProducerBoundary|Self::ProfileSnapshot|Self::DeploymentSource|Self::DeploymentPublications
                 |Self::RuntimeIdentity|Self::RuntimeSelection|Self::RuntimePublications|Self::RuntimeObservationScope=>Dimension::Neighborhood,
@@ -40,7 +40,7 @@ impl From<GapArea> for String {
     fn from(area:GapArea) -> String {
         match area {
             GapArea::Anchors=>"anchors",GapArea::ArtifactRole(role)=>return format!("artifact_role:{role}"),
-            GapArea::Capture=>"capture",GapArea::CapturePath=>"capture_path",GapArea::CaptureExclusion=>"capture_exclusion",
+            GapArea::CandidateSelection=>"candidate_selection",GapArea::Capture=>"capture",GapArea::CapturePath=>"capture_path",GapArea::CaptureExclusion=>"capture_exclusion",
             GapArea::CaptureDiagnostic=>"capture_diagnostic",GapArea::RelationshipIndex=>"relationship_index",
             GapArea::RelationshipPropagation=>"relationship_propagation",GapArea::SemanticAnalysis=>"semantic_analysis",
             GapArea::SemanticBinding=>"semantic_binding",GapArea::StaticCalls=>"static_calls",GapArea::LanguageProfile=>"language_profile",
@@ -58,7 +58,7 @@ impl TryFrom<String> for GapArea {
     type Error=String;
     fn try_from(area:String) -> std::result::Result<Self,String> {
         Ok(match area.as_str() {
-            "anchors"=>Self::Anchors,"capture"=>Self::Capture,"capture_path"=>Self::CapturePath,
+            "anchors"=>Self::Anchors,"candidate_selection"=>Self::CandidateSelection,"capture"=>Self::Capture,"capture_path"=>Self::CapturePath,
             "capture_exclusion"=>Self::CaptureExclusion,"capture_diagnostic"=>Self::CaptureDiagnostic,
             "relationship_index"=>Self::RelationshipIndex,"relationship_propagation"=>Self::RelationshipPropagation,
             "semantic_analysis"=>Self::SemanticAnalysis,"semantic_binding"=>Self::SemanticBinding,"static_calls"=>Self::StaticCalls,
@@ -160,25 +160,53 @@ pub(super) struct Assessment {
 pub(super) fn assess(s:&Snapshot,ix:&Index,t:&Trace,policy:&CasePolicy,
     slice:&serde_json::Map<String,Value>,external:&[Value]) -> Assessment {
     let mut not_covered:Vec<Gap>=t.boundaries.iter().filter_map(|b|boundary_gap(b,policy)).collect();
-    let artifact_paths:BTreeMap<_,_>=rows(&s.view.bundle,"artifacts").iter().map(|a|(text(a,"id"),text(a,"path"))).collect();
-    let reference_paths:BTreeMap<_,_>=rows(&s.view.bundle,"evidence_refs").iter()
+    let candidate_only=t.candidates.iter().filter(|c|c.selected && !c.signals.iter().any(|s|
+        s.kind=="exact_anchor" || s.confidence=="retained_relationship")).count();
+    if t.candidates.iter().any(|c|!c.selected) || candidate_only>0 || !rows(&t.retrieval,"excluded_facets").is_empty()
+        || t.retrieval["join_discovery"]["omitted_session_publications"].as_u64().unwrap_or(0)>0
+        || t.retrieval["join_discovery"]["omitted_session_paths"].as_u64().unwrap_or(0)>0
+        || t.retrieval["join_discovery"]["omitted_or_truncated_requests"].as_u64().unwrap_or(0)>0
+        || t.retrieval["lexical_discovery"]["candidate_limit_reached"]==true
+        || t.retrieval["lexical_discovery"]["omitted_candidates"].as_u64().unwrap_or(0)>0 {
+        not_covered.push(Gap::new(GapArea::CandidateSelection,json!({"reason":"Task retrieval is bounded and ranked. Omitted candidates and disabled facets are not absence; page candidates to inspect alternatives.",
+            "retrieval":t.retrieval,"candidate_only_files":candidate_only,"section":"/candidates"})));
+    }
+    let views:Vec<_>=std::iter::once(&s.view).chain(s.evidence_views.iter()).collect();
+    let artifact_paths:BTreeMap<_,_>=views.iter().flat_map(|v|rows(&v.bundle,"artifacts")).map(|a|(text(a,"id"),text(a,"path"))).collect();
+    let reference_paths:BTreeMap<_,_>=views.iter().flat_map(|v|rows(&v.bundle,"evidence_refs"))
         .filter_map(|r|artifact_paths.get(&text(r,"artifact_id")).map(|p|(text(r,"id"),p.clone()))).collect();
-    let entity_keys:BTreeMap<_,_>=rows(&s.view.bundle,"entity_versions").iter().map(|e|(text(e,"id"),text(e,"canonical_key"))).collect();
+    let entity_keys:BTreeMap<_,_>=views.iter().flat_map(|v|rows(&v.bundle,"entity_versions")).map(|e|(text(e,"id"),text(e,"canonical_key"))).collect();
     let (mut outside_boundaries,mut unlocalized_boundaries)=(0usize,0usize);
-    for producer in rows(&ix.coverage,"producer_boundaries") {
-        for boundary in rows(producer,"unresolved") {
+    for producer in s.profiles.iter().chain(s.evidence_views.iter()) {
+        let mut groups=BTreeMap::<String,Value>::new();
+        for boundary in rows(&producer.bundle,"unresolved_references") {
             match boundary_location(ix,&t.paths,&t.keys,&reference_paths,&entity_keys,boundary) {
                 BoundaryLocation::InSlice=>{},
                 BoundaryLocation::Outside=>{outside_boundaries+=1;continue;},
                 BoundaryLocation::Unlocalized=>{unlocalized_boundaries+=1;continue;},
             }
-            not_covered.push(Gap::new(GapArea::ProducerBoundary,json!({"view_id":producer["view_id"],"scope":producer["scope"],"boundary":boundary,
-                "reason":"A retained producer occurrence remains unresolved or unsupported; missing links do not establish absence."})));
+            let run=boundary["run_id"].as_str().unwrap_or("unattributed");
+            let group=groups.entry(run.into()).or_insert_with(||json!({"view_id":producer.id,"scope":producer.scope,
+                "run_id":run,"count":0,"by_predicate_reason":{},"examples":[],"actionable":true,"locality":"task_local",
+                "reason":"Task-local producer occurrences remain unresolved or unsupported; missing links do not establish absence."}));
+            group["count"]=json!(group["count"].as_u64().unwrap_or(0)+1);
+            let key=format!("{}:{}",text(boundary,"predicate"),text(boundary,"reason"));
+            group["by_predicate_reason"][&key]=json!(group["by_predicate_reason"][&key].as_u64().unwrap_or(0)+1);
+            let examples=group["examples"].as_array_mut().unwrap();
+            if examples.len()<3 {examples.push(json!({"id":boundary["id"],"predicate":boundary["predicate"],
+                "reason":boundary["reason"],"evidence_ref_id":boundary["evidence_ref_id"]}));}
+        }
+        let detail=rows(&ix.coverage,"producer_boundaries").iter().find(|p|p["view_id"]==producer.id);
+        for mut group in groups.into_values() {
+            if let Some(id)=detail.and_then(|p|p["detail_report_id"].as_str()) {
+                group["details"]=crate::architecture::reports::continuation(id,"/items",0,100);
+            }
+            not_covered.push(Gap::new(GapArea::ProducerBoundary,group));
         }
     }
     if unlocalized_boundaries>0 {
-        not_covered.push(Gap::new(GapArea::ProducerBoundaryScope,json!({"count":unlocalized_boundaries,
-            "reason":"Retained producer boundaries without file/entity associations could not be localized to this task. Inspect the retained index or unresolved report."})));
+        not_covered.push(Gap::new(GapArea::ProducerBoundaryScope,json!({"count":unlocalized_boundaries,"actionable":false,"locality":"global_health",
+            "reason":"Unlocalized producer health: relevance to this task is unknown. Details remain in the pinned producer reports."})));
     }
     for binding in rows(&ix.coverage,"unresolved_bindings") {
         not_covered.push(Gap::new(GapArea::SemanticBinding,json!({"binding":binding,
@@ -196,10 +224,12 @@ pub(super) fn assess(s:&Snapshot,ix:&Index,t:&Trace,policy:&CasePolicy,
     for role in source::ARTIFACT_ROLES {
         let captured=s.files.values().filter(|f|f.role == *role).count();
         let selected=slice.get(*role).and_then(Value::as_array).map_or(0,Vec::len);
-        role_coverage.insert(*role,json!({"captured_files":captured,"selected_files":selected,
-            "state":if selected>0 {"associations_established"} else {"no_association_established"}}));
-        if required_roles.contains(role) && selected==0 {
-            not_covered.push(Gap::new(GapArea::ArtifactRole((*role).into()),json!({"reason":"This duty requires considering this role; no retained association established.","captured_files":captured})));
+        let established=slice.get(*role).and_then(Value::as_array).into_iter().flatten().filter(|row|
+            row["selection"]=="resolved_anchor" || rows(row,"selection_reasons").iter().any(|s|s["confidence"]=="retained_relationship")).count();
+        role_coverage.insert(*role,json!({"captured_files":captured,"selected_files":selected,"established_files":established,
+            "candidate_only_files":selected-established,"state":if established>0 {"associations_established"} else if selected>0 {"candidates_only"} else {"no_association_established"}}));
+        if required_roles.contains(role) && established==0 {
+            not_covered.push(Gap::new(GapArea::ArtifactRole((*role).into()),json!({"reason":"This duty requires considering this role; retrieval hints alone do not establish a retained association.","captured_files":captured,"selected_candidates":selected})));
         }
     }
     if policy.external_required && !external.is_empty() {
@@ -216,7 +246,7 @@ pub(super) fn assess(s:&Snapshot,ix:&Index,t:&Trace,policy:&CasePolicy,
         not_covered.push(Gap::new(GapArea::StaticCalls,json!({"reason":"No static-call producer guarantees are present in the selected profiles."})));
     }
     if t.seed.status != AnchorStatus::Resolved {
-        not_covered.push(Gap::new(GapArea::Anchors,json!({"reason":"No unique retained identity resolved. Candidates are not selected as implementation; supply an exact path, canonical key or declared feature ID."})));
+        not_covered.push(Gap::new(GapArea::Anchors,json!({"reason":"No unique retained identity resolved. Located candidates may be selected as retrieval hints, without establishing implementation membership; supply an exact path or canonical key to disambiguate."})));
     }
     let inventory=&s.view.diagnostics["capture"]["inventory"];
     if inventory["tracked_text_complete"] != true {
@@ -250,7 +280,9 @@ fn boundary_location(ix:&Index,paths:&BTreeSet<String>,keys:&BTreeSet<String>,
     references:&BTreeMap<String,String>,entities:&BTreeMap<String,String>,boundary:&Value) -> BoundaryLocation {
     let path=references.get(&text(boundary,"evidence_ref_id"));
     let key=entities.get(&text(boundary,"source_entity_id"));
-    if path.is_some_and(|p|paths.contains(p)) || key.is_some_and(|k|keys.contains(k)
+    // A precise occurrence path takes precedence over a broad containing entity.
+    if let Some(path)=path {return if paths.contains(path) {BoundaryLocation::InSlice} else {BoundaryLocation::Outside};}
+    if key.is_some_and(|k|keys.contains(k)
         || ix.entities.get(k).is_some_and(|e|!e.files.is_disjoint(paths))) {BoundaryLocation::InSlice}
     else if path.is_some() || key.is_some_and(|k|ix.entities.get(k).is_some_and(|e|!e.files.is_empty())) {BoundaryLocation::Outside}
     else {BoundaryLocation::Unlocalized}
@@ -272,7 +304,7 @@ mod tests {
         use Dimension::*;
         let groups=[
             (Anchors,vec!["anchors"]),
-            (Slice,vec!["capture","capture_path","capture_exclusion","capture_diagnostic"]),
+            (Slice,vec!["candidate_selection","capture","capture_path","capture_exclusion","capture_diagnostic"]),
             (Neighborhood,vec!["relationship_index","relationship_propagation","semantic_analysis","semantic_binding",
                 "static_calls","language_profile","producer_boundary","profile_snapshot","deployment_source","deployment_publications",
                 "runtime_identity","runtime_selection","runtime_publications","runtime_observation_scope"]),

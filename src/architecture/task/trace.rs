@@ -56,6 +56,8 @@ pub(super) struct Trace {
     pub lexical_candidates: Vec<Value>,
     pub boundaries: Vec<Boundary>,
     pub reached_by: BTreeMap<String, Reach>,
+    pub candidates: Vec<retrieval::Candidate>,
+    pub retrieval: Value,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -117,44 +119,41 @@ pub(super) fn seed(ix:&Index,target:&str,explicit:bool) -> Seed {
     Seed {status:match status.as_str() {"resolved"=>AnchorStatus::Resolved,"ambiguous"=>AnchorStatus::Ambiguous,_=>AnchorStatus::Unresolved},candidates,paths}
 }
 
-fn config_hop(ix:&Index,out:&mut Expansion) {
-    let config_keys:BTreeMap<String,usize>=ix.links.iter()
-        .filter(|e|e.predicate=="READS_CONFIG" && !out.paths.is_disjoint(&e.from_files))
-        .fold(BTreeMap::new(),|mut keys,e| {
-            let depth=e.from_files.iter().filter_map(|p|out.reached_by.get(p)).map(|r|r.depth+2).min().unwrap_or(2);
-            keys.entry(e.to.clone()).and_modify(|d|*d=(*d).min(depth)).or_insert(depth);keys
-        });
-    for e in ix.links.iter().filter(|e|e.predicate=="DECLARES_CONFIG_KEY" && config_keys.contains_key(&e.to)) {
-        for path in &e.from_files {
-            out.paths.insert(path.clone());
-            let reach=Reach {depth:config_keys[&e.to],via_link:Some(e.id.clone())};
-            let entry=out.reached_by.entry(path.clone()).or_insert_with(||reach.clone());
-            if reach.depth<entry.depth {*entry=reach;}
-        }
-    }
-}
-
 pub(super) fn build(l:&Ledger,s:&Snapshot,ix:&Index,r:&Request) -> Result<Trace> {
     let seed=seed(ix,r.target.as_deref().unwrap_or(&r.task),r.target.is_some());
-    let mut out=expand(ix,&seed.candidates,&seed.paths,Direction::Both,r.duty.policy().trace.predicates,r.depth,Accumulate::Closure);
-    config_hop(ix,&mut out);
-    let links=ix.links.iter().filter(|e|!out.paths.is_disjoint(&e.from_files)||!out.paths.is_disjoint(&e.to_files)
-        ||out.keys.contains(&e.from)||out.keys.contains(&e.to)).map(|e|e.id.clone()).collect();
-    let joins=joins::build(l,s,ix,&out.paths)?;
+    let (mut candidates,lexical_candidates,lexical_coverage)=retrieval::discover(l,s,ix,r,&seed)?;
+    let mut strong:Vec<_>=candidates.values().filter(|c|c.score>=60).collect();
+    strong.sort_by_key(|c|(std::cmp::Reverse(c.score),c.path.clone()));
+    let mut initial:BTreeSet<_>=strong.iter().take(8).map(|c|c.path.clone()).collect();
+    initial.extend(seed.paths.clone());
+    let (hints,join_coverage)=joins::discover(l,s,r,&initial)?;
+    for hint in hints {
+        let path=text(&hint,"path");
+        retrieval::contribute(&mut candidates,&path,retrieval::Signal {
+            facet:text(&hint,"facet"),kind:text(&hint,"kind"),strength:hint["strength"].as_u64().unwrap_or(0),
+            confidence:text(&hint,"confidence"),depth:0,via_link:None,provenance:hint["provenance"].clone(),
+        });
+    }
+    retrieval::expand(ix,r,&seed,&mut candidates);
+    retrieval::localize(s,r,&mut candidates);
+    let candidates=retrieval::rank(ix,r,candidates);
+    let paths:BTreeSet<_>=candidates.iter().filter(|c|c.selected).map(|c|c.path.clone()).collect();
+    let reached_by=candidates.iter().filter(|c|c.selected).map(|c|(c.path.clone(),c.reach())).collect();
+    let keys=ix.entities.iter().filter(|(_,e)|!paths.is_disjoint(&e.files)).map(|(k,_)|k.clone()).collect();
+    let links=ix.links.iter().filter(|e|!paths.is_disjoint(&e.from_files)||!paths.is_disjoint(&e.to_files))
+        .map(|e|e.id.clone()).collect();
+    let joins=joins::build(l,s,ix,&paths)?;
     let mut boundaries=joins.boundaries.clone();
     for detail in &s.profile_boundaries {boundaries.push(Boundary::producer(detail.clone())?);}
     for producer in s.evidence_views.iter().filter(|v|v.scope=="runtime") {
         boundaries.push(Boundary::RuntimeObservationScope(json!({"view_id":producer.id,"interval":producer.diagnostics["interval"],
             "sampling":producer.diagnostics["sampling"],"reason":"Retained runtime observations describe one interval; missing observations do not establish absence."})));
     }
-    let lexical_candidates=if seed.status==AnchorStatus::Resolved {vec![]} else {
-        let mut end=r.task.len().min(4096);while !r.task.is_char_boundary(end) {end-=1;}
-        let search=crate::architecture::search::search(l,&json!({"text":&r.task[..end],"view":s.view.id,
-            "history":false,"sessions":false,"classes":"text","limit":1000}))?;
-        rows(&search,"items").iter().map(|hit|json!({"path":hit["path"],"role":hit["path"].as_str().and_then(|p|s.files.get(p)).map(|f|&f.role),
-            "rank":hit["rank"],"search_report_id":search["report_id"],"basis":"shared ranked search; candidate only, no membership inferred"})).collect()
-    };
-    Ok(Trace {seed,depth:r.depth,paths:out.paths,keys:out.keys,links,joins,lexical_candidates,boundaries,reached_by:out.reached_by})
+    let retrieval=json!({"method":"faceted-retrieval-v1","max_files":r.max_files,"minimum_score":24,
+        "candidate_count":candidates.len(),"selected_files":paths.len(),"omitted_candidates":candidates.len()-paths.len(),
+        "excluded_facets":r.exclude_facets,"lexical_discovery":lexical_coverage,"join_discovery":join_coverage,
+        "semantics":"Scores rank reading context, never assertion authority, implementation membership or task completion."});
+    Ok(Trace {seed,depth:r.depth,paths,keys,links,joins,lexical_candidates,boundaries,reached_by,candidates,retrieval})
 }
 
 fn words_match(haystack: &str, needle: &str) -> bool {
@@ -214,7 +213,7 @@ pub(super) fn resolve(ix: &Index, target: &str, explicit: bool) -> (String, BTre
         // A file mention is stronger than the modules it happens to contain.
         let paths: BTreeSet<_> = keys.iter().filter(|k| ix.files.contains_key(*k)).cloned().collect();
         if !paths.is_empty() { keys = paths; }
-        if keys.len() == 1 {
+        {
             for key in &keys {
                 if ix.files.contains_key(key) { files.insert(key.clone()); }
                 if let Some(e) = ix.entities.get(key) { files.extend(e.files.clone()); }
@@ -249,7 +248,7 @@ mod tests {
             ("src/a.rs",true,AnchorStatus::Resolved,set(&["src/a.rs"])),
             ("crate::a::Store",true,AnchorStatus::Resolved,set(&["src/a.rs"])),
             ("src/",true,AnchorStatus::Resolved,set(&["src/a.rs","src/b.rs","src/c.rs"])),
-            ("Store",true,AnchorStatus::Ambiguous,set(&[])),
+            ("Store",true,AnchorStatus::Ambiguous,set(&["src/a.rs","src/b.rs"])),
             ("missing",true,AnchorStatus::Unresolved,set(&[])),
             ("explain crate::a::Store",false,AnchorStatus::Resolved,set(&["src/a.rs"])),
             (".",true,AnchorStatus::Resolved,ix.files.keys().cloned().collect()),
@@ -314,14 +313,21 @@ mod tests {
         }}
     }
     #[test]
-    fn config_hop_records_the_declaration_link_without_directory_fanout() {
+    fn config_join_records_the_declaration_link_without_directory_fanout() {
         let mut ix=index();
+        let file=Artifact {path:"config/app.env".into(),artifact_id:"env".into(),digest:"sha256:fixture".into(),
+            role:"config".into(),language:"text".into(),bytes:0};
+        ix.files.insert(file.path.clone(),file);
         ix.links=vec![link("READS_CONFIG","src/a.rs","env:TOKEN",&["src/a.rs"],&[]),
             link("DECLARES_CONFIG_KEY","config/app.env","env:TOKEN",&["config/app.env"],&[])];
-        let start=set(&["src/a.rs"]);
-        let mut out=expand(&ix,&start,&start,Direction::Both,&["READS_CONFIG"],1,Accumulate::Closure);
-        config_hop(&ix,&mut out);
-        assert_eq!(out.paths,set(&["src/a.rs","config/app.env"]));
-        assert_eq!(out.reached_by["config/app.env"],Reach {depth:2,via_link:Some(ix.links[1].id.clone())});
+        let request=request::parse(&json!({"task":"inspect src/a.rs","target":"src/a.rs","depth":1})).unwrap().0;
+        let seed=seed(&ix,"src/a.rs",true);
+        let mut candidates=retrieval::Candidates::new();
+        retrieval::contribute(&mut candidates,"src/a.rs",retrieval::Signal {facet:"anchors".into(),kind:"exact_anchor".into(),
+            strength:10000,confidence:"exact".into(),depth:0,via_link:None,provenance:json!({})});
+        retrieval::expand(&ix,&request,&seed,&mut candidates);
+        let reach=candidates["config/app.env"].reach();
+        assert_eq!(reach,Reach {depth:2,via_link:Some(ix.links[1].id.clone())});
+        assert!(!candidates.contains_key("src/b.rs"));
     }
 }

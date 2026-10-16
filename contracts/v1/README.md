@@ -9,7 +9,8 @@
 | `identity-vectors.json` | Independent canonical JSON literals and expected SHA-256 values |
 | `architecture-declaration.schema.json` | The `scan --policy` authority artifact: domain assignments, report-only rules, the declared application and the feature/workflow catalog (ADR-0028, ADR-0029) |
 | `task-case.schema.json` | Retained task authority, request, role slices, relationships, typed gaps and completeness |
-| `task-brief.schema.json` | V1 presentation of a retained case, with case ID, delivery counts and continuation |
+| `task-brief.schema.json` | V1 presentation of a retained case, with case ID, ranking, delivery counts and continuation |
+| `agent-context.schema.json` | Budgeted harness manifest over that same case, with ranked source fetches, reasons, spans and evidence section handles |
 | `session-activity.schema.json` | Derived cross-session activity per repository path in a time window, with net change and retained commits kept separate (ADR-0030; not a knowledge record) |
 
 Optional `fixture_label` is review metadata, not a production identity input. Readable fixture IDs are aliases used in isolated examples. Production constructors must implement the semantic identity keys in the canonical constructors under `src/architecture/identity.rs`.
@@ -77,3 +78,17 @@ read operations. Optional feature/workflow declarations remain metadata.
 Report pagination uses `page` with a retained `report_id` and section/cursor;
 `explain` expands source entries, links or legacy explanation handles. See
 [README](../../README.md) and [consolidation notes](../../CONSOLIDATION.md).
+
+
+Task cases admit optional `/candidates` rankings and request `max_files` and
+`exclude_facets` bounds. Artifact ranking and retrieval hints do not alter
+assertion classes or implementation membership. Candidate-only selections and
+retrieval truncation remain gaps. Producer-boundary case rows aggregate task-local
+occurrences and reference content-addressed detail reports; global health is
+explicitly distinguished from actionable task gaps.
+
+A predicate guarantee may optionally name its `scope`. Rust static calls use
+`native_resolved_subset` when partial and `retained_free_function_scope` when
+complete for their declared supported scope. `resolution_complete` and run status
+remain separate required completeness checks; the presence of a guarantee alone
+never establishes exhaustiveness.

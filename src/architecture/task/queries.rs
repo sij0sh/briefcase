@@ -90,7 +90,7 @@ pub fn neighbors(l: &Ledger, a: &Value) -> Result<Value> {
     let mut result = page_items("neighbors",&ix.source_view,&items,offset,limit);
     result["resolution"] = json!({"status":status,"candidates":keys});
     result["target"] = json!(target);
-    result["coverage"] = ix.coverage.clone();
+    result["coverage"] = index::summary(&ix);
     result["index_id"] = json!(ix.id);
     result["pinned_views"]=ix.coverage["profile_views"].clone();
     result["historical_index"]=json!(ix.retraction_epoch!=l.retraction_epoch()?);

@@ -1,106 +1,95 @@
 {
   "date": "2026-10-16",
-  "scope": "Request → Trace → Case → Brief plan, final phases 1–4 with guardrail bug fixes",
-  "python_script_tests": {
-    "passed": 15,
+  "status": "partial_validation",
+  "scope": "Evaluation recommendations: compact coverage, faceted ranked retrieval, analyzer correctness, budgeted harness manifests and evaluator delivery/ranking metrics.",
+  "executed_tests": {
+    "total": 41,
+    "passed": 41,
     "failed": 0,
-    "command": "python3 -B -m unittest discover -s scripts -p 'test_*.py'"
-  },
-  "python_validator_tests": {
-    "passed": 6,
-    "failed": 0,
-    "command": "python3 -B -m unittest discover -s tools -p 'test_*.py'"
-  },
-  "pi_adapter_tests": {
-    "passed": 13,
-    "failed": 0,
-    "command": "node --test tests/briefcase-task-adapter.test.mjs"
-  },
-  "python_syntax": {
-    "files": 20,
-    "result": "passed using ast.parse"
-  },
-  "owned_schema_vocabulary": {
-    "schemas": 9,
-    "result": "passed using tools/schema_profile.py"
-  },
-  "schema_contract_tests": "Passed: case-only request fields, typed gap dimensions and areas, verification state restrictions, and new/legacy v1 brief shapes.",
-  "javascript_syntax": {
-    "files": 4,
-    "result": "passed using node --check; Pi TypeScript is stripped and loaded by the 13 adapter tests"
-  },
-  "typescript_sdk_type_check": "not run: Pi SDK imports are mocked by pure adapter tests",
-  "documentation_file_links": {
-    "links_checked": 9,
-    "result": "passed for README, TASK_CONTEXT, CONSOLIDATION and contract README"
-  },
-  "source_reference_checks": {
-    "changed_rust_files": 23,
-    "result": "passed lexical delimiters and static include paths only; not parsing or compilation"
-  },
-  "git_diff_whitespace_check": "passed",
-  "rust_context_regressions": {
-    "total_authored": 38,
-    "new_tests": 6,
-    "command": "cargo test --locked --test context -- --skip response_budget_pagination_does_not_skip_undelivered_matches",
-    "execution": "not run: Cargo is unavailable"
-  },
-  "new_rust_unit_regressions": {
-    "authored": 21,
-    "execution": "not run: Cargo is unavailable",
-    "coverage": [
-      "pure request validation",
-      "seed resolution",
-      "closure and frontier differential traversal",
-      "config-hop reach provenance",
-      "every gap area and completeness dimension",
-      "boundary localization and duty policy",
-      "case comparisons",
-      "brief delivery and byte-budget floor",
-      "index source invalidation"
+    "suites": [
+      {
+        "command": "python3 -B -m unittest discover -s scripts -p test_*.py",
+        "exit_code": 0,
+        "tests": 18,
+        "result": "passed"
+      },
+      {
+        "command": "python3 -B -m unittest discover -s tools -p test_*.py",
+        "exit_code": 0,
+        "tests": 8,
+        "result": "passed"
+      },
+      {
+        "command": "node --test tests/briefcase-task-adapter.test.mjs",
+        "exit_code": 0,
+        "tests": 15,
+        "result": "passed"
+      }
     ]
   },
-  "rust_build_tests_formatting_lints": {
-    "result": "blocked",
-    "attempted_command": "cargo test --locked --lib",
-    "exit_code": 127,
-    "reason": "cargo, rustc, rustfmt and clippy are unavailable on this host"
+  "static_checks": {
+    "owned_schemas": 10,
+    "python_files": 18,
+    "documentation_links": 12,
+    "rust_files_lexically_checked": 37,
+    "rust_static_include_paths": 54,
+    "rust_scope": "Lexical delimiters and static includes only; not parsing/type checking/compilation.",
+    "javascript_syntax": {
+      "files": [
+        "src/architecture/typescript.cjs",
+        "src/architecture/data.cjs"
+      ],
+      "result": "passed"
+    },
+    "git_diff_whitespace": "passed"
   },
-  "phase_0_brief_byte_equality_guard": "Not executed on this host. Final output intentionally adds typed completeness and case identity; independent legacy traversal oracles remain in Rust unit tests.",
-  "full_pi_installer_binary_tests": {
-    "result": "blocked during fixture setup",
-    "command": "node --test tests/briefcase-pi.test.mjs",
-    "setup_failures": 16,
-    "reason": "target/debug/briefcase does not exist; no compiled binary is available"
+  "rust_regressions_authored": {
+    "new_unit_tests": 7,
+    "new_integration_tests": 7,
+    "executed": false,
+    "command": "cargo test --locked --lib --test context"
   },
-  "original_package_validation": {
-    "result": "blocked",
-    "command": "python3 tools/check_package.py",
-    "exit_code": 1,
-    "reason": "Supplied archive omits evaluation/fixtures/index.json and the original evaluation corpus"
-  },
-  "plan_reported_preexisting_failures": {
-    "source": "Attached implementation plan; not independently rerun here",
-    "items": [
-      "search::tests::disposable_trees_are_never_recalled",
-      "Pi notice-wording assertion",
-      "occurrences response-budget pagination test did not finish in the reported baseline"
-    ]
-  },
-  "known_brief_path_fixes": [
-    "Trim trailing sentence punctuation before exact path lookup and keep the witness on the path token.",
-    "Require matching recorded roots for local session joins because imports share the ledger repository ID."
+  "blocked": [
+    {
+      "command": "cargo test --locked --lib --test context",
+      "exit_code": 127,
+      "reason": "Cargo, rustc, rustfmt and Clippy are unavailable. Rust compilation and runtime test results are unknown."
+    },
+    {
+      "command": "python3 tools/check_package.py",
+      "exit_code": 1,
+      "reason": "Original evaluation/fixtures/index.json and the package/conformance fixture tree are absent from the supplied archive."
+    }
   ],
-  "excluded_occurrences_budget_test": "Unchanged, outside this plan. Skip on the first Rust context regression run as directed by the plan.",
-  "latency_recall_false_complete_measurements": "not measured: authored corpus is missing; metric behavior is covered by Python tests only",
-  "required_followup_checks": [
+  "not_run": [
+    "Rust build, formatting and Clippy",
+    "Binary-backed Pi integration tests",
+    "Real rust-analyzer resolution/deadline evaluation",
+    "Eight recovered task scenarios and per-facet ablations"
+  ],
+  "evaluation": {
+    "scenario_file": "evaluation/task-scenarios.json",
+    "scenario_count": 8,
+    "provenance": "Authored regression labels recovered verbatim from EVALUATION_FINDINGS.md. Not a held-out corpus.",
+    "updated_quality_measured": false,
+    "ranking_weights": "Initial transparent heuristics; not tuned or validated on an expanded corpus.",
+    "token_counts": "UTF-8 byte-based estimates, not exact tokenizer counts."
+  },
+  "compatibility": {
+    "legacy_case_identity": "New optional fields omit their defaults on serialization; legacy cases retain load identity. Rust runtime verification is pending.",
+    "strict_external_clients": "Use updated case/brief schemas for new ranking metadata.",
+    "harness_delivery": "Pi and Claude automatic; Codex and Muse explicit agent_context tool operation."
+  },
+  "remaining_acceptance": [
     "cargo build --locked",
     "cargo test --locked --lib",
-    "cargo test --locked --test context -- --skip response_budget_pagination_does_not_skip_undelivered_matches",
+    "cargo test --locked --test context",
     "cargo fmt --all -- --check",
     "cargo clippy --locked --lib --bins --tests",
     "node --test tests/briefcase-pi.test.mjs",
-    "python3 tools/check_package.py (after restoring evaluation fixtures)"
+    "Run real Rust sync with a 600-second budget and inspect partial/complete state",
+    "Run scripts/task-evaluate.py with evaluation/task-scenarios.json and --ablations all",
+    "Restore original fixtures before the full package/conformance lane"
   ],
-  "release_status": "Source implementation for review. Rust compilation, type checking and runtime regressions remain unverified."
+  "details": "evaluation/IMPLEMENTATION.md"
 }

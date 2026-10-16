@@ -629,7 +629,8 @@ pub(crate) fn load_retained(l: &Ledger, selector: &str) -> Result<Session> {
 /// each coding duty. It is a routing aid, never promoted architecture Evidence.
 pub(crate) fn touch_summary(l:&Ledger,selector:&str) -> Result<Value> {
     let view=resolve(l,selector)?;
-    let id=identity::id("session-touch-index",&json!(["session-touch-v2",view]))?;
+    let id=identity::id("session-touch-index",&json!(["session-touch-v3",view,l.retraction_epoch()?,
+        identity::bytes_digest(include_bytes!("mod.rs"))]))?;
     if let Ok(summary)=l.report(&id) {return Ok(summary);}
     let session=load_retained(l,&view)?;
     let paths:BTreeSet<_>=session.events().iter().filter(|e|e["path"]["location"] == "repository"
@@ -647,7 +648,25 @@ pub(crate) fn touch_summary(l:&Ledger,selector:&str) -> Result<Value> {
     let executables:BTreeSet<_>=session.events().iter().filter(|event|event["kind"]=="command_started")
         .filter_map(|event|paths::direct_command(event["command"].as_str()?))
         .filter_map(|words|words.into_iter().next()).collect();
+    let mut activities=BTreeMap::<String,Value>::new();
+    for event in session.events().iter().filter(|e|e["path"]["location"]=="repository" && e["outcome"]=="succeeded"
+        && ["file_read","file_edit_confirmed"].contains(&e["kind"].as_str().unwrap_or(""))) {
+        let path=text(&event["path"],"path");
+        if activities.get(&path).is_none_or(|old|old["kind"]!="file_edit_confirmed") {
+            activities.insert(path,json!({"id":event["id"],"kind":event["kind"],"path":event["path"],"outcome":"succeeded"}));
+        }
+    }
+    let requests:Vec<_>=session.events().iter().filter(|e|e["kind"]=="user_message").collect();
+    let mut omitted_request_bytes=0;
+    let user_requests:Vec<_>=requests.iter().take(64).map(|e| {
+        let content=e["text"].as_str().unwrap_or("");let mut end=content.len().min(4096);
+        while !content.is_char_boundary(end) {end-=1;}
+        omitted_request_bytes+=content.len()-end;
+        json!({"id":e["id"],"text":&content[..end]})
+    }).collect();
     let summary=json!({"id":id,"view_id":view,"paths":paths,"absolute_paths":absolute_paths,"executables":executables,
+        "activities":activities.into_values().collect::<Vec<_>>(),"user_requests":user_requests,"invalidated":session.view.invalidated,
+        "omitted_requests":requests.len().saturating_sub(64),"omitted_request_bytes":omitted_request_bytes,
         "capture_state":session.context["capture_state"],"retention":session.context["retention"]});
     l.save_report(&id,&summary,&[])?;Ok(summary)
 }

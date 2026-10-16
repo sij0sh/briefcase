@@ -276,6 +276,12 @@
     },
     "outcome_scope": {
       "const": "retained_evidence"
+    },
+    "candidates": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
     }
   },
   "additionalProperties": false,
@@ -314,7 +320,8 @@
         "selection": {
           "enum": [
             "resolved_anchor",
-            "evidence_neighborhood"
+            "evidence_neighborhood",
+            "ranked_candidate"
           ]
         },
         "text_is_untrusted_repository_content": {
@@ -339,6 +346,29 @@
             }
           },
           "additionalProperties": false
+        },
+        "rank": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "score": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "candidate_ref": {
+          "type": "string"
+        },
+        "selection_reasons": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        },
+        "spans": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
         }
       },
       "additionalProperties": false

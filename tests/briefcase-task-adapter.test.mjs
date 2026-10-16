@@ -95,6 +95,8 @@ test('prompt context and post-task checks never submit another agent prompt', as
   assert.equal(entries[0].value.prompt_report_id,'task-brief:1');
   assert.deepEqual(entries[0].value.not_covered_areas,['static_calls']);
   assert.equal(calls.length,2);
+  assert.equal(calls[0][calls[0].indexOf('call')+1], 'agent_context');
+  assert.equal(JSON.parse(calls[0][calls[0].indexOf('--args')+1]).limit, 12);
   assert.equal(JSON.parse(calls[1][calls[1].indexOf('--args')+1]).duty,'review');
   await events.get('agent_end')({},ctx);
   assert.equal(calls.length,2,'a settled turn must not check again');
@@ -166,7 +168,7 @@ test('byte-budget notices recover dimension states from retained case metadata',
   const ctx={cwd:'/repo',ui:{notify(){}}};
   await events.get('before_agent_start')({prompt:'debug src/a.rs'},ctx);
   await events.get('agent_end')({},ctx);
-  assert.deepEqual(calls,['brief','explain','brief','explain']);
+  assert.deepEqual(calls,['agent_context','explain','agent_context','explain']);
   assert.deepEqual(entries[0].dimension_deltas,{});
   assert.equal(entries[0].dimension_comparison,'compared');
 });
@@ -178,4 +180,30 @@ test('oversized new briefs preserve their case ID', () => {
   assert.equal(notice.case_id,'task-case:new');assert.equal(notice.report_id,'task-case:new');
   assert.equal(notice.outcome,'unknown');
   assert.equal(notice.outcome_scope,'retained_evidence');assert.equal(notice.continue_with.arguments.section,'/slice/impl');
+});
+
+
+test('oversized manifests rewind candidate delivery without dropping case pins', () => {
+  const result={kind:'agent_context',case_id:'task-case:manifest',report_id:'task-case:manifest',
+    files:[{path:'src/a.rs',detail:'é'.repeat(10000)}],
+    continue_with:{operation:'page',arguments:{report_id:'task-case:manifest',cursor:JSON.stringify({report_id:'task-case:manifest',section:'/candidates',offset:9})}}};
+  const notice=JSON.parse(adapter.formatOperation(result,1800));
+  assert.equal(notice.case_id,'task-case:manifest');
+  assert.equal(notice.continue_with.arguments.section,'/candidates');
+  assert.equal(notice.continue_with.arguments.offset,0);
+});
+
+test('automatic context budgets are configurable and include the framing text', async t => {
+  const previous=process.env.BRIEFCASE_CONTEXT_MAX_BYTES;
+  t.after(()=>{if(previous===undefined)delete process.env.BRIEFCASE_CONTEXT_MAX_BYTES;else process.env.BRIEFCASE_CONTEXT_MAX_BYTES=previous;});
+  process.env.BRIEFCASE_CONTEXT_MAX_BYTES='12000';assert.equal(adapter.contextBudget(),12000);
+  const events=new Map(),calls=[];
+  adapter.default({registerTool(){},registerCommand(){},on:(name,handler)=>events.set(name,handler),
+    exec:async (_program,args)=>{calls.push(args);return {code:0,stdout:JSON.stringify({kind:'agent_context',case_id:'task-case:budget',
+      coverage:{completeness:completeness()},files:[]}),stderr:''};}});
+  const injected=await events.get('before_agent_start')({prompt:'inspect storage'},{cwd:'/repo'});
+  assert.ok(Buffer.byteLength(injected.message.content)<=12000);
+  const args=JSON.parse(calls[0][calls[0].indexOf('--args')+1]);
+  assert.ok(args.max_bytes<12000&&args.max_bytes>11000);
+  for(const invalid of ['bad','0','1000000','4096.5']) {process.env.BRIEFCASE_CONTEXT_MAX_BYTES=invalid;assert.equal(adapter.contextBudget(),8000);}
 });
