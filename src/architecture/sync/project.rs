@@ -93,6 +93,8 @@ pub struct SyncOptions {
     pub project: Option<String>,
     pub policy: Option<PathBuf>,
     pub calls: Option<bool>,
+    /// Retry a published partial Rust call analysis for unchanged inputs.
+    pub retry_analysis: bool,
     /// Operator-selected Rust analyzer. `None` uses `rust-analyzer` from PATH
     /// when it answers, otherwise a syntax-only capture.
     pub analyzer: Option<PathBuf>,
@@ -159,7 +161,8 @@ pub(super) fn apply(o:&SyncOptions,lock:&WriterLock,started:Instant) -> Result<V
     for (slot,selected) in profiles {
         let value=apply_one(&selected,lock,started,Some(&slot)).unwrap_or_else(|e|json!({"sync":"failed","error":e.to_string()}));
         let state=value["sync"].as_str().unwrap_or("failed");
-        good &= ["up-to-date","refreshed","rebuilt"].contains(&state);
+        good &= ["up-to-date","refreshed","rebuilt"].contains(&state)
+            && value["static_calls"]["ready"] == true;
         changed |= ["refreshed","rebuilt"].contains(&state);
         if let Some(view)=value["view_id"].as_str() {
             pins.push(json!({"slot":slot,"view_id":view,"profile":value["profile"]}));
@@ -593,7 +596,14 @@ fn profile(o: &SyncOptions, deadline: Instant) -> std::result::Result<Profile, P
         "project": (language == Language::Typescript).then_some(&project),
         "calls": calls,
         "policy": policy.as_ref().map(|p| p.strip_prefix(&o.root).unwrap_or(p).to_string_lossy().into_owned()),
-        "analyzer": analyzer.as_ref().map(|(exe, version)| json!({"path":exe,"version":version})),
+        "analyzer": analyzer.as_ref().map(|(exe, version)| {
+            let launcher=if exe.is_file() {Some(exe.clone())} else {
+                std::env::var_os("PATH").and_then(|path|std::env::split_paths(&path)
+                    .map(|dir|dir.join(exe)).find(|path|path.is_file()))
+            };
+            json!({"path":exe,"version":version,"launcher_digest":launcher
+                .and_then(|path|std::fs::read(path).ok()).map(|bytes|identity::bytes_digest(&bytes))})
+        }),
         "semantic": language != Language::Rust || analyzer.is_some(),
         "python_provider": python_provider,
         "go_provider": go_provider,
@@ -663,22 +673,66 @@ fn key(repository: &str, capture: &Capture, profile: &Profile) -> Result<String>
 }
 
 fn rust_calls_complete(bundle:&Value)->bool {
+    let implementation=identity::bytes_digest(include_bytes!("../execution.rs"));
+    let configs:Vec<_>=super::super::contracts::rows(bundle,"analysis_configs").iter()
+        .filter(|c|c["producer_name"]=="rust-static-execution-v1" && c["implementation_digest"]==implementation)
+        .map(|c|c["id"].clone()).collect();
     super::super::contracts::rows(bundle,"runs").iter().any(|r|
-        r["status"]=="complete" && r["coverage"]["resolution_complete"]==true
-        && super::super::contracts::rows(&r["coverage"],"guarantees").iter().any(|g|g["predicate"]=="CALLS_STATIC"&&g["kind"]=="exact_supported"))
+        configs.contains(&r["analysis_config_id"]) && r["status"]=="complete" && r["coverage"]["resolution_complete"]==true
+        && super::super::contracts::rows(&r["coverage"],"guarantees").iter().any(|g|
+            g["predicate"]=="CALLS_STATIC" && g["kind"]=="exact_supported" && g["scope"]=="retained_free_function_scope"))
 }
-fn ensure_rust_calls(l:&mut Ledger,view:&str,profile:&Profile,deadline:Instant)->Result<Value>{
-    if profile.language!=Language::Rust||!profile.calls {return Ok(json!({"state":"not_requested"}));}
-    let retained=l.retained(view)?;
-    if rust_calls_complete(&retained.bundle) {
-        return Ok(json!({"state":"retained"}));
+/// Readiness describes a usable publication, independently of semantic coverage.
+/// The receipt is scoped to the exact source/profile/implementation input key.
+fn rust_call_status(l:&Ledger,view:&str,input_key:&str,profile:&Profile)->Result<Value> {
+    if profile.language!=Language::Rust||!profile.calls {
+        return Ok(json!({"state":"not_requested","ready":true}));
     }
-    let Some((analyzer,_))=&profile.analyzer else {return Ok(json!({"state":"unavailable","reason":"Rust static calls require rust-analyzer; retained syntax/text remains available."}));};
+    if rust_calls_complete(&l.retained(view)?.bundle) {
+        return Ok(json!({"state":"complete","ready":true,"resolution_complete":true,"reused":true}));
+    }
+    if profile.analyzer.is_none() {
+        return Ok(json!({"state":"unavailable","ready":true,"resolution_complete":false,
+            "reason":"Rust static calls require rust-analyzer; retained syntax/text remains available."}));
+    }
+    if let Some(mut attempt)=l.static_call_attempt(view,input_key)? {
+        attempt["reused"]=json!(true);return Ok(attempt);
+    }
+    Ok(json!({"state":"not_run","ready":false,"resolution_complete":false,"retryable":true}))
+}
+
+fn completed_call_attempt(value:&mut Value) {
+    let published=value["state"]=="complete"
+        || (value["state"]=="partial" && value["coverage"]["resolution_complete"]==false);
+    value["ready"]=json!(published);
+    value["resolution_complete"]=json!(value["state"]=="complete");
+    if value["state"]=="partial" {
+        value["retryable"]=json!(true);
+        value["retry_policy"]=json!("explicit_or_input_change");
+        value["retry_with"]=json!("sync --retry-analysis");
+    }
+}
+
+fn ensure_rust_calls(l:&mut Ledger,view:&str,input_key:&str,profile:&Profile,deadline:Instant,retry:bool)->Result<Value>{
+    let mut status=rust_call_status(l,view,input_key,profile)?;
+    if status["ready"]==true && !(retry && status["state"]=="partial") {
+        status["reused"]=json!(true);
+        return Ok(status);
+    }
+    let (analyzer,_)=profile.analyzer.as_ref().ok_or("SYNC: Missing requested Rust analyzer")?;
     let remaining=deadline.saturating_duration_since(Instant::now());
-    if remaining<Duration::from_secs(1) {return Ok(json!({"state":"budget_exhausted"}));}
-    Ok(super::super::execution::analyze(l,&super::super::query::Options{view:view.into(),..Default::default()},
-        &rust::ScanOptions{analyzer:Some(analyzer.clone()),timeout:remaining,features:vec![]})
-        .unwrap_or_else(|error|json!({"state":"failed","reason":error.to_string()})))
+    let mut result=if remaining<Duration::from_secs(1) {
+        json!({"state":"budget_exhausted","retryable":true})
+    } else {
+        super::super::execution::analyze(l,&super::super::query::Options{view:view.into(),..Default::default()},
+            &rust::ScanOptions{analyzer:Some(analyzer.clone()),timeout:remaining,features:vec![]})
+            .unwrap_or_else(|error|json!({"state":"failed","retryable":true,"reason":bounded(&error.to_string())}))
+    };
+    // Complete overlays can be reused by the execution engine without a new run.
+    if rust_calls_complete(&l.retained(view)?.bundle) {result["state"]=json!("complete");}
+    completed_call_attempt(&mut result);
+    l.record_execution(view,&json!({"operation":"sync-static-calls","input_key":input_key,"result":result}))?;
+    Ok(result)
 }
 
 fn normalize_project(project: &str) -> Option<String> {
@@ -749,16 +803,17 @@ fn apply_one(o: &SyncOptions, _lock: &WriterLock, started: Instant, slot:Option<
         {
             // These inputs already passed validation at their publication.
             let recovered = ledger.recover_pending(deadline)?;
-            let mut view = ledger.load(&view_id)?;
+            let view = ledger.load(&view_id)?;
             ledger::recovery::check_deadline(deadline)?;
             let rebuilt_now = view.stale || view.projections.len() != 2;
             let rebuilt = recovered.contains(&view_id) || rebuilt_now;
             if rebuilt_now {
                 ledger.rebuild(&view_id)?;
-                view = ledger.load(&view_id)?;
             }
             ledger::recovery::check_deadline(deadline)?;
-            let static_calls=ensure_rust_calls(&mut ledger,&view_id,&profile,deadline)?;
+            let static_calls=ensure_rust_calls(&mut ledger,&view_id,&key,&profile,deadline,o.retry_analysis)?;
+            // Explicit retries can publish an improved additive overlay.
+            let view=ledger.load(&view_id)?;
             let (_, units) = recall::ensure_index(&ledger, &view)?;
             let task_index = crate::architecture::task::precompute(&ledger,&view_id)?;
             ledger::recovery::check_deadline(deadline)?;
@@ -874,7 +929,7 @@ fn apply_one(o: &SyncOptions, _lock: &WriterLock, started: Instant, slot:Option<
     // atomic phase. Record its input key so a retry can reuse and finish it.
     ledger.record_sync(&key, &view, &profile.summary)?;
     if let Some(slot)=slot {ledger.save_report(&profile_state_id(slot,&key)?,&json!({"view_id":view,"input_key":key,"profile":profile.summary}),&[])?;}
-    let static_calls=ensure_rust_calls(&mut ledger,&view,&profile,deadline)?;
+    let static_calls=ensure_rust_calls(&mut ledger,&view,&key,&profile,deadline,o.retry_analysis)?;
     ledger::recovery::check_deadline(deadline)?;
     let (_, units) = recall::ensure_index(&ledger, &ledger.load(&view)?)?;
     let task_index = crate::architecture::task::precompute(&ledger,&view)?;
@@ -1003,11 +1058,11 @@ fn check_one(o: &SyncOptions, slot:Option<&str>) -> Result<crate::architecture::
                 if !view.stale && view.projections.len() == 2 && recall.is_some() {
                     alignment.state = AlignmentState::Aligned;
                 }
-                if input.profile.language==Language::Rust && input.profile.calls && input.profile.analyzer.is_some() {
-                    let complete=rust_calls_complete(&ledger.retained(&view_id)?.bundle);
-                    alignment.detail["static_calls"]=json!({"state":if complete {"complete"} else {"partial_or_not_run"},"retryable":!complete});
-                    if !complete {alignment.state=AlignmentState::Dirty;}
+                let calls=rust_call_status(&ledger,&view_id,&input.key,&input.profile)?;
+                if calls["ready"]!=true || (o.retry_analysis && calls["state"]=="partial") {
+                    alignment.state=AlignmentState::Dirty;
                 }
+                alignment.detail["static_calls"]=calls;
                 alignment.detail["view_id"] = json!(view_id);
                 alignment.detail["recall_units"] = json!(recall);
             }
@@ -1022,9 +1077,36 @@ mod rust_call_cache_tests {
     #[test]
     fn a_guarantee_or_complete_status_alone_never_caches_partial_calls_as_final() {
         for (status,resolved,expected) in [("complete",false,false),("partial",true,false),("partial",false,false),("complete",true,true)] {
-            let bundle=json!({"runs":[{"status":status,"coverage":{"resolution_complete":resolved,
-                "guarantees":[{"predicate":"CALLS_STATIC","kind":"exact_supported","scope":"native_resolved_subset"}]}}]});
+            let bundle=json!({"analysis_configs":[{"id":"config:test","producer_name":"rust-static-execution-v1",
+                "implementation_digest":identity::bytes_digest(include_bytes!("../execution.rs"))}],
+                "runs":[{"analysis_config_id":"config:test","status":status,"coverage":{"resolution_complete":resolved,
+                "guarantees":[{"predicate":"CALLS_STATIC","kind":"exact_supported","scope":"retained_free_function_scope"}]}}]});
             assert_eq!(rust_calls_complete(&bundle),expected);
+        }
+    }
+    #[test]
+    fn a_complete_run_from_an_old_engine_or_subset_scope_does_not_satisfy_current_coverage() {
+        let mut bundle=json!({"analysis_configs":[{"id":"config:test","producer_name":"rust-static-execution-v1","implementation_digest":"old"}],
+            "runs":[{"analysis_config_id":"config:test","status":"complete","coverage":{"resolution_complete":true,
+                "guarantees":[{"predicate":"CALLS_STATIC","kind":"exact_supported","scope":"retained_free_function_scope"}]}}]});
+        assert!(!rust_calls_complete(&bundle));
+        bundle["analysis_configs"][0]["implementation_digest"]=json!(identity::bytes_digest(include_bytes!("../execution.rs")));
+        assert!(rust_calls_complete(&bundle));
+        bundle["runs"][0]["coverage"]["guarantees"][0]["scope"]=json!("native_resolved_subset");
+        assert!(!rust_calls_complete(&bundle));
+    }
+    #[test]
+    fn operational_readiness_does_not_promote_partial_coverage_or_accept_failed_attempts() {
+        for (state,coverage,ready) in [
+            ("partial",json!({"resolution_complete":false}),true),
+            ("partial",Value::Null,false),("failed",Value::Null,false),
+            ("budget_exhausted",Value::Null,false),("complete",json!({"resolution_complete":true}),true),
+        ] {
+            let mut result=json!({"state":state,"coverage":coverage});
+            completed_call_attempt(&mut result);
+            assert_eq!(result["ready"],ready,"{result}");
+            assert_eq!(result["resolution_complete"],state=="complete","{result}");
+            if state=="partial" {assert_eq!(result["coverage"]["resolution_complete"],coverage["resolution_complete"]);}
         }
     }
 }

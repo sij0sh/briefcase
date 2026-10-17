@@ -116,7 +116,78 @@ def manifest_source_fetch(manifest, row):
         "source_offset": row.get("source_offset", 0)}}
 
 
-def evaluate_scenario(scenario, call, *, manifest_bytes=None, exclude_facets=(), harness="pi", diagnostics=False):
+def read_source_page(call, arguments, row, offset):
+    page = call("explain", {**arguments, "source_offset": offset, "max_bytes": 1048576})
+    entry = page.get("entry")
+    if (page.get("report_id") != arguments["report_id"] or page.get("ref") != arguments["ref"]
+            or page.get("historical_packet") or type(page.get("source_offset")) is not int or page.get("source_offset") != offset
+            or not isinstance(page.get("text"), str)
+            or not isinstance(entry, dict) or encoded_bytes(page) > 1048576
+            or any(entry.get(key) != row.get(key) for key in ("path", "artifact_id", "digest", "bytes"))):
+        raise ValueError(f"Unpinned or omitted source page: {row['path']}")
+    body = page["text"].encode("utf-8")
+    end = offset + len(body)
+    total = row["bytes"]
+    next_offset = page.get("next_source_offset")
+    if (end > total or (end < total and (not body or type(next_offset) is not int or next_offset != end))
+            or (end == total and next_offset is not None) or type(page.get("omitted_bytes")) is not int
+            or page.get("omitted_bytes") != total - end):
+        raise ValueError(f"Non-contiguous or stalled source pagination: {row['path']}")
+    return body, next_offset
+
+
+def verify_retained_sources(call, case, selected, references, manifest):
+    """Fetch full retained bytes, including rows omitted from the manifest.
+
+    First exercise any advertised nonzero source offset, then reconstruct the
+    complete UTF-8 stream from zero and compare its byte count and SHA-256.
+    No live files or expected-label lists enter this verification.
+    """
+    advertised = {row["path"]: row for row in [*manifest.get("files", []), manifest.get("anchor") or {}]
+                  if row.get("path")}
+    checked = []
+    for row in selected:
+        digest, total = row.get("digest"), row.get("bytes")
+        if (not isinstance(digest, str) or len(digest) != 71 or not digest.startswith("sha256:")
+                or any(char not in "0123456789abcdef" for char in digest[7:])
+                or type(total) is not int or total < 0 or not isinstance(row.get("artifact_id"), str) or not row["artifact_id"]):
+            raise ValueError(f"Missing retained source identity: {row['path']}")
+        fetch = manifest_source_fetch(manifest, advertised[row["path"]]) if row["path"] in advertised else {
+            "operation": "explain", "arguments": {"report_id": case, "ref": references[row["path"]]}}
+        arguments = fetch["arguments"]
+        if fetch.get("operation") != "explain" or arguments.get("report_id") != case:
+            raise ValueError("Source fetch belongs to another retained case")
+        hint = arguments.get("source_offset", 0)
+        if type(hint) is not int or not 0 <= hint <= total:
+            raise ValueError(f"Invalid source offset: {row['path']}")
+        hint_body, pages = None, 0
+        if hint:
+            hint_body, _ = read_source_page(call, arguments, row, hint)
+            pages += 1
+        hasher, offset, hint_parts = hashlib.sha256(), 0, []
+        while True:
+            body, next_offset = read_source_page(call, arguments, row, offset)
+            pages += 1
+            hasher.update(body)
+            if hint_body is not None:
+                start, end = max(offset, hint), min(offset + len(body), hint + len(hint_body))
+                if start < end:
+                    hint_parts.append(body[start - offset:end - offset])
+            offset += len(body)
+            if next_offset is None:
+                break
+        if offset != total or "sha256:" + hasher.hexdigest() != digest:
+            raise ValueError(f"Fetched source digest differs from retained bytes: {row['path']}")
+        if hint_body is not None and b"".join(hint_parts) != hint_body:
+            raise ValueError(f"Advertised source span differs from full retained bytes: {row['path']}")
+        checked.append({"path": row["path"], "digest": digest, "bytes": total, "pages": pages,
+                        "advertised_offset": hint, "in_manifest": row["path"] in advertised})
+    return {"state": "verified", "files": len(checked), "bytes": sum(row["bytes"] for row in checked),
+            "pages": sum(row["pages"] for row in checked), "sources": checked}
+
+
+def evaluate_scenario(scenario, call, *, manifest_bytes=None, exclude_facets=(), harness="pi", diagnostics=False,
+                      verify_sources=False, budget_sweep=()):
     expected = set(scenario.get("required_paths", scenario.get("followup_paths", [])))
     if not expected:
         raise ValueError("Each scenario needs labelled required_paths or followup_paths")
@@ -132,11 +203,12 @@ def evaluate_scenario(scenario, call, *, manifest_bytes=None, exclude_facets=(),
     if outcome not in ("complete", "partial", "unknown"):
         raise ValueError("Brief outcome is missing or invalid")
     first_ms = (time.monotonic() - started) * 1000
-    selected, roles = [], {}
+    selected, roles, references = [], {}, {}
     for role in ROLES:
         items = packet_section(packet, f"/slice/{role}", call)
         selected.extend(items)
         roles.update((item["path"], role) for item in items)
+        references.update((item["path"], f"/slice/{role}/{index}") for index, item in enumerate(items))
     found = {item["path"] for item in selected}
     gap_rows = packet_section(packet, "/not_covered", call)
     gaps = {item.get("area") for item in gap_rows}
@@ -162,9 +234,9 @@ def evaluate_scenario(scenario, call, *, manifest_bytes=None, exclude_facets=(),
         "producer_boundary_occurrences": sum(row.get("count", 1) for row in gap_rows if row.get("area") == "producer_boundary"),
         "excluded_facets": list(exclude_facets),
     }
-    if manifest_bytes is not None:
+    def measure_manifest(budget):
         framing_bytes = len(FRAMING[harness].encode("utf-8"))
-        manifest_limit = manifest_bytes - framing_bytes
+        manifest_limit = budget - framing_bytes
         if manifest_limit < 256:
             raise ValueError("Harness budget is too small for framing and a manifest")
         manifest_args = {**arguments, "max_bytes": manifest_limit}
@@ -173,10 +245,13 @@ def evaluate_scenario(scenario, call, *, manifest_bytes=None, exclude_facets=(),
             raise ValueError("Harness manifest is missing or belongs to another retained case")
         size = encoded_bytes(manifest)
         injected_size = size - 1 + framing_bytes
-        if size > manifest_limit or injected_size > manifest_bytes:
+        if size > manifest_limit or injected_size > budget:
             raise ValueError("Harness manifest exceeded its UTF-8 byte budget")
         delivered = manifest.get("files", [])
         anchor = manifest.get("anchor") or {}
+        if not isinstance(delivered, list) or not isinstance(anchor, dict) or any(
+                not isinstance(row, dict) or not isinstance(row.get("path"), str) for row in delivered):
+            raise ValueError("Malformed harness source inventory")
         source_rows = [*delivered, *([anchor] if anchor.get("path") else [])]
         manifest_paths = {row["path"] for row in source_rows}
         for row in source_rows:
@@ -187,7 +262,11 @@ def evaluate_scenario(scenario, call, *, manifest_bytes=None, exclude_facets=(),
                     or not isinstance(args.get("ref"), str) or not args["ref"].startswith("/slice/")
                     or type(offset) is not int or offset < 0):
                 raise ValueError("Harness source fetch is not pinned to its case")
-        metrics["harness_context"] = {
+        if len(manifest_paths) != len(source_rows):
+            raise ValueError("Harness manifest repeats a source path")
+        if manifest_paths - found:
+            raise ValueError("Harness manifest includes a path outside its selected case slice")
+        context = {
             "harness": harness, "bytes": injected_size, "manifest_bytes": size,
             "framing_bytes": framing_bytes, "estimated_tokens_at_4_bytes": (injected_size + 3) // 4,
             "delivered_files": len(source_rows), "supplemental_files": len(delivered),
@@ -198,9 +277,27 @@ def evaluate_scenario(scenario, call, *, manifest_bytes=None, exclude_facets=(),
             "missing_required_paths": sorted(expected - manifest_paths),
             "omitted_files": manifest.get("coverage", {}).get("delivery", {}).get("files", {}).get("omitted"),
             "has_continuation": bool(manifest.get("continue_with")),
+            "delivery_recall": len(found & manifest_paths) / len(found) if found else 1,
+            "omitted_selected_paths": sorted(found - manifest_paths),
         }
         if found - manifest_paths and not manifest.get("continue_with"):
             raise ValueError("Harness delivery omitted paths without a continuation")
+        return context, manifest, manifest_paths
+    if manifest_bytes is not None:
+        metrics["harness_context"], manifest, manifest_paths = measure_manifest(manifest_bytes)
+    elif verify_sources or budget_sweep:
+        raise ValueError("Source verification and budget sweeps require a harness manifest")
+    if budget_sweep:
+        sweep, previous, previous_anchor = [], [], None
+        for budget in sorted(set(budget_sweep)):
+            context, packet_manifest, _ = (metrics["harness_context"], manifest, manifest_paths) if budget == manifest_bytes else measure_manifest(budget)
+            ordered = [row["path"] for row in packet_manifest.get("files", [])]
+            anchor = (packet_manifest.get("anchor") or {}).get("path")
+            if ordered[:len(previous)] != previous or (sweep and anchor != previous_anchor):
+                raise ValueError("Larger manifest budgets changed source order or removed files")
+            sweep.append({"budget": budget, **context, "file_order": ordered})
+            previous, previous_anchor = ordered, anchor
+        metrics["budget_sweep"] = sweep
     if diagnostics:
         delivery = packet.get("coverage", {}).get("delivery", {})
         available = "candidates" in packet or "/candidates" in delivery
@@ -208,6 +305,17 @@ def evaluate_scenario(scenario, call, *, manifest_bytes=None, exclude_facets=(),
         metrics["required_path_diagnostics"] = required_path_diagnostics(
             expected, selected, candidates, manifest_paths if manifest_bytes is not None else None,
             packet.get("coverage", {}).get("retrieval", {}).get("minimum_score", 24))
+        metrics["retrieval_context"] = {
+            "policy": packet.get("coverage", {}).get("retrieval"),
+            "candidate_count_by_role": {role: sum(row.get("role") == role for row in candidates or []) for role in ROLES},
+            "selected_candidates": [row for row in candidates or [] if row.get("selected")],
+            "unselected_role_leaders": {role: [row for row in candidates or []
+                if row.get("role") == role and not row.get("selected")][:5] for role in ROLES}}
+    delivery_ms = (time.monotonic() - started) * 1000
+    if verify_sources:
+        fetch_started = time.monotonic()
+        metrics["source_fetch"] = verify_retained_sources(call, packet.get("case_id") or packet["id"], selected, references, manifest)
+        metrics["source_fetch"]["elapsed_ms"] = round((time.monotonic() - fetch_started) * 1000, 3)
     missing = sorted(expected - found)
     forbidden = sorted(found.intersection(scenario.get("forbidden_paths", [])))
     missing_gaps = sorted(set(scenario.get("required_gap_areas", [])) - gaps)
@@ -220,7 +328,7 @@ def evaluate_scenario(scenario, call, *, manifest_bytes=None, exclude_facets=(),
             "required_path_recall": len(expected & found) / len(expected),
             "missing_paths": missing, "forbidden_paths_returned": forbidden,
             "missing_gap_areas": missing_gaps, "first_packet_ms": round(first_ms, 3),
-            "full_delivery_ms": round((time.monotonic() - started) * 1000, 3)}
+            "full_delivery_ms": round(delivery_ms, 3)}
 
 
 def required_path_diagnostics(expected, selected, candidates, manifest_paths, minimum_score):
@@ -243,7 +351,7 @@ def required_path_diagnostics(expected, selected, candidates, manifest_paths, mi
                          "evidence_rank": (candidate or {}).get("rank", (row or {}).get("candidate_rank")),
                          "delivery_rank": (row or {}).get("rank", (candidate or {}).get("delivery_rank")),
                          "role": (candidate or row or {}).get("role"),
-                         "signals": [{key: signal.get(key) for key in ("facet", "kind", "strength", "depth", "via_link")}
+                         "signals": [{key: signal.get(key) for key in ("facet", "kind", "strength", "confidence", "depth", "via_link", "provenance")}
                                      for signal in (candidate or {}).get("signals", [])]}
     return details
 
@@ -284,6 +392,8 @@ def main():
     parser.add_argument("--db", type=Path, help="Explicit database used for this evaluation")
     parser.add_argument("--view", help="Freeze this source view (otherwise pin current_view before the first scenario)")
     parser.add_argument("--diagnostics", action="store_true", help="Report candidate/selection/delivery reasons for each required path")
+    parser.add_argument("--verify-sources", action="store_true", help="Fetch every selected file, including omitted rows; verify UTF-8 pagination, byte counts and SHA-256 (full run only)")
+    parser.add_argument("--budget-sweep", default="", help="Comma-separated total harness byte budgets, e.g. 3000,4000,6000,8000 (full run only)")
     parser.add_argument("--scenarios", "--cases", dest="scenarios", type=Path, required=True,
                         help="Authored scenarios JSON; --cases is a deprecated alias")
     parser.add_argument("--output", type=Path)
@@ -293,6 +403,14 @@ def main():
     parser.add_argument("--skip-manifest", action="store_true", help="Legacy binary compatibility; no harness delivery claim")
     parser.add_argument("--ablations", default="", help="Comma-separated facets, or all, to disable one at a time")
     args = parser.parse_args()
+    try:
+        budgets = tuple(int(value) for value in args.budget_sweep.split(",") if value)
+    except ValueError:
+        parser.error("Budget sweep must contain integer byte budgets")
+    if any(value < 256 or value > 1048576 for value in budgets):
+        parser.error("Budget sweep values must be 256..1048576")
+    if args.skip_manifest and (args.verify_sources or budgets):
+        parser.error("Source verification and budget sweeps require a harness manifest")
     scenario_bytes = args.scenarios.read_bytes()
     authored = json.loads(scenario_bytes)
     scenarios = authored.get("scenarios", authored.get("cases", []))
@@ -313,7 +431,8 @@ def main():
     for scenario in scenarios:
         try:
             results.append(evaluate_scenario(scenario, call, manifest_bytes=None if args.skip_manifest else args.manifest_bytes,
-                                             harness=args.harness, diagnostics=args.diagnostics))
+                                             harness=args.harness, diagnostics=args.diagnostics,
+                                             verify_sources=args.verify_sources, budget_sweep=budgets))
         except (OSError, ValueError, RuntimeError, subprocess.TimeoutExpired) as error:
             results.append({"id": scenario.get("id"), "status": "error", "error": str(error)})
     facets = ("structure", "dependency", "tests", "domain", "execution", "data", "runtime", "history", "sessions", "lexical")
@@ -341,12 +460,14 @@ def main():
             raise ValueError("Scenario labels changed during evaluation")
     except (OSError, ValueError, RuntimeError, subprocess.TimeoutExpired) as error:
         input_error = str(error)
-    report = {"method": "ranked-task-context-v3", "scenarios": results, "facet_ablations": ablations,
+    report = {"method": "ranked-task-context-v4", "scenarios": results, "facet_ablations": ablations,
               "facet_ablation_deltas": {facet: ablation_deltas(results, rows) for facet, rows in ablations.items()},
               "inputs": {"root": str(root), "database": str(database) if database else "environment/default",
                          "source_view": call.view, "scenario_sha256": hashlib.sha256(scenario_bytes).hexdigest(),
                          "ledger_watermark": initial_state.get("ledger_watermark"), "validation_error": input_error,
-                         "manifest_bytes": None if args.skip_manifest else args.manifest_bytes, "harness": args.harness},
+                         "manifest_bytes": None if args.skip_manifest else args.manifest_bytes, "harness": args.harness,
+                         "verify_sources": args.verify_sources, "budget_sweep": budgets,
+                         "verification_scope": "Source fetches and budget sweeps run only on full scenarios, not facet ablations."},
               "passed": sum(r["status"] == "pass" for r in results),
               "missed": sum(r["status"] == "miss" for r in results),
               "errors": sum(r["status"] == "error" for r in results) + int(input_error is not None),

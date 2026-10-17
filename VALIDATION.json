@@ -1,16 +1,16 @@
 {
-  "date": "2026-10-16",
+  "date": "2026-10-17",
   "status": "partial_validation",
-  "scope": "Stage 3: explicit stage test targets; shared recall cache identity; profile configuration classification; final ordinary-brief budgeting; direct test associations and ablation degree isolation; per-file miss diagnostics; frozen source/profile clean-clone and held-out control runner.",
+  "scope": "Stage 4: operational sync readiness separate from semantic coverage; exact-input Rust call-attempt receipts, explicit retry and failure aggregation; verified retained-source fetching, Pi budget sweeps and richer miss diagnostics. Retrieval policy/weights unchanged.",
   "executed_tests": {
-    "total": 57,
-    "passed": 57,
+    "total": 63,
+    "passed": 63,
     "failed": 0,
     "suites": [
       {
         "command": "python3 -B -m unittest discover -s scripts -p 'test_*.py'",
         "exit_code": 0,
-        "tests": 33,
+        "tests": 39,
         "result": "passed"
       },
       {
@@ -28,9 +28,9 @@
     ]
   },
   "static_checks": {
-    "changed_python_syntax": "passed for 5 changed/new Python files",
-    "contract_json_parsing": "passed for all 10 owned contract schemas",
-    "owned_schema_vocabulary": "passed for all 10 owned contract schemas",
+    "changed_python_syntax": "passed for 5 changed Python files",
+    "contract_json_parsing": "passed for all 10 owned schemas",
+    "owned_schema_vocabulary": "passed in the tool/schema suite",
     "javascript_syntax": {
       "files": [
         "src/architecture/typescript.cjs",
@@ -40,7 +40,7 @@
     },
     "git_diff_whitespace": "passed",
     "changed_documentation_links": {
-      "count": 19,
+      "count": 23,
       "result": "passed"
     },
     "shell_syntax": {
@@ -50,64 +50,80 @@
       ],
       "result": "passed"
     },
-    "cargo_test_target_paths": "passed; stage2 and stage3 are explicit targets"
+    "cargo_test_target_paths": "passed; stage2, stage3 and stage4 are explicit targets"
   },
   "rust_regressions_authored": {
-    "new_unit_tests": 4,
+    "new_unit_tests": 3,
+    "existing_complete_cache_test_strengthened": 1,
     "new_integration_tests": 4,
-    "stage2_integration_tests_explicitly_registered": 3,
     "executed": false,
-    "command": "cargo test --locked --lib --test context --test stage2 --test stage3"
+    "command": "cargo test --locked --lib --test context --test stage2 --test stage3 --test stage4",
+    "stage3_fixture_setup": "Explicit --project-root for its temporary non-Git directory; production root discovery unchanged."
   },
   "blocked": [
     {
-      "command": "cargo test --locked --lib --test context --test stage2 --test stage3",
+      "command": "cargo test --locked --lib --test context --test stage2 --test stage3 --test stage4",
       "exit_code": 127,
-      "reason": "Cargo, rustc, rustfmt and Clippy are absent. Stage 3 Rust compilation and runtime behavior are unverified."
+      "reason": "Cargo, rustc, rustfmt and Clippy are absent. Stage 4 Rust compilation and runtime behavior are unverified."
     },
     {
       "command": "python3 -B tools/check_package.py",
       "exit_code": 1,
-      "reason": "Original evaluation/fixtures/index.json and evaluation/sources inputs remain absent from the supplied archive."
+      "reason": "Original evaluation/fixtures/index.json and evaluation/sources inputs remain absent."
     },
     {
-      "command": "python3 -B scripts/task-controls.py --root . --db /workspace/scratch/e596dfb5d98f/stage3-validation/baseline.db --output /workspace/scratch/e596dfb5d98f/stage3-validation/control-attempt",
+      "command": "python3 -B scripts/task-controls.py --root . --db /workspace/scratch/e596dfb5d98f/stage4-validation/baseline.db --output /workspace/scratch/e596dfb5d98f/stage4-validation/control-attempt",
       "exit_code": 2,
-      "reason": "Actual control invocation recorded blocked: the release executable is absent. No real corpus/held-out ablation results were fabricated."
+      "reason": "Actual invocation recorded blocked because the release executable is absent. No real control or corpus results are claimed."
     }
   ],
   "not_run": [
-    "Stage 3 Rust build, type checking, formatting and Clippy",
-    "Stage 2/3 Rust regressions and targeted integration failure reproduction",
-    "Real native sync and original/held-out evaluations/ablations/clean-clone comparisons",
+    "Stage 4 Rust release build, type checking, formatting, Clippy and authored regressions",
+    "Real native sync and original/held-out evaluations, ablations and clean-clone comparison",
     "Binary-backed Pi integration tests"
   ],
   "compatibility": {
-    "agent_context_projection": "2.0; shared fetch_source plus per-file ref/source_offset, reason string, separate anchor, compact freshness with Boolean fallback",
-    "case_and_brief": "Legacy optional candidate metadata stays omitted on roundtrip; new candidates add optional role. Small ordinary briefs may summarize freshness or return a pinned metadata notice. Retained cases are not rewritten.",
-    "legacy_limit": "Accepted for compatibility, ignored for agent_context delivery",
-    "evaluator": "ranked-task-context-v3; explicit db/source view, preflight pinning, mutation checks, candidate/selection/delivery diagnostics and ablation role/path deltas",
-    "harness_delivery": "Pi/Claude automatic; existing Codex/Muse explicit-only status unchanged",
-    "typed_knowledge_coverage": "Unchanged closed schema; native-request and Rust parser metrics are diagnostics",
-    "timing": "Query timing now follows status/pin preflight; cold-read figures are not directly comparable with earlier evaluator results"
+    "agent_context_projection": "2.0 unchanged",
+    "case_and_brief": "Retained case identity, authority and semantic completeness unchanged; new evaluator diagnostics only",
+    "sync_readiness": "ready and --require-ready describe operational local-source/projection alignment. Published partial calls retain resolution_complete:false and subset scope. Failed/unpublished attempts remain dirty. --retry-analysis retries partial Rust calls. SyncOptions adds retry_analysis default false. Rust profile analyzer metadata adds launcher_digest. Existing execution table stores receipts; no schema migration.",
+    "typed_knowledge_coverage": "Unchanged closed schema",
+    "evaluator": "ranked-task-context-v4; controls v2; opt-in full-source byte/SHA-256 verification and budget sweeps; controls enable both on full scenarios only",
+    "timing": "Source-fetch timing is separate. Extra budget reads affect full_delivery_ms and subsequent warm queries; these are not comparable cold-start timings."
   },
   "remaining_acceptance": [
     "cargo build --locked --release",
     "./scripts/verify-context",
-    "Focused hooks/alignment/TypeScript/refactor/budget integration commands in evaluation/STAGE3.md",
     "cargo fmt --all -- --check",
     "cargo clippy --locked --lib --bins --tests",
     "node --test tests/briefcase-pi.test.mjs",
-    "Matched-source/profile original and held-out controls via scripts/task-controls.py",
+    "Native sync readiness/reuse/retry checks in evaluation/STAGE4.md",
+    "Original/held-out --verify-sources --budget-sweep evaluations and matched clean controls",
     "Restore original conformance fixtures before full package checks"
   ],
-  "details": "evaluation/STAGE3.md",
+  "details": "evaluation/STAGE4.md",
+  "control_runner_validation": "Protocol fixture and real local Git clone validate Python orchestration only; they do not emulate Rust retrieval.",
+  "user_reported_stage3_baseline": {
+    "commit": "e2a19d0",
+    "release_build_and_install": "passed without source edits",
+    "original_brief_and_harness_recall": "32/36",
+    "heldout_brief_and_harness_recall": "16/19",
+    "delivered_files": "31–32 with zero omissions; harness recall equals brief recall",
+    "manifest_bytes": "about 6500–6600; not a separate Pi 8 KB-budget run",
+    "freshness_bytes": 199,
+    "sync": "exit 1; ready false; static calls partial",
+    "source": "User Stage 3 rerun, not Stage 4 measurements."
+  },
+  "outstanding": [
+    "No exact attribution or restored recall for remaining command.rs/history-test/verify-pi/integrations.rs/native_host.rs/sync/project.rs misses; real candidate data is needed",
+    "Unclassified refactor touchpoint and other integration assertions need runtime output; expectations retained",
+    "Native parser-error counts, resolution, latency and memory need measurement",
+    "The generic readiness fix is implemented but unverified by a Rust run on this host"
+  ],
   "user_reported_stage1_baseline": {
     "original_manifest_recall": "26/36; equal to brief",
     "heldout_manifest_recall": "17/19; equal to brief",
     "source": "User-provided Stage 1 results. Not a Stage 2 measurement."
   },
-  "control_runner_validation": "Protocol fixture plus real local Git clone validates orchestration only. It does not execute or emulate Rust retrieval.",
   "user_reported_stage2_baseline": {
     "release_build": "passed without source edits",
     "library_tests": "126 passed, zero failed",
@@ -117,11 +133,5 @@
     "native_sync_seconds": 183,
     "native_calls": "about 3109/25073; partial, ready false",
     "source": "User-provided Stage 2 evaluation. Not Stage 3 measurements."
-  },
-  "outstanding": [
-    "Refactor touchpoint assertion remains unclassified without runtime output; expectations retained and failure packet printed",
-    "Exact H3/H4 miss stages require the new real candidate diagnostics; no restored recall is claimed",
-    "Other assertions in the TypeScript integration test still require runtime validation",
-    "Native parser-error counts, resolution, memory and latency require measurement"
-  ]
+  }
 }

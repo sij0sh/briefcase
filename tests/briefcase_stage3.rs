@@ -69,7 +69,7 @@ fn recall_policy_switches_do_not_make_alignment_dirty_or_enqueue_the_watcher() {
             .env_remove("BRIEFCASE_DB").env_remove("BRIEFCASE_SYNC").env("PATH",&commands)
             .env("PI_CODING_AGENT_DIR",f.dir.path().join("pi")).env("CODEX_HOME",f.dir.path().join("codex"))
             .env("CLAUDE_CONFIG_DIR",f.dir.path().join("claude")).env("MUSE_HOME",f.dir.path().join("muse"))
-            .args(["--db",f.db.to_str().unwrap(),"--json"]).args(args).output().unwrap();
+            .args(["--db",f.db.to_str().unwrap(),"--project-root",f.root.to_str().unwrap(),"--json"]).args(args).output().unwrap();
         assert!(output.status.success(),"{args:?}: {} {}",String::from_utf8_lossy(&output.stdout),String::from_utf8_lossy(&output.stderr));
         serde_json::from_slice(&output.stdout).unwrap()
     };

@@ -40,7 +40,8 @@ inventory={path:{'path':path,'artifact_id':'artifact:'+path,'digest':'sha256:'+h
 roles=['impl','test','config','script','build','install','doc','adr','plan','fixture','generated']
 profile={'language':'rust','semantic':False,'calls':True}
 if command=='sync':
-    result={'sync':'refreshed','view_id':view,'ready':False,'profile':profile,'static_calls':{'state':'partial'}}
+    result={'sync':'refreshed','view_id':view,'ready':True,'profile':profile,
+        'static_calls':{'state':'partial','ready':True,'coverage':{'resolution_complete':False}}}
 elif command=='call':
     operation=args[position+1]
     arguments=json.loads(args[args.index('--args')+1])
@@ -48,7 +49,15 @@ elif command=='call':
         result={'current_view':view,'ledger_watermark':1,'retracted_count':0,'pending_or_interrupted':False,
             'source_sync':{'view_id':view,'profile':profile},
             'inventory':{'history_commits_reachable':0,'session_publications':0}}
-    elif operation=='explain': result={'entry':inventory}
+    elif operation=='explain':
+        if arguments.get('report_id')==index: result={'entry':inventory}
+        else:
+            path=list(inventory)[int(arguments['ref'].split('/')[-1])]
+            raw=files[path].encode();offset=arguments.get('source_offset',0);end=min(offset+4000,len(raw))
+            while end<len(raw) and raw[end]&192==128:end-=1
+            result={'report_id':case,'ref':arguments['ref'],'entry':inventory[path],
+                'text':raw[offset:end].decode(),'source_offset':offset,'next_source_offset':end if end<len(raw) else None,
+                'omitted_bytes':len(raw)-end}
     elif operation=='brief':
         selected=[{**row,'rank':i+1,'candidate_rank':i+1} for i,row in enumerate(inventory.values())]
         result={'id':case,'case_id':case,'view_id':view,'index_id':index,'outcome':'partial',
@@ -146,10 +155,14 @@ class TaskControlsTests(unittest.TestCase):
             report = json.loads((output / "control-report.json").read_text())
             self.assertEqual(report["status"], "measured")
             self.assertEqual(report["retained"]["source_manifest_sha256"], report["clean"]["source_manifest_sha256"])
-            self.assertFalse(report["clean"]["ready"], "partial native coverage must remain explicit")
+            self.assertTrue(report["clean"]["ready"])
+            self.assertFalse(report["clean"]["static_calls"]["coverage"]["resolution_complete"], "readiness must not promote semantic coverage")
             heldout = json.loads((output / "retained/heldout.json").read_text())
             self.assertEqual(len(heldout["facet_ablations"]), 10)
             self.assertEqual(heldout["inputs"]["source_view"], report["retained"]["view_id"])
+            self.assertEqual(heldout["scenarios"][0]["source_fetch"]["state"], "verified")
+            self.assertEqual([row["budget"] for row in heldout["scenarios"][0]["budget_sweep"]], [3000,4000,6000,8000,12000])
+            self.assertNotIn("source_fetch", heldout["facet_ablations"]["tests"][0])
             self.assertEqual(report["clean"]["session_publications"], 0)
 
     def test_comparison_rejects_changed_scenario_labels(self):

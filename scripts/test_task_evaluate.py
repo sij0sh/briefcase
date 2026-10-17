@@ -282,5 +282,116 @@ class TaskEvaluationTests(unittest.TestCase):
             self.assertEqual(report["errors"], 1)
 
 
+class SourceTransportTests(unittest.TestCase):
+    def fixture(self):
+        import hashlib
+        bodies = {"a": "λ" * 2501, "b": "second\n", "empty": ""}
+        selected = [{"path": path, "artifact_id": f"artifact:{path}", "digest": "sha256:" + hashlib.sha256(body.encode()).hexdigest(),
+                     "bytes": len(body.encode()), "rank": index + 1} for index, (path, body) in enumerate(bodies.items())]
+        packet = {"id": "task-case:fetch", "case_id": "task-case:fetch", "outcome": "partial", "not_covered": [],
+                  "slice": {role: selected if role == "impl" else [] for role in task_evaluate.ROLES},
+                  "coverage": {"delivery": {key: {"omitted": 0} for key in
+                      ["/not_covered", *[f"/slice/{role}" for role in task_evaluate.ROLES]]}}}
+        manifest = {"kind": "agent_context", "case_id": packet["id"],
+                    "fetch_source": {"operation": "explain", "arguments": {"report_id": packet["id"]}},
+                    "anchor": {"path": "a", "ref": "/slice/impl/0", "source_offset": 2},
+                    "files": [], "continue_with": {"operation": "page"}}
+        calls = []
+        def call(operation, arguments):
+            calls.append((operation, arguments))
+            if operation == "brief":
+                return packet
+            if operation == "agent_context":
+                return json.loads(json.dumps(manifest))
+            if operation != "explain":
+                raise AssertionError(operation)
+            row = selected[int(arguments["ref"].rsplit("/", 1)[1])]
+            raw, offset = bodies[row["path"]].encode(), arguments["source_offset"]
+            end = min(offset + 4000, len(raw))
+            while end < len(raw) and raw[end] & 192 == 128:
+                end -= 1
+            return {"report_id": packet["id"], "ref": arguments["ref"], "entry": row.copy(),
+                    "source_offset": offset, "text": raw[offset:end].decode(),
+                    "next_source_offset": end if end < len(raw) else None, "omitted_bytes": len(raw) - end}
+        return packet, manifest, call, calls
+
+    def test_full_utf8_sources_include_manifest_omissions_empty_files_and_nonzero_offsets(self):
+        packet, manifest, call, calls = self.fixture()
+        result = task_evaluate.evaluate_scenario({"id": "fetch", "task": "inspect", "required_paths": ["a", "b"]},
+            call, manifest_bytes=8000, verify_sources=True)
+        fetched = result["source_fetch"]
+        self.assertEqual(fetched["state"], "verified")
+        self.assertEqual(fetched["files"], 3)
+        self.assertEqual(fetched["bytes"], 5009)
+        self.assertFalse(next(row for row in fetched["sources"] if row["path"] == "b")["in_manifest"])
+        offsets = [args["source_offset"] for operation, args in calls if operation == "explain" and args["ref"] == "/slice/impl/0"]
+        self.assertEqual(offsets, [2, 0, 4000])
+        self.assertEqual(result["harness_context"]["delivery_recall"], 1/3)
+
+    def test_corruption_stalled_cursors_wrong_entries_and_budget_notices_fail_source_verification(self):
+        changes = [
+            {"text": "x" * 4000}, {"next_source_offset": 1}, {"source_offset": True},
+            {"entry": {"path": "wrong"}}, {"entry": "malformed"}, {"text": None}, {"omitted_bytes": -1},
+            {"report_id": "task-case:wrong"}, {"ref": "/slice/impl/1"},
+        ]
+        for change in changes:
+            with self.subTest(change=change):
+                packet, manifest, call, _ = self.fixture()
+                def corrupt(operation, arguments):
+                    page = call(operation, arguments)
+                    return {**page, **change} if operation == "explain" else page
+                with self.assertRaises(ValueError):
+                    task_evaluate.evaluate_scenario({"id": "bad", "task": "inspect", "required_paths": ["a"]},
+                        corrupt, manifest_bytes=8000, verify_sources=True)
+
+    def test_correct_full_digest_still_rejects_a_wrong_advertised_excerpt(self):
+        _, _, call, _ = self.fixture()
+        def corrupt(operation, arguments):
+            page = call(operation, arguments)
+            if operation == "explain" and arguments["source_offset"] == 2:
+                page["text"] = "μ" * (len(page["text"].encode()) // 2)
+            return page
+        with self.assertRaisesRegex(ValueError, "Advertised source span"):
+            task_evaluate.evaluate_scenario({"id": "bad", "task": "inspect", "required_paths": ["a"]},
+                corrupt, manifest_bytes=8000, verify_sources=True)
+
+    def test_byte_digest_is_checked_even_when_page_counts_and_entries_agree(self):
+        _, _, call, _ = self.fixture()
+        def corrupt(operation, arguments):
+            page = call(operation, arguments)
+            if operation == "explain":
+                page["text"] = page["text"].replace("λ", "μ")
+            return page
+        with self.assertRaisesRegex(ValueError, "digest differs"):
+            task_evaluate.evaluate_scenario({"id": "bad", "task": "inspect", "required_paths": ["a"]},
+                corrupt, manifest_bytes=8000, verify_sources=True)
+
+    def test_budget_sweep_checks_same_case_order_and_total_pi_bytes(self):
+        _, manifest, call, _ = self.fixture()
+        result = task_evaluate.evaluate_scenario({"id": "sweep", "task": "inspect", "required_paths": ["a"]},
+            call, manifest_bytes=8000, budget_sweep=(8000, 3000, 4000, 6000))
+        self.assertEqual([row["budget"] for row in result["budget_sweep"]], [3000,4000,6000,8000])
+        self.assertTrue(all(row["bytes"] <= row["budget"] for row in result["budget_sweep"]))
+        def reorder(operation, arguments):
+            page = call(operation, arguments)
+            if operation == "agent_context":
+                paths = ["b", "empty"] if arguments["max_bytes"] < 5000 else ["empty", "b"]
+                page["files"] = [{"path": path, "ref": "/slice/impl/1"} for path in paths]
+            return page
+        with self.assertRaisesRegex(ValueError, "changed source order"):
+            task_evaluate.evaluate_scenario({"id": "bad", "task": "inspect", "required_paths": ["a"]},
+                reorder, manifest_bytes=8000, budget_sweep=(3000,8000))
+
+    def test_diagnostics_preserve_hub_penalties_and_role_competitors(self):
+        packet, _, call, _ = self.fixture()
+        packet["coverage"]["delivery"]["/candidates"] = {"omitted": 0}
+        packet["candidates"] = [{"path": "missing", "rank": 33, "score": 51, "selected": False, "role": "impl",
+            "signals": [{"facet": "dependency", "kind": "IMPORTS", "strength": 51,
+                "provenance": {"hub_degree": 16, "hub_penalty": 45}}]}]
+        result = task_evaluate.evaluate_scenario({"id": "miss", "task": "inspect", "required_paths": ["missing"]}, call, diagnostics=True)
+        self.assertEqual(result["required_path_diagnostics"]["missing"]["signals"][0]["provenance"]["hub_penalty"],45)
+        self.assertEqual(result["retrieval_context"]["unselected_role_leaders"]["impl"][0]["path"],"missing")
+
+
 if __name__ == "__main__":
     unittest.main()

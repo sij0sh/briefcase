@@ -71,7 +71,7 @@ pub fn readiness(db: &Path) -> Value {
         }
     };
     let layers=if initialized {Ledger::read_only(db).and_then(|l|super::task::readiness(&l)).unwrap_or_else(|e|json!({"state":"unavailable","error":e.to_string()}))} else {json!({"source_text":{"state":"unavailable"}})};
-    json!({"database":db,"state":state,"layers":layers,"writer_active":writing,"error":error,"last_sync":sync,
+    json!({"database":db,"state":state,"readiness_scope":"local_sources_and_projections","layers":layers,"writer_active":writing,"error":error,"last_sync":sync,
         "scheduler":super::scheduler::status(db)})
 }
 
@@ -86,6 +86,7 @@ impl SyncOptions {
             project: None,
             policy: None,
             calls: None,
+            retry_analysis: false,
             analyzer: None,
             node: "node".into(),
             compiler: None,
@@ -145,7 +146,7 @@ pub fn validate_database(root: &Path, db: &Path) -> Result<()> {
 pub fn check(o: &SyncOptions, domains: &DirtySet) -> Result<Value> {
     let alignment = reconcile::check(o, domains)?;
     let ready = alignment.iter().all(|a| a.state == AlignmentState::Aligned);
-    Ok(json!({"sync":"checked","ready":ready,"alignment":alignment,
+    Ok(json!({"sync":"checked","ready":ready,"readiness_scope":"local_sources_and_projections","alignment":alignment,
         "dirty":reconcile::dirty(&alignment),"claims":claims_status(&o.db)?}))
 }
 pub fn sync(o: &SyncOptions) -> Result<Value> {
@@ -183,6 +184,14 @@ fn failure(e: Box<dyn std::error::Error + Send + Sync>) -> Value {
     json!({"sync":if project::is_timeout(e.as_ref()) {"timeout"} else {"failed"},"status":"failed",
         "ready":false,"error":bounded(&e.to_string())})
 }
+
+fn domain_ready(value:&Value)->bool {
+    let state=value["sync"].as_str().or(value["status"].as_str()).unwrap_or("failed");
+    (matches!(state,"up-to-date"|"refreshed"|"rebuilt"|"published"|"not_detected"|"no_commits"|"not_a_repository")
+        || value.get("operation").is_some())
+        && value["ready"]!=false
+        && (value["static_calls"].is_null() || value["static_calls"]["ready"]==true)
+}
 fn run(
     o: &SyncOptions,
     domains: &DirtySet,
@@ -191,9 +200,10 @@ fn run(
 ) -> Result<Value> {
     let mut check_options=o.clone();check_options.timeout=o.timeout.saturating_sub(started.elapsed());
     let alignment = reconcile::check(&check_options, domains)?;
-    let mut result = json!({"sync":"up-to-date","ready":true,"alignment":alignment,"sessions":{}});
+    let mut result = json!({"sync":"up-to-date","ready":true,"readiness_scope":"local_sources_and_projections","alignment":alignment,"sessions":{}});
     let mut ledger = None;
     let mut changed = false;
+    let mut ready = true;
     for a in &alignment {
         let value = if a.state == AlignmentState::Unavailable {
             a.detail.clone()
@@ -232,30 +242,15 @@ fn run(
             .as_str()
             .or(value["status"].as_str())
             .unwrap_or("failed");
-        let good = matches!(
-            state,
-            "up-to-date"
-                | "refreshed"
-                | "rebuilt"
-                | "published"
-                | "not_detected"
-                | "no_commits"
-                | "not_a_repository"
-        ) || value.get("operation").is_some();
+        ready &= domain_ready(&value);
         changed |= matches!(state, "refreshed" | "rebuilt" | "published")
             || value["sessions"]
                 .as_array()
                 .is_some_and(|ss| ss.iter().any(|s| s["result"]["status"] == "published"));
-        if !good {
-            result["ready"] = json!(false);
-        }
-        if a.source=="project" && matches!(value["static_calls"]["state"].as_str(),Some("partial"|"failed"|"budget_exhausted"|"partial_or_not_run")) {
-            result["ready"]=json!(false);
-        }
         if a.source == "project" {
             // Preserve the established source result fields for CLI consumers.
             for (k, v) in value.as_object().into_iter().flatten() {
-                result[k] = v.clone();
+                if k!="ready" {result[k] = v.clone();}
             }
             result["project"] = value;
             if let Some(view) = result["view_id"].as_str() {
@@ -268,6 +263,7 @@ fn run(
             result["sessions"][a.source.trim_start_matches("sessions:")] = value;
         }
     }
+    result["ready"]=json!(ready);
     // Source readiness keeps its established result name. Other domain failures stay visible.
     let failed = result["ready"] == false;
     if failed
@@ -297,4 +293,22 @@ pub fn claims_status(db: &Path) -> Result<Value> {
         );
     }
     Ledger::read_only(db)?.claims_coverage()
+}
+
+#[cfg(test)]
+mod readiness_tests {
+    use super::*;
+    #[test]
+    fn published_partial_analysis_is_usable_but_failed_domains_and_profiles_are_not() {
+        for state in ["partial","complete","unavailable","not_requested"] {
+            assert!(domain_ready(&json!({"sync":"refreshed","static_calls":{"state":state,"ready":true}})));
+        }
+        for value in [
+            json!({"sync":"refreshed","static_calls":{"state":"failed","ready":false}}),
+            json!({"sync":"up-to-date","static_calls":{"state":"budget_exhausted","ready":false}}),
+            json!({"sync":"refreshed","ready":false,"profiles":[{"result":{"sync":"failed"}}]}),
+            json!({"sync":"needs_configuration"}),json!({"sync":"timeout"}),json!({"status":"failed"}),
+        ] {assert!(!domain_ready(&value),"{value}");}
+        assert!(domain_ready(&json!({"status":"not_detected"})));
+    }
 }

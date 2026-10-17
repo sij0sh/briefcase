@@ -114,6 +114,14 @@ impl Ledger {
             [view],|row|row.get(0)).optional()?;
         body.map(|raw|identity::parse(raw.as_bytes())).transpose()
     }
+    /// Operational outcome of the newest Rust call attempt for unchanged inputs.
+    /// These receipts never alter semantic runs, coverage, or source identity.
+    pub(crate) fn static_call_attempt(&self,view:&str,input_key:&str)->Result<Option<Value>> {
+        let body:Option<String>=self.db.query_row(
+            "SELECT body FROM executions WHERE view_id=? AND json_extract(body,'$.operation')='sync-static-calls' AND json_extract(body,'$.input_key')=? ORDER BY id DESC LIMIT 1",
+            params![view,input_key],|row|row.get(0)).optional()?;
+        body.map(|raw|identity::parse(raw.as_bytes()).map(|value|value["result"].clone())).transpose()
+    }
     pub fn report(&self, id: &str) -> Result<Value> {
         let body: String = self
             .db

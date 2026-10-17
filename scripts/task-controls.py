@@ -112,7 +112,8 @@ def run_evaluation(binary, root, db, view, scenarios, output, *, timeout, budget
     command = [sys.executable, "-B", str(Path(__file__).with_name("task-evaluate.py")),
                "--binary", str(binary), "--root", str(root), "--db", str(db), "--view", view,
                "--scenarios", str(scenarios), "--output", str(output), "--timeout", str(timeout),
-               "--manifest-bytes", str(budget), "--harness", harness, "--diagnostics", "--ablations", ablations]
+               "--manifest-bytes", str(budget), "--harness", harness, "--diagnostics", "--ablations", ablations,
+               "--verify-sources", "--budget-sweep", "3000,4000,6000,8000,12000"]
     print(f"Evaluating {output.parent.name}/{output.stem}", file=sys.stderr, flush=True)
     # Each RPC has its own evaluator deadline; no shell or background watcher runs.
     result = subprocess.run(command, capture_output=True, text=True)
@@ -161,9 +162,10 @@ def main():
     if output.exists() and any(output.iterdir()):
         parser.error("Use a new or empty output directory; existing results are never overwritten")
     output.mkdir(parents=True, exist_ok=True)
-    report = {"method": "task-context-controls-v1", "status": "blocked", "started_at_unix": time.time(),
+    report = {"method": "task-context-controls-v2", "status": "blocked", "started_at_unix": time.time(),
               "inputs": {"binary": str(binary), "root": str(root), "database": str(db),
-                         "manifest_bytes": args.manifest_bytes, "harness": args.harness},
+                         "manifest_bytes": args.manifest_bytes, "harness": args.harness,
+                         "verify_sources": True, "budget_sweep": [3000,4000,6000,8000,12000]},
               "limitations": ["This control isolates source-only context from retained Git/session evidence; it does not prove generalization from a small labelled corpus.",
                               "Native outcomes and cold-start timing can vary. Source equality is verified separately from producer completeness."]}
     try:
@@ -211,7 +213,7 @@ def main():
             raise ValueError("Clean control contains retained history or sessions")
         report["clean"] = {"root": str(clone), "database": str(control_db), "view_id": control_view,
                            "source_manifest_sha256": source_manifest["sha256"], "sync_state": synced.get("sync"),
-                           "ready": synced.get("ready"), "profile": synced.get("profile"),
+                           "ready": synced.get("ready"), "static_calls": synced.get("static_calls"), "profile": synced.get("profile"),
                            "retained_history_commits": 0, "session_publications": 0}
         comparisons = {}
         for name, source in scenarios.items():

@@ -24,6 +24,12 @@ omitted. Small-budget brief freshness may use a labelled summary with an
 explanation call for a fresh full envelope. The retained case and agent-context
 v2 contracts remain unchanged.
 
+Stage 4 changes operational sync readiness, not typed knowledge Coverage or
+task-case completeness. Published partial static calls keep their partial run,
+subset scope and `resolution_complete:false`. The evaluator's v4 report adds
+verified source fetches, separate fetch timing, byte-budget sweeps and candidate
+provenance; these diagnostic reports are not semantic knowledge assertions.
+
 Optional `fixture_label` is review metadata, not a production identity input. Readable fixture IDs are aliases used in isolated examples. Production constructors must implement the semantic identity keys in the canonical constructors under `src/architecture/identity.rs`.
 
 ## Offline structural profile

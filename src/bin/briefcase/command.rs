@@ -442,6 +442,9 @@ pub(crate) enum Command {
         /// Disable static call extraction for this capture/profile.
         #[arg(long)]
         no_calls: bool,
+        /// Retry a published partial Rust call analysis even when inputs are unchanged.
+        #[arg(long, conflicts_with = "no_calls")]
+        retry_analysis: bool,
         /// Rust analyzer executable. Default: `rust-analyzer` on PATH if it answers, else syntax-only.
         #[arg(long)]
         analyzer: Option<PathBuf>,
@@ -449,7 +452,7 @@ pub(crate) enum Command {
         node: PathBuf,
         #[arg(long)]
         typescript_compiler: Option<PathBuf>,
-        /// Exit nonzero unless the result is ready (`refreshed`, `up-to-date` or `rebuilt`).
+        /// Exit nonzero unless local sources/projections are ready; semantic coverage may be partial.
         #[arg(long)]
         require_ready: bool,
     },

@@ -12,7 +12,7 @@ class TestLayoutTests(unittest.TestCase):
         self.assertFalse(manifest["package"]["autotests"])
         targets = {target["name"]: target["path"] for target in manifest["test"]}
         gate = (ROOT / "scripts/verify-context").read_text()
-        for stage in ("stage2", "stage3"):
+        for stage in ("stage2", "stage3", "stage4"):
             self.assertEqual(targets[stage], f"tests/briefcase_{stage}.rs")
             self.assertTrue((ROOT / targets[stage]).is_file())
             self.assertIn(f"--test {stage}", gate)

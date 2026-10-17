@@ -35,6 +35,16 @@ facet ablations, creates an identical-source clean clone and fresh database,
 checks the analysis profile, and compares both conditions. Its output directory
 must be outside the measured source tree. Native partial coverage remains visible.
 
+[Stage 4](evaluation/STAGE4.md) separates operational sync readiness from static
+call completeness. Published partial attempts are reused for unchanged inputs;
+`sync --retry-analysis` requests another attempt. Failure and timeout outcomes
+remain retryable. Receipts bind the source view and source/profile/implementation
+key, including Rust provider bytes. `--verify-sources` fetches every selected
+file, even if omitted from a small manifest, and verifies byte counts and hashes.
+`--budget-sweep` checks Pi framing, monotonic file delivery and stable order.
+Diagnostics include candidate signal provenance and role competitors. Retrieval
+weights and facet policy remain unchanged pending measured miss diagnostics.
+
 The [task evaluator](scripts/task-evaluate.py) measures labelled file recall,
 Recall@K, required-file ranks, labelled precision, selected source/response
 bytes, actionable gaps, false-complete outcomes and actual harness delivery. Scenarios must supply authored
@@ -51,8 +61,11 @@ results and larger-corpus quality have not been measured here.
 
 
 ```sh
+mkdir -p /tmp/briefcase-stage4
 python3 scripts/task-evaluate.py --binary target/debug/briefcase --root . \
-  --scenarios evaluation/task-scenarios.json --ablations all --output task-results.json
+  --scenarios evaluation/task-scenarios.json --ablations all --diagnostics \
+  --verify-sources --budget-sweep 3000,4000,6000,8000,12000 \
+  --output /tmp/briefcase-stage4/task-results.json
 ```
 
 `--manifest-bytes` defaults to 8000, including the selected adapter framing;

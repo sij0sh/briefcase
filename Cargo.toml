@@ -52,3 +52,7 @@ path = "tests/briefcase_stage2.rs"
 [[test]]
 name = "stage3"
 path = "tests/briefcase_stage3.rs"
+
+[[test]]
+name = "stage4"
+path = "tests/briefcase_stage4.rs"

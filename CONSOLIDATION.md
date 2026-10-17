@@ -93,7 +93,7 @@ Run these checks on a Rust-enabled host:
 cargo build --locked
 cargo test --locked --lib
 cargo test --locked --test context
-cargo test --locked --test stage2 --test stage3
+cargo test --locked --test stage2 --test stage3 --test stage4
 cargo fmt --all -- --check
 cargo clippy --locked --lib --bins --tests
 node --test tests/briefcase-task-adapter.test.mjs
@@ -111,3 +111,13 @@ precision, source/response bytes, actionable gaps and actual harness manifest
 delivery. Per-facet ablations are available through the evaluator's `--ablations`
 option. The full original conformance corpus is absent; weights need a larger,
 held-out task corpus before making generalized retrieval-quality claims.
+
+Stage 4 records operational Rust call-attempt outcomes separately from semantic
+coverage. A published partial result can satisfy source alignment; it never
+becomes `resolution_complete:true`. Stable partials require an explicit
+`sync --retry-analysis` or changed inputs to repeat native work. Failure and
+unpublished timeout states stay dirty. Multi-profile and cross-domain readiness
+aggregate failures instead of overwriting them with a successful profile.
+Source fetching and Pi budget sweeps now run in both full control conditions;
+candidate diagnostics preserve hub penalties and role competitors. See
+[evaluation/STAGE4.md](evaluation/STAGE4.md) for verification and host commands.

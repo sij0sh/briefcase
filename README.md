@@ -231,12 +231,27 @@ extraction defaults to enabled when supported; set `calls:false` or use
 Rust LSP startup/version, one workspace-readiness window and native lookups share
 one deadline. Null definitions are single misses after that window. Build scripts,
 proc macros and network fetching stay disabled; installed sysroot discovery and
-all Cargo targets are enabled. Partial native call runs remain retryable and
-carry a `native_resolved_subset` guarantee scope. They cannot satisfy complete
-static-call readiness. Deadline checks surround cooperative phases and atomic
+all Cargo targets are enabled. A successfully published partial call run is usable
+for local sync: `ready:true` describes source/projection alignment, while
+`static_calls.state:partial`, `resolution_complete:false` and the
+`native_resolved_subset` guarantee keep its semantic limits explicit. Unchanged
+syncs and watchers reuse that attempt. Use `sync --retry-analysis` to retry a
+partial Rust run; source/profile, provider bytes or implementation changes also
+invalidate its receipt. Failed attempts and exhausted budgets without a usable
+attempt remain dirty and retryable. `--require-ready` tests operational readiness;
+inspect semantic coverage separately. Deadline checks surround cooperative phases and atomic
 publication; this is not hard real-time process preemption.
 Profile scope is operator-selected; Briefcase does not silently guess a
 mixed-language/project analysis matrix.
+
+For a measured 8 KB Pi check and full retained-source verification, run
+`scripts/task-evaluate.py` with `--harness pi --manifest-bytes 8000
+--verify-sources --budget-sweep 3000,4000,6000,8000,12000 --diagnostics`.
+Source checks include selected files omitted from a small manifest and verify
+full byte counts, SHA-256 digests and UTF-8 pagination. Source fetching is timed
+separately. The control runner enables these checks for both full scenario sets;
+facet ablations retain their ordinary single-budget evaluation. See
+[Stage 4](evaluation/STAGE4.md) for commands, readiness states and validation limits.
 
 `inspect-external <absolute paths...>` explicitly checks selected installed
 files against retained source digests. Its derived `INSTALLED_FROM` association
