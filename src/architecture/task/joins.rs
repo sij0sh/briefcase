@@ -22,6 +22,8 @@ fn add_link(out: &mut Joins, predicate: &str, from: &str, to: &str, basis: Value
     Ok(())
 }
 
+const SESSION_LIMIT:usize=200;
+
 /// Retrieval precedes final slice selection. Only retained changed paths and
 /// normalized read/confirmed-edit events can introduce files, never transcript
 /// prose or failed edit attempts. Foreign repository recordings cannot seed.
@@ -47,13 +49,17 @@ pub(super) fn discover(l:&Ledger,s:&Snapshot,r:&super::request::Request,paths:&B
     let mut considered=0;
     let mut omitted_paths=0;
     let mut omitted_requests=0;
+    // Foreign recordings are filtered before the bound, so other repositories'
+    // sessions cannot exhaust this repository's discovery budget.
+    let repository=rows(&s.view.bundle,"snapshots").first().map(|v|text(v,"repository_id")).unwrap_or_default();
+    let root=s.view.diagnostics["capture"]["repository_root"].as_str().and_then(session::paths::normalize);
+    let local:Vec<_>=publications.iter().filter(|publication|{
+        let recorded_root=publication["context"]["repository_root"].as_str().and_then(session::paths::normalize);
+        publication["context"]["repository_id"]==repository && root.as_ref().zip(recorded_root.as_ref()).is_some_and(|(a,b)|a==b)
+    }).collect();
+    let omitted_sessions:Vec<_>=if r.enabled("sessions") {local.iter().skip(SESSION_LIMIT).map(|p|text(p,"view_id")).collect()} else {vec![]};
     if r.enabled("sessions") {
-        let repository=rows(&s.view.bundle,"snapshots").first().map(|v|text(v,"repository_id")).unwrap_or_default();
-        let root=s.view.diagnostics["capture"]["repository_root"].as_str().and_then(session::paths::normalize);
-        for publication in publications.iter().take(200) {
-            let recorded_root=publication["context"]["repository_root"].as_str().and_then(session::paths::normalize);
-            if publication["context"]["repository_id"]!=repository ||
-                !root.as_ref().zip(recorded_root.as_ref()).is_some_and(|(a,b)|a==b) {continue;}
+        for publication in local.iter().take(SESSION_LIMIT) {
             considered+=1;
             if publication["context"]["retention"]=="metadata" {continue;}
             let view=text(publication,"view_id");
@@ -72,6 +78,10 @@ pub(super) fn discover(l:&Ledger,s:&Snapshot,r:&super::request::Request,paths:&B
             if !overlap&&request.is_none() {continue;}
             let fanout=1+touches.len()/8;
             omitted_paths+=touches.len().saturating_sub(64);
+            // Seed overlap and confirmed edits outrank reads within the path
+            // bound; alphabetical order only breaks ties.
+            let mut touches:Vec<_>=touches.into_iter().collect();
+            touches.sort_by_key(|(path,event)|(!paths.contains(path),event["kind"]!="file_edit_confirmed",path.clone()));
             for (path,event) in touches.into_iter().take(64) {
                 hints.push(json!({"path":path,"facet":"sessions","kind":event["kind"],
                     "strength":(if event["kind"]=="file_edit_confirmed" {60} else {40})/fanout as u64,
@@ -83,8 +93,10 @@ pub(super) fn discover(l:&Ledger,s:&Snapshot,r:&super::request::Request,paths:&B
         }
     }
     Ok((hints,json!({"history_enabled":r.enabled("history"),"sessions_enabled":r.enabled("sessions"),
-        "session_publications":publications.len(),"session_discovery_limit":200,"sessions_considered":considered,
-        "omitted_session_publications":if r.enabled("sessions") {publications.len().saturating_sub(200)} else {0},
+        "session_publications":publications.len(),"repository_session_publications":local.len(),
+        "foreign_session_publications":publications.len()-local.len(),"session_discovery_limit":SESSION_LIMIT,"sessions_considered":considered,
+        "omitted_session_publications":omitted_sessions.len(),
+        "continue_with":omitted_sessions.iter().take(16).map(|view|json!({"operation":"session_files","arguments":{"session":view}})).collect::<Vec<_>>(),
         "omitted_session_paths":omitted_paths,"omitted_or_truncated_requests":omitted_requests})))
 }
 

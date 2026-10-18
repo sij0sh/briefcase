@@ -134,9 +134,10 @@ pub(super) fn build(l:&Ledger,s:&Snapshot,ix:&Index,r:&Request) -> Result<Trace>
             confidence:text(&hint,"confidence"),depth:0,via_link:None,provenance:hint["provenance"].clone(),
         });
     }
-    retrieval::expand(ix,r,&seed,&mut candidates);
-    retrieval::localize(s,r,&mut candidates);
+    let graph_coverage=retrieval::expand(ix,r,&seed,&mut candidates);
+    retrieval::localize(s,r,&mut candidates)?;
     let candidates=retrieval::rank(ix,r,candidates);
+    let project_scope=retrieval::project_scope(s,r,&seed,&candidates);
     let paths:BTreeSet<_>=candidates.iter().filter(|c|c.selected).map(|c|c.path.clone()).collect();
     let reached_by=candidates.iter().filter(|c|c.selected).map(|c|(c.path.clone(),c.reach())).collect();
     let keys=ix.entities.iter().filter(|(_,e)|!paths.is_disjoint(&e.files)).map(|(k,_)|k.clone()).collect();
@@ -155,7 +156,7 @@ pub(super) fn build(l:&Ledger,s:&Snapshot,ix:&Index,r:&Request) -> Result<Trace>
         "evaluation_artifacts":{"policy":"excluded from automatic discovery and graph bridges; exact anchors may opt in",
             "retained_count":s.files.keys().filter(|path|source::is_evaluation_artifact(path)).count()},
         "candidate_count":candidates.len(),"selected_files":paths.len(),"omitted_candidates":candidates.len()-paths.len(),
-        "excluded_facets":r.exclude_facets,"lexical_discovery":lexical_coverage,"join_discovery":join_coverage,
+        "excluded_facets":r.exclude_facets,"lexical_discovery":lexical_coverage,"join_discovery":join_coverage,"graph_expansion":graph_coverage,"project_scope":project_scope,
         "semantics":"Scores rank reading context, never assertion authority, implementation membership or task completion."});
     Ok(Trace {seed,depth:r.depth,paths,keys,links,joins,lexical_candidates,boundaries,reached_by,candidates,retrieval})
 }

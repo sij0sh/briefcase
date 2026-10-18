@@ -10,9 +10,6 @@ pub fn occurrences(l: &Ledger, a: &Value) -> Result<Value> {
     let offset = a["offset"].as_u64().unwrap_or(0) as usize;
     let limit = a["limit"].as_u64().unwrap_or(100) as usize;
     require((1..=1000).contains(&limit),"ARGUMENTS","limit must be 1..1000")?;
-    let mut total = 0usize;
-    let mut items = vec![];
-    let mut searched = 0usize;
     let pattern=needle.as_bytes();
     let mut prefix=vec![0;pattern.len()];
     let mut matched=0;
@@ -21,21 +18,47 @@ pub fn occurrences(l: &Ledger, a: &Value) -> Result<Value> {
         if pattern[matched]==pattern[i] {matched+=1;}
         prefix[i]=matched;
     }
-    for (path,content) in &s.contents {
-        if path_prefix.is_some_and(|p| !p.is_empty() && path != p && !path.starts_with(&format!("{}/",p.trim_end_matches('/')))) {continue;}
-        searched += 1;
-        let mut line = 1;
-        let mut column = 1;
-        let mut counted_until = 0;
+    // KMP keeps overlapping enumeration linear even for long repeated
+    // literals. UTF-8 needle matches necessarily start/end at boundaries.
+    let find=|content:&str,visit:&mut dyn FnMut(usize)|{
         let mut matched=0;
-        // KMP keeps overlapping enumeration linear even for long repeated
-        // literals. UTF-8 needle matches necessarily start/end at boundaries.
         for (position,byte) in content.as_bytes().iter().enumerate() {
             while matched>0 && pattern[matched]!=*byte {matched=prefix[matched-1];}
             if pattern[matched]==*byte {matched+=1;}
             if matched!=pattern.len() {continue;}
-            let found=position+1-pattern.len();
-            if total >= offset && items.len() < limit {
+            visit(position+1-pattern.len());
+            matched=prefix[matched-1];
+        }
+    };
+    let scope:Vec<&str>=s.files.keys().map(String::as_str).filter(|path|path_prefix.is_none_or(|p|p.is_empty()
+        || *path==p || path.starts_with(&format!("{}/",p.trim_end_matches('/'))))).collect();
+    let searched=scope.len();
+    // The per-file count inventory is derived from immutable pinned bytes. Once
+    // built, later pages read only the files that overlap their window.
+    let counts_id=identity::id("occurrence-counts",&json!([s.view.id,needle,path_prefix]))?;
+    let (counts,count_cache)=match l.report(&counts_id) {
+        Ok(doc)=>(rows(&doc,"files").iter().map(|row|(text(row,"path"),row["count"].as_u64().unwrap_or(0) as usize)).collect::<Vec<_>>(),"hit"),
+        Err(_)=>{
+            let mut counts=vec![];
+            s.contents.scan(&s.files,&scope,|path,content|{
+                let mut count=0;find(content,&mut |_|count+=1);
+                if count>0 {counts.push((path.to_owned(),count));}
+            })?;
+            l.save_report(&counts_id,&json!({"kind":"occurrence-counts","view_id":s.view.id,"text":needle,"path":path_prefix,
+                "files":counts.iter().map(|(path,count)|json!({"path":path,"count":count})).collect::<Vec<_>>()}),&[])?;
+            (counts,"built")
+        }
+    };
+    let total:usize=counts.iter().map(|(_,count)|count).sum();
+    let mut items = vec![];
+    let mut before=0usize;
+    for (path,count) in &counts {
+        if items.len()>=limit {break;}
+        if before+count<=offset {before+=count;continue;}
+        let content=s.content(path)?.ok_or("TASK: Occurrence file is absent from the pinned snapshot")?;
+        let (mut line,mut column,mut counted_until,mut index)=(1,1,0,before);
+        find(content,&mut |found|{
+            if index>=offset && items.len()<limit {
                 for character in content[counted_until..found].chars() {
                     if character=='\n' {line+=1;column=1;} else {column+=1;}
                 }
@@ -44,9 +67,9 @@ pub fn occurrences(l: &Ledger, a: &Value) -> Result<Value> {
                     "role":s.files[path].role,"start_byte":found,"end_byte":found+needle.len(),
                     "line":line,"column":column}));
             }
-            total += 1;
-            matched=prefix[matched-1];
-        }
+            index+=1;
+        });
+        before+=count;
     }
     let end = offset.saturating_add(items.len());
     let inventory = &s.view.diagnostics["capture"]["inventory"];
@@ -55,6 +78,7 @@ pub fn occurrences(l: &Ledger, a: &Value) -> Result<Value> {
         "coverage":{"state":"complete_for_retained_text","searched_files":searched,"captured_files":s.files.len(),
             "tracked_inventory":inventory_summary(inventory),"captured_at_unix_ms":s.view.diagnostics["capture"]["captured_at_unix_ms"],
             "not_covered":["live edits after capture","excluded, unavailable and uncaptured files","external installed copies"]},
+        "work":{"count_inventory":count_cache,"files_with_matches":counts.len(),"source":s.contents.work()},
         "ordering":"path then byte offset, including overlapping matches; no ranking or top-k cutoff","column_unit":"Unicode scalar values",
         "continue_with":{"operation":"occurrences","arguments":{"view":s.view.id,"text":needle,"path":path_prefix,"offset":end,"limit":limit}}});
     crate::architecture::reports::pin_enumerator(l,&mut doc,"occurrences",a)?;

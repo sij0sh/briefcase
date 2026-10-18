@@ -471,9 +471,10 @@ fn visit_root(s:&mut Syntax,c:&Capture,path:&str,key:&str,is_test:bool,parser:&m
 
 /// Reuse the same Cargo/module parser for text-only task captures. No native
 /// resolver or repository code executes while constructing these syntax links.
-pub(crate) fn context_syntax(contents:&BTreeMap<String,String>)->Result<Syntax> {
+pub(crate) fn context_syntax<S:AsRef<str>>(contents:&BTreeMap<String,S>)->Result<Syntax> {
     let mut diagnostics=vec![];
     let files=contents.iter().filter_map(|(path,content)| {
+        let content=content.as_ref();
         if super::source::is_evaluation_artifact(path) {return None;}
         if path.ends_with("Cargo.toml") && content.parse::<toml_edit::DocumentMut>().is_err() {
             diagnostics.push(format!("Invalid Cargo manifest {path}; Rust module hints unavailable for this package"));return None;
@@ -1063,7 +1064,7 @@ mod tests {
 
     #[test]
     fn malformed_manifest_is_diagnostic_for_optional_context_hints() {
-        let contents=BTreeMap::from([("Cargo.toml".into(),"not valid [".into()),("src/lib.rs".into(),"fn live() {}".into())]);
+        let contents=BTreeMap::<String,String>::from([("Cargo.toml".into(),"not valid [".into()),("src/lib.rs".into(),"fn live() {}".into())]);
         let s=context_syntax(&contents).unwrap();assert!(s.diagnostics.iter().any(|message|message.contains("Invalid Cargo manifest")));
         assert!(s.unsupported>0);assert!(s.visited.contains("src/lib.rs"));assert!(s.test_owners.is_empty());
     }

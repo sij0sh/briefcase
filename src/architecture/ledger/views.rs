@@ -224,6 +224,24 @@ impl Ledger {
         }
         Ok(out)
     }
+    /// Retained byte lengths without reading payloads. Missing bytes remain a
+    /// hard integrity failure; digests are verified when bytes are read.
+    pub(crate) fn payload_sizes(&self, ids: &[String]) -> Result<BTreeMap<String, usize>> {
+        let mut out = BTreeMap::new();
+        for chunk in ids.chunks(500).filter(|chunk| !chunk.is_empty()) {
+            let placeholders = chunk.iter().map(|_| "?").collect::<Vec<_>>().join(",");
+            let mut statement = self.db.prepare(&format!(
+                "SELECT artifact_id,length(bytes) FROM payloads WHERE artifact_id IN ({placeholders})"
+            ))?;
+            let params: Vec<&dyn rusqlite::ToSql> = chunk.iter().map(|id| id as &dyn rusqlite::ToSql).collect();
+            let rows = statement
+                .query_map(params.as_slice(), |r| Ok((r.get::<_, String>(0)?, r.get::<_, i64>(1)? as usize)))?
+                .collect::<rusqlite::Result<Vec<_>>>()?;
+            require(rows.len() == chunk.len(), "DIGEST", "Retained source payload is missing")?;
+            out.extend(rows);
+        }
+        Ok(out)
+    }
     pub fn retract(&mut self, assertion: &str, reason: &str) -> Result<Value> {
         let mut removed = self.retracted()?;
         let mut newly = BTreeSet::from([assertion.to_owned()]);

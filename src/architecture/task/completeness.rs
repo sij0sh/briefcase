@@ -167,7 +167,10 @@ pub(super) fn assess(s:&Snapshot,ix:&Index,t:&Trace,policy:&CasePolicy,
         || t.retrieval["join_discovery"]["omitted_session_paths"].as_u64().unwrap_or(0)>0
         || t.retrieval["join_discovery"]["omitted_or_truncated_requests"].as_u64().unwrap_or(0)>0
         || t.retrieval["lexical_discovery"]["candidate_limit_reached"]==true
-        || t.retrieval["lexical_discovery"]["omitted_candidates"].as_u64().unwrap_or(0)>0 {
+        || t.retrieval["lexical_discovery"]["omitted_candidates"].as_u64().unwrap_or(0)>0
+        || !rows(&t.retrieval["lexical_discovery"],"omitted_terms").is_empty()
+        || t.retrieval["graph_expansion"]["omitted_starters"].as_u64().unwrap_or(0)>0
+        || t.retrieval["graph_expansion"]["unexpanded_frontier_files"].as_u64().unwrap_or(0)>0 {
         not_covered.push(Gap::new(GapArea::CandidateSelection,json!({"reason":"Task retrieval is bounded and ranked. Omitted candidates and disabled facets are not absence; page candidates to inspect alternatives.",
             "retrieval":t.retrieval,"candidate_only_files":candidate_only,"section":"/candidates"})));
     }

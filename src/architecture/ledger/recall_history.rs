@@ -95,6 +95,28 @@ impl Ledger {
             .collect::<rusqlite::Result<Vec<_>>>()?;
         Ok(rows)
     }
+    /// Every matching source file once, ordered by its best unit. Chunk-level
+    /// candidate bounds cannot be exhausted by duplicate chunks of one file.
+    /// Returns (path, best unit) for all matched files of one view.
+    pub(crate) fn recall_files(
+        &self,
+        view: &str,
+        configuration: &str,
+        expression: &str,
+    ) -> Result<Vec<(String, i64)>> {
+        let mut s = self.db.prepare(
+            "WITH m AS MATERIALIZED (SELECT f.path AS path,f.unit_id AS unit,
+                 bm25(recall_fts,0,0,0,2.0,1.0) AS score,f.rowid AS r FROM recall_fts f
+               WHERE recall_fts MATCH ?1 AND f.view_id=?2 AND f.configuration=?3)
+             SELECT path,unit FROM (SELECT path,unit,score,r,
+                 ROW_NUMBER() OVER (PARTITION BY path ORDER BY score,r) AS n FROM m)
+             WHERE n=1 ORDER BY score,r",
+        )?;
+        let rows = s
+            .query_map(params![expression, view, configuration], |r| Ok((r.get(0)?, r.get(1)?)))?
+            .collect::<rusqlite::Result<Vec<_>>>()?;
+        Ok(rows)
+    }
     /// A source recall unit: artifact, path, source kind, start and end byte.
     pub(crate) fn recall_source_unit(
         &self,

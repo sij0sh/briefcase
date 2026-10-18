@@ -2,6 +2,8 @@
 
 See [P0/P1 implementation and validation](P0_P1_IMPLEMENTATION.md) for candidate
 source recovery, the resumable investigation CLI, and current-source rechecks.
+See [P2 implementation](P2_IMPLEMENTATION.md) for resumable discovery, lazy
+source access, monorepo scope, two-repository federation, and the task corpus.
 
 Briefcase traces retained evidence from a codebase to build a case around a
 task, delivered as a brief. Source, coverage and provenance stay explicit.

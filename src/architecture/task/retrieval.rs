@@ -6,6 +6,9 @@ use super::{request::Request,trace::{Reach,Seed,AnchorStatus}};
 pub(super) const FACETS:&[&str]=&["structure","dependency","tests","domain","execution","data","runtime","history","sessions","lexical"];
 const MIN_SCORE:u64=24;
 const MAX_SIGNALS:usize=12;
+/// Distinct files admitted as lexical candidates; the remainder stays paged.
+const LEXICAL_FILE_LIMIT:usize=1000;
+const GRAPH_CONTINUATIONS:usize=16;
 
 #[derive(Clone,Debug,Serialize,Deserialize)]
 pub(super) struct Signal {
@@ -66,21 +69,46 @@ fn signal(facet:&str,kind:&str,strength:u64,confidence:&str,depth:usize,link:Opt
     Signal {facet:facet.into(),kind:kind.into(),strength,confidence:confidence.into(),depth,
         via_link:link.map(str::to_owned),provenance}
 }
-pub(super) fn terms(task:&str)->Vec<String> {
+pub(super) fn terms(task:&str)->Vec<String> {term_plan(task).0}
+/// Query terms in priority order: explicit identifiers (backticked, snake_case,
+/// CamelCase, qualified or path-like) first, then their parts (which match the
+/// other spelling, e.g. `parseConfig` against `parse_config`), then ordinary
+/// task words in task order. Returns the bounded terms and the omitted remainder.
+pub(super) fn term_plan(task:&str)->(Vec<String>,Vec<String>) {
     const STOP:&[&str]=&["the","and","for","with","from","this","that","how","what","which","does","into","through","about","can","please","would","should","could","use","using","make","change","fix","add","new","support","called","similar","correctly"];
-    let mut terms=BTreeSet::new();
-    for word in task.split(|c:char|!c.is_alphanumeric()) {
-        let term=word.to_lowercase();
-        if term.len()>2 && !STOP.contains(&term.as_str()) {terms.insert(term);}
+    let quoted:BTreeSet<_>=task.split('`').skip(1).step_by(2).map(str::trim).collect();
+    let parts=|raw:&str|{
+        let mut out=vec![];
+        for word in raw.split(|c:char|!c.is_alphanumeric()) {
+            let mut part=String::new();let mut previous=' ';
+            for c in word.chars() {
+                if c.is_uppercase()&&(previous.is_lowercase()||previous.is_ascii_digit())&&!part.is_empty() {out.push(std::mem::take(&mut part));}
+                part.push(c);previous=c;
+            }
+            if !part.is_empty() {out.push(part);}
+        }
+        out.into_iter().map(|p|p.to_lowercase()).filter(|p|p.len()>2&&!STOP.contains(&p.as_str())).collect::<Vec<_>>()
+    };
+    let mut ranked=vec![];
+    let raws=task.split(|c:char|c.is_whitespace()||"`,;()[]{}<>\"'!?".contains(c))
+        .map(|raw|raw.trim_matches(|c:char|!c.is_alphanumeric()&&c!='_')).filter(|raw|!raw.is_empty());
+    for (position,raw) in raws.enumerate() {
+        let camel=raw.chars().zip(raw.chars().skip(1)).any(|(a,b)|a.is_lowercase()&&b.is_uppercase());
+        let explicit=quoted.contains(raw)||camel||raw.contains('_')||raw.contains("::")||raw.contains('/')
+            ||raw.contains('.')&&raw.split('.').all(|piece|piece.len()>1);
+        if explicit && raw.len()>1 {ranked.push((0,position,raw.to_lowercase()));}
+        for part in parts(raw) {ranked.push((if explicit {1} else {2},position,part));}
     }
-    let mut bounded=vec![];let mut used=0;
-    for mut term in terms.into_iter().take(32) {
+    ranked.sort_by_key(|(priority,position,_)|(*priority,*position));
+    let mut seen=BTreeSet::new();
+    let ordered:Vec<_>=ranked.into_iter().map(|(_,_,term)|term).filter(|term|seen.insert(term.clone())).collect();
+    let (mut bounded,mut omitted)=(vec![],vec![]);let mut used=0;
+    for term in ordered {
         let room=4096usize.saturating_sub(used+usize::from(!bounded.is_empty()));
-        if room<3 {break;}
-        if term.len()>room {let mut end=room;while !term.is_char_boundary(end) {end-=1;}term.truncate(end);}
+        if bounded.len()>=32 || term.len()>room {omitted.push(term);continue;}
         used+=term.len()+usize::from(!bounded.is_empty());bounded.push(term);
     }
-    bounded
+    (bounded,omitted)
 }
 pub(super) fn matches(text:&str,terms:&[String])->usize {
     let text=text.to_lowercase();terms.iter().filter(|t|text.contains(t.as_str())).count()
@@ -94,29 +122,54 @@ pub(super) fn discover(l:&Ledger,s:&Snapshot,ix:&Index,r:&Request,seed:&Seed)->R
             json!({"identities":seed.candidates,"status":seed.status})));
     }
     let mut lexical=vec![];
-    let mut coverage=json!({"enabled":r.enabled("lexical"),"candidate_limit":1000,"excerpt_byte_limit":1048576,
-        "candidate_limit_reached":false,"omitted_candidates":0,"state":"not_queried"});
-    if r.enabled("lexical") {
-        let terms=terms(&r.task);
-        if !terms.is_empty() {
-            let search=crate::architecture::search::search(l,&json!({"text":terms.join(" "),"view":s.view.id,
-                "history":false,"sessions":false,"classes":"text","limit":1000}))?;
-            coverage["state"]=json!("queried");coverage["report_id"]=search["report_id"].clone();
-            coverage["candidate_limit_reached"]=search["coverage"]["candidate_limit_reached"].clone();
-            coverage["omitted_candidates"]=search["omitted_candidate_count"].clone();
-            for hit in rows(&search,"items") {
-                let Some(path)=hit["path"].as_str().filter(|p|s.files.contains_key(*p)) else {continue};
-                let rank=hit["rank"].as_u64().unwrap_or(1000);
-                let matched=matches(s.contents.get(path).map(String::as_str).unwrap_or(""),&terms);
-                let path_matches=matches(path,&terms);
-                let strength=(70*8/(rank+7)+((matched*18)/terms.len().max(1)) as u64+(path_matches.min(3)*12) as u64).min(110);
-                let span=json!({"byte_range":hit["byte_range"],"line_range":hit["line_range"]});
-                contribute(&mut candidates,path,signal("lexical","retained_text",strength,"candidate",0,None,
-                    json!({"report_id":search["report_id"],"rank":rank,"matched_terms":matched})));
-                candidates.get_mut(path).unwrap().spans.push(span.clone());
-                lexical.push(json!({"path":path,"rank":rank,"strength":strength,"span":span,
-                    "search_report_id":search["report_id"],"basis":"retained text retrieval hint; no implementation membership established"}));
-            }
+    let (query_terms,omitted_terms)=term_plan(&r.task);
+    let mut coverage=json!({"enabled":r.enabled("lexical"),"method":"distinct_file_fts","candidate_limit":LEXICAL_FILE_LIMIT,
+        "candidate_unit":"file","query_terms":query_terms,"omitted_terms":omitted_terms,
+        "candidate_limit_reached":false,"omitted_candidates":0,"matched_files":0,"state":"not_queried"});
+    if r.enabled("lexical") && !query_terms.is_empty() {
+        let terms=query_terms;
+        let (configuration,_)=crate::architecture::search::ensure_index(l,&s.view)?;
+        let matched_files=match source::fts_expression(&terms.join(" ")) {
+            Some(expression)=>l.recall_files(&s.view.id,&configuration,&expression)?,None=>vec![],
+        };
+        // Every matched file stays reachable in rank order. Only the first
+        // LEXICAL_FILE_LIMIT become candidates; the rest are paged, not lost.
+        let mut inventory=vec![];
+        for (rank,(path,unit)) in matched_files.iter().enumerate() {
+            let Some(file)=s.files.get(path) else {continue};
+            let (_,_,_,start,end)=l.recall_source_unit(*unit)?;
+            inventory.push(json!({"rank":rank+1,"path":path,"artifact_id":file.artifact_id,"digest":file.digest,
+                "role":file.role,"byte_range":{"start":start,"end":end}}));
+        }
+        let total=inventory.len();
+        let doc=json!({"kind":"lexical-discovery","view_id":s.view.id,"pinned_views":[s.view.id],"terms":terms,
+            "omitted_terms":coverage["omitted_terms"],"configuration":configuration,"items":inventory,
+            "ordering":"best retained text unit per file (bm25), then unit order; each file appears once",
+            "authority":"retained_text_candidate; not implementation membership"});
+        let delivered=crate::architecture::reports::retain_items(l,doc,LEXICAL_FILE_LIMIT)?;
+        coverage["state"]=json!("queried");coverage["report_id"]=delivered["report_id"].clone();
+        coverage["matched_files"]=json!(total);
+        coverage["candidate_limit_reached"]=json!(total>LEXICAL_FILE_LIMIT);
+        coverage["omitted_candidates"]=json!(total.saturating_sub(LEXICAL_FILE_LIMIT));
+        coverage["continue_with"]=delivered["continue_with"].clone();
+        let paths:Vec<_>=rows(&delivered,"items").iter().map(|hit|text(hit,"path")).collect();
+        s.contents.load(&s.files,&paths.iter().map(String::as_str).collect::<Vec<_>>())?;
+        for hit in rows(&delivered,"items") {
+            let path=text(hit,"path");
+            let rank=hit["rank"].as_u64().unwrap_or(1000);
+            let content=s.content(&path)?.unwrap_or("");
+            let matched=matches(content,&terms);
+            let path_matches=matches(&path,&terms);
+            let strength=(70*8/(rank+7)+((matched*18)/terms.len().max(1)) as u64+(path_matches.min(3)*12) as u64).min(110);
+            let (start,end)=(hit["byte_range"]["start"].as_u64().unwrap_or(0) as usize,hit["byte_range"]["end"].as_u64().unwrap_or(0) as usize);
+            let first=1+content.as_bytes()[..start.min(content.len())].iter().filter(|b|**b==b'\n').count();
+            let last=first+content.get(start..end).unwrap_or("").trim_end_matches('\n').matches('\n').count();
+            let span=json!({"byte_range":hit["byte_range"],"line_range":{"start":first,"end":last}});
+            contribute(&mut candidates,&path,signal("lexical","retained_text",strength,"candidate",0,None,
+                json!({"report_id":delivered["report_id"],"rank":rank,"matched_terms":matched})));
+            if let Some(candidate)=candidates.get_mut(&path) {candidate.spans.push(span.clone());}
+            lexical.push(json!({"path":path,"rank":rank,"strength":strength,"span":span,
+                "search_report_id":delivered["report_id"],"basis":"retained text retrieval hint; no implementation membership established"}));
         }
     }
     if r.enabled("domain") {claim_hints(s,ix,r,&mut candidates);}
@@ -158,7 +211,42 @@ fn facet(predicate:&str)->Option<(&'static str,u64)> {
     })
 }
 
-pub(super) fn expand(ix:&Index,r:&Request,seed:&Seed,candidates:&mut Candidates) {
+/// Monorepo scope from project manifests: each file belongs to the deepest
+/// manifest directory above it. Ranking stays global; projects whose
+/// candidates were all left unselected get an anchored follow-up instead of
+/// silently losing to larger packages.
+pub(super) fn project_scope(s:&Snapshot,r:&Request,seed:&Seed,candidates:&[Candidate])->Value {
+    const MANIFESTS:&[&str]=&["Cargo.toml","package.json","pyproject.toml","setup.py","go.mod","pom.xml","build.gradle","build.gradle.kts"];
+    let mut roots:BTreeMap<String,Vec<String>>=BTreeMap::new();
+    for path in s.files.keys() {
+        let (dir,name)=path.rsplit_once('/').unwrap_or(("",path));
+        if MANIFESTS.contains(&name)||name.ends_with(".csproj") {roots.entry(dir.into()).or_default().push(name.into());}
+    }
+    let owner=|path:&str|roots.keys().filter(|root|root.is_empty()||path.starts_with(&format!("{root}/"))).max_by_key(|root|root.len()).cloned();
+    let mut scope=json!({"method":"manifest_ownership","projects":roots.len()});
+    if roots.len()<2 {scope["state"]=json!("single_project");return scope;}
+    let anchors:BTreeSet<_>=seed.paths.iter().filter_map(|path|owner(path)).collect();
+    let mut rows:BTreeMap<String,(usize,usize,usize)>=BTreeMap::new();
+    for c in candidates {
+        let row=rows.entry(owner(&c.path).unwrap_or_default()).or_insert((c.rank,0,0));
+        row.0=row.0.min(c.rank);row.1+=1;row.2+=usize::from(c.selected);
+    }
+    let mut rows:Vec<_>=rows.into_iter().collect();rows.sort_by_key(|(root,(rank,_,_))|(*rank,root.clone()));
+    let unselected:Vec<_>=rows.iter().filter(|(root,(_,_,selected))|*selected==0&&!root.is_empty()).map(|(root,_)|root.clone()).collect();
+    scope["state"]=json!(if unselected.is_empty() {"all_candidate_projects_selected"} else {"unselected_candidate_projects"});
+    scope["anchor_projects"]=json!(anchors.iter().map(|root|if root.is_empty() {"."} else {root}).collect::<Vec<_>>());
+    scope["candidate_projects"]=json!(rows.iter().map(|(root,(rank,count,selected))|json!({"root":if root.is_empty() {"."} else {root},
+        "manifests":roots.get(root).cloned().unwrap_or_default(),"best_rank":rank,"candidates":count,"selected":selected})).collect::<Vec<_>>());
+    scope["unselected_projects"]=json!(unselected.len());
+    scope["continue_with"]=json!(unselected.iter().take(GRAPH_CONTINUATIONS).map(|root|json!({"operation":"agent_context",
+        "arguments":{"task":r.task,"target":format!("{root}/"),"view":s.view.id,"max_files":r.max_files}})).collect::<Vec<_>>());
+    scope["semantics"]=json!("Ownership is the deepest manifest directory. Cross-project candidates remain in the global ranking; ownership is not a dependency edge.");
+    scope
+}
+
+/// Returns resumable graph coverage: starters beyond the bound and the frontier
+/// left unexpanded at the depth limit, with executable `neighbors` reads.
+pub(super) fn expand(ix:&Index,r:&Request,seed:&Seed,candidates:&mut Candidates)->Value {
     let mut neighbors=BTreeMap::<String,BTreeSet<String>>::new();
     let mut key_neighbors=BTreeMap::<&str,BTreeSet<&str>>::new();
     for e in &ix.links {
@@ -174,6 +262,8 @@ pub(super) fn expand(ix:&Index,r:&Request,seed:&Seed,candidates:&mut Candidates)
     }
     let mut starters:Vec<_>=candidates.values().filter(|c|c.score>=50).collect();
     starters.sort_by_key(|c|(std::cmp::Reverse(c.score),c.path.clone()));
+    let eligible_starters=starters.len();
+    let omitted_starters:Vec<_>=starters.iter().skip(8).map(|c|c.path.clone()).collect();
     let mut frontier_paths:BTreeSet<_>=starters.iter().take(8).map(|c|c.path.clone()).collect();
     frontier_paths.extend(seed.paths.iter().filter(|path|path_allowed(path,seed)).cloned());
     let mut frontier_keys=seed.candidates.clone();
@@ -212,10 +302,19 @@ pub(super) fn expand(ix:&Index,r:&Request,seed:&Seed,candidates:&mut Candidates)
                 if facet!="structure"&&strength>=32&&!visited_keys.contains(key) {next_keys.insert(key.clone());}
             }
         }
-        if next_paths.is_empty()&&next_keys.is_empty() {break;}
         visited_paths.extend(next_paths.clone());visited_keys.extend(next_keys.clone());
         frontier_paths=next_paths;frontier_keys=next_keys;
+        if frontier_paths.is_empty()&&frontier_keys.is_empty() {break;}
     }
+    // Whatever the last layer reached but did not expand is resumable, not absent.
+    let resume=|targets:Vec<String>|targets.into_iter().take(GRAPH_CONTINUATIONS).map(|target|json!({"operation":"neighbors",
+        "arguments":{"index_id":ix.id,"view":ix.source_view,"target":target,"direction":"both","depth":1,"limit":100}})).collect::<Vec<_>>();
+    let frontier:Vec<_>=frontier_paths.iter().cloned().collect();
+    let coverage=json!({"depth_limit":r.depth,"starter_limit":8,"eligible_starters":eligible_starters,
+        "omitted_starters":omitted_starters.len(),"unexpanded_frontier_files":frontier.len(),"unexpanded_frontier_keys":frontier_keys.len(),
+        "frontier_examples":frontier.iter().take(GRAPH_CONTINUATIONS).collect::<Vec<_>>(),
+        "continue_with":resume(frontier.into_iter().chain(omitted_starters).collect()),
+        "semantics":"Unexpanded frontier and omitted starters are retrieval bounds, not absence; each continuation is an exhaustive neighbors read."});
     // A narrow, explicit config-key join still works for depth-one duties.
     if r.enabled("dependency") {
         let readers:BTreeSet<_>=candidates.values().filter(|c|c.score>=50).map(|c|c.path.clone()).collect();
@@ -224,6 +323,7 @@ pub(super) fn expand(ix:&Index,r:&Request,seed:&Seed,candidates:&mut Candidates)
             contribute(candidates,path,signal("dependency","config_key_join",65,"retained_relationship",2,Some(&e.id),json!({"key":e.to,"index_id":ix.id})));
         }}
     }
+    coverage
 }
 
 pub(super) fn path_allowed(path:&str,seed:&Seed)->bool {
@@ -283,7 +383,7 @@ pub(super) fn rank(ix:&Index,r:&Request,candidates:Candidates)->Vec<Candidate> {
 
 /// Retained declaration spans supplement lexical excerpts for graph-only
 /// candidates. A declaration in a holding file does not relocate its target.
-pub(super) fn localize(s:&Snapshot,r:&Request,candidates:&mut Candidates) {
+pub(super) fn localize(s:&Snapshot,r:&Request,candidates:&mut Candidates)->Result<()> {
     let artifacts:BTreeMap<_,_>=rows(&s.view.bundle,"artifacts").iter().map(|a|(text(a,"id"),text(a,"path"))).collect();
     let references:BTreeMap<_,_>=rows(&s.view.bundle,"evidence_refs").iter().map(|e|(text(e,"id"),e)).collect();
     let entities:BTreeMap<_,_>=rows(&s.view.bundle,"entity_versions").iter().map(|e|(text(e,"id"),e)).collect();
@@ -296,7 +396,7 @@ pub(super) fn localize(s:&Snapshot,r:&Request,candidates:&mut Candidates) {
         for id in crate::architecture::contracts::strings(&a["evidence_ref_ids"]) {
             let Some(reference)=references.get(&id) else {continue};
             let Some(path)=artifacts.get(&text(reference,"artifact_id")).filter(|p|candidates.contains_key(*p)) else {continue};
-            let Some(content)=s.contents.get(path) else {continue};
+            let Some(content)=s.content(path)? else {continue};
             let locator=&reference["locator"];
             let (Some(start),Some(end))=(locator["start"].as_u64(),locator["end"].as_u64()) else {continue};
             let (start,end)=(start as usize,end as usize);
@@ -311,7 +411,7 @@ pub(super) fn localize(s:&Snapshot,r:&Request,candidates:&mut Candidates) {
         located.sort_by_key(|(score,span)|(std::cmp::Reverse(*score),span["byte_range"]["start"].as_u64()));
         let candidate=candidates.get_mut(&path).unwrap();
         for (_,mut span) in located.into_iter().take(3) {
-            let content=&s.contents[&path];
+            let content=s.content(&path)?.unwrap_or("");
             let start=span["byte_range"]["start"].as_u64().unwrap() as usize;
             let end=span["byte_range"]["end"].as_u64().unwrap() as usize;
             span["line_range"]=json!({"start":1+content[..start].bytes().filter(|b|*b==b'\n').count(),
@@ -320,6 +420,7 @@ pub(super) fn localize(s:&Snapshot,r:&Request,candidates:&mut Candidates) {
         }
         candidate.spans.truncate(4);
     }
+    Ok(())
 }
 
 #[cfg(test)]
@@ -457,5 +558,13 @@ mod tests {
         let ranked=rank(&ix(),&request,candidates);
         assert_eq!(ranked[0].path,"src/b.rs");assert!(ranked[0].selected);assert!(!ranked[1].selected);
         assert!(ranked[0].score>ranked[1].score);
+    }
+    #[test]
+    fn term_plan_keeps_late_identifiers_and_their_parts_ahead_of_prose() {
+        let prose:Vec<_>=(0..40).map(|i|format!("word{i:02}x")).collect();
+        let (terms,omitted)=term_plan(&format!("{} fix `zz_late` in parseConfig",prose.join(" ")));
+        assert_eq!(terms[..5],["zz_late","parseconfig","late","parse","config"]);
+        assert_eq!(terms.len(),32);assert_eq!(omitted.len(),40+5-32);
+        assert!(omitted.iter().all(|t|t.starts_with("word")));
     }
 }

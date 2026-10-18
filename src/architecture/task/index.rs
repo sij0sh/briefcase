@@ -159,7 +159,7 @@ fn build(s: &Snapshot, id: String) -> Result<Index> {
     for entity in entities.values() {for name in &entity.names {
         qualified_files.entry(name.clone()).or_default().extend(entity.files.clone());
     }}
-    for (path,content) in &s.contents {
+    for (path,content) in &s.all_contents()? {
         if source::is_evaluation_artifact(path) {continue;}
         for found in path_token.find_iter(content) {
             let literal=found.as_str().trim_end_matches(['.', ',', ';', ':']);
@@ -287,7 +287,7 @@ fn normalize_relative(path: &str, token: &str) -> Option<String> {
 /// Cargo roots and real module declarations carry test ownership through
 /// #[path] includes. This is a static association, never executed coverage.
 fn rust_test_links(s:&Snapshot,links:&mut BTreeMap<String,Link>,omitted:&mut usize)->Result<Value> {
-    let syntax=crate::architecture::rust::context_syntax(&s.contents)?;
+    let syntax=crate::architecture::rust::context_syntax(&s.all_contents()?)?;
     let mut parents=BTreeMap::<String,BTreeSet<String>>::new();
     for inclusion in &syntax.inclusions {
         parents.entry(inclusion.to.clone()).or_default().insert(inclusion.from.clone());
@@ -321,7 +321,7 @@ fn rust_test_links(s:&Snapshot,links:&mut BTreeMap<String,Link>,omitted:&mut usi
                 witnesses.push(s.witness(&inclusion.from,inclusion.start,inclusion.end));
             }
             for manifest in roots.iter().flat_map(|root|syntax.test_manifests.get(root).into_iter().flatten()) {
-                let witness=s.witness(manifest,0,s.contents[manifest].len());
+                let witness=s.witness(manifest,0,s.files[manifest].bytes);
                 if !witnesses.contains(&witness) {witnesses.push(witness);}
             }
             for owner in owners {
@@ -345,7 +345,7 @@ fn config_links(s: &Snapshot, links: &mut BTreeMap<String,Link>, omitted: &mut u
     let external = Regex::new(r#"(?:\$\{?HOME\}?|~|[A-Z]:|/etc|/usr|/opt)/[A-Za-z0-9_./{}$-]+"#)?;
     let plan = Regex::new(r"briefcase:\s*implements-plan\s+([\p{L}\p{N}_./-]+)(?:#([\p{L}\p{N}_-]+))?")?;
     let install = Regex::new(r#"(?m)^\s*(?:cp|install)\s+([A-Za-z0-9_./-]+)\s+["']?((?:\$\{?HOME\}?|~|/etc|/usr|/opt)/[A-Za-z0-9_./{}$-]+)["']?\s*$"#)?;
-    for (path,content) in &s.contents {
+    for (path,content) in &s.all_contents()? {
         if source::is_evaluation_artifact(path) {continue;}
         let role = &s.files[path].role;
         if ["impl","script","install","test"].contains(&role.as_str()) {
