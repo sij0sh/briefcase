@@ -125,6 +125,13 @@ class InvestigationTests(unittest.TestCase):
         self.assertFalse(self.flow.check_current())
         self.assertEqual(self.flow.state["status"], "invalidated")
 
+    def test_budget_truncated_status_blocks_without_invalidating(self):
+        protocol = self.flow.call
+        self.flow.call = lambda op, args: {"truncated": True, "pinned_views": ["view:one"]} if op == "status" else protocol(op, args)
+        with self.assertRaisesRegex(ValueError, "increase --max-bytes"):
+            self.flow.check_current()
+        self.assertNotEqual(self.flow.state["status"], "invalidated")
+
     def test_assessment_requires_delivered_evidence_and_does_not_clear_verification(self):
         self.drain()
         event_id = self.flow.state["events"][-1]["id"]

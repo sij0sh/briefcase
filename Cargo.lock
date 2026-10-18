@@ -83,6 +83,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "briefcase"
+version = "0.1.0"
+dependencies = [
+ "clap",
+ "ignore",
+ "notify",
+ "regex",
+ "rusqlite",
+ "serde",
+ "serde_json",
+ "sha2",
+ "tempfile",
+ "toml_edit",
+ "tree-sitter",
+ "tree-sitter-rust",
+ "unicode-normalization",
+ "yaml-rust2",
+]
+
+[[package]]
 name = "bstr"
 version = "1.13.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -962,26 +982,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "df79d97927682d2fd8adb29682d1140b343be4ac0f08fd68b7765d9c059d3945"
 dependencies = [
  "memchr",
-]
-
-[[package]]
-name = "briefcase"
-version = "0.1.0"
-dependencies = [
- "clap",
- "ignore",
- "notify",
- "regex",
- "rusqlite",
- "serde",
- "serde_json",
- "sha2",
- "tempfile",
- "toml_edit",
- "tree-sitter",
- "tree-sitter-rust",
- "unicode-normalization",
- "yaml-rust2",
 ]
 
 [[package]]

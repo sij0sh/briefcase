@@ -34,7 +34,7 @@ class Investigation:
         self.delivered.append({"id": event_id, "file": str(self.directory / name)})
         return result, event_id
 
-    def enqueue(self, operation, arguments, kind="evidence", path=None):
+    def enqueue(self, operation, arguments, kind="evidence", path=None, front=False):
         arguments = dict(arguments)
         # A budget is transport state, not the identity of a retrieval action.
         arguments.pop("max_bytes", None)
@@ -44,7 +44,10 @@ class Investigation:
         action_id = key(action)
         if action_id not in self.state.setdefault("scheduled", []):
             self.state["scheduled"].append(action_id)
-            self.state.setdefault("queue", []).append({"id": action_id, **action})
+            queue = self.state.setdefault("queue", [])
+            # A started file finishes before the next one starts, so rank order
+            # decides which sources are complete when the budget runs out.
+            queue.insert(1 if front and queue else len(queue), {"id": action_id, **action})
 
     def source(self, path, report, reference):
         if path in self.state.setdefault("sources", {}):
@@ -84,6 +87,9 @@ class Investigation:
 
     def check_current(self):
         status, _ = self.event("status", {"summary": True, "max_bytes": self.state["budget"]})
+        # A budget notice that omits the pin fields leaves freshness unknown, not changed.
+        if not isinstance(status.get("current_view"), str) or not isinstance(status.get("pending_or_interrupted"), bool):
+            raise ValueError("Status omitted current_view/pending state; increase --max-bytes and resume")
         if status.get("current_view") != self.state["view_id"] or status.get("pending_or_interrupted"):
             self.state["status"] = "invalidated"
             self.state["blocker"] = "Source pin changed or capture is pending. Finish capture and rebind the investigation."
@@ -125,7 +131,7 @@ class Investigation:
         action = self.state["queue"][0]
         args = {**action["arguments"], "max_bytes": self.state["budget"]}
         if action["kind"] == "source":
-            args["source_bytes"] = min(4000, max(4, self.state["budget"] // 3))
+            args["source_bytes"] = min(4000, max(4, self.state["budget"] // 2))
         result, event_id = self.event(action["operation"], args)
         self.validate_pin(result)
         if args.get("report_id") and result.get("report_id") != args["report_id"]:
@@ -209,7 +215,7 @@ class Investigation:
             raise ValueError("Non-contiguous or stalled source bytes")
         source["ranges"].append({"start": expected, "end": end, "event": event_id})
         if next_offset is not None:
-            self.enqueue("explain", {**action["arguments"], "source_offset": next_offset}, "source", path)
+            self.enqueue("explain", {**action["arguments"], "source_offset": next_offset}, "source", path, front=True)
             source["state"] = "partial"
         else:
             hasher = hashlib.sha256()

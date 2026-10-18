@@ -375,6 +375,10 @@ fn notice(
         "provenance",
         "pinned_views",
         "view_id",
+        "current_view",
+        "pending_or_interrupted",
+        "retracted_count",
+        "ledger_watermark",
         "report_id",
         "case_id",
         "outcome_scope",
@@ -449,13 +453,15 @@ pub fn bounded(value: Value, max_bytes: usize) -> Result<Value> {
 /// for each discarded row. The first omitted row is always the next cursor.
 fn fit_metadata_page(value:&mut Value,max_bytes:usize,size_of:&dyn Fn(&Value)->Result<usize>)->Result<bool> {
     let count=rows(value,"items").len();
-    if count<2 || !value["page"].is_object() || !value["report_id"].is_string()
+    if count<1 || !value["page"].is_object() || !value["report_id"].is_string()
         || rows(value,"items").iter().any(|i|i.get("text").is_some()||i.get("evidence_text").is_some()) {return Ok(false);}
-    let prefix=|keep:usize| {
+    fn prefix(value:&Value,count:usize,keep:usize)->Value {
         let mut trial=value.clone();trial["items"].as_array_mut().unwrap().truncate(keep);
         let removed=count-keep;
-        trial["omitted_candidate_count"]=json!(trial["omitted_candidate_count"].as_u64().unwrap_or(0)+removed as u64);
-        omitted(&mut trial,"/items",removed);
+        if removed>0 {
+            trial["omitted_candidate_count"]=json!(trial["omitted_candidate_count"].as_u64().unwrap_or(0)+removed as u64);
+            omitted(&mut trial,"/items",removed);
+        }
         let offset=trial["page"]["offset"].as_u64().unwrap_or(0) as usize;
         let total=trial["page"]["total"].as_u64().unwrap_or(0) as usize;
         let end=offset.saturating_add(keep);
@@ -463,14 +469,26 @@ fn fit_metadata_page(value:&mut Value,max_bytes:usize,size_of:&dyn Fn(&Value)->R
         let id=text(&trial,"report_id");let section=trial["section"].as_str().unwrap_or("/items");
         trial["continue_with"]=if end<total {super::reports::continuation(&id,section,end,100)} else {Value::Null};
         trial
-    };
-    let (mut low,mut high)=(0,count-1);
+    }
+    // Ranking detail must not make a page unreadable. When no full row fits,
+    // rows keep identity, rank and source_ref; a larger page restores detail.
+    if measure(&mut prefix(value,count,1),max_bytes,size_of)?>max_bytes {
+        let mut removed=0;
+        for item in value["items"].as_array_mut().unwrap() {
+            for key in ["signals","spans"] {
+                if let Some(v)=item.as_object_mut().and_then(|o|o.remove(key)) {removed+=serialized_bytes(&v)?-1;}
+            }
+        }
+        if removed>0 {omitted(value,"/items/ranking_detail_bytes",removed);}
+        if measure(value,max_bytes,size_of)?<=max_bytes {return Ok(true);}
+    }
+    let (mut low,mut high)=(0,count);
     while low<high {
-        let middle=(low+high+1)/2;let mut trial=prefix(middle);
+        let middle=(low+high+1)/2;let mut trial=prefix(value,count,middle);
         if measure(&mut trial,max_bytes,size_of)?<=max_bytes {low=middle;} else {high=middle-1;}
     }
     if low==0 {return Ok(false);}
-    let mut fitted=prefix(low);measure(&mut fitted,max_bytes,size_of)?;
+    let mut fitted=prefix(value,count,low);measure(&mut fitted,max_bytes,size_of)?;
     *value=fitted;Ok(true)
 }
 
@@ -673,6 +691,16 @@ pub(crate) fn bounded_with(
         value["freshness"]["views"] = json!([{ "view_id":pin["view_id"],"scope":pin["scope"],
             "projection_check":pin["projection_check"],"projection_state":pin["projection_state"],"invalidated":pin["invalidated"] }]);
         omitted(&mut value, "/freshness/duplicate_view_metadata", 1);
+    }
+    // Page rows and source bytes outrank the full freshness diagnostic, which
+    // otherwise takes most of a small page. Pins stay at the top level.
+    if measure(&mut value,max_bytes,size_of)?>max_bytes && (value["page"].is_object()||value["source_offset"].is_u64())
+        && value["freshness"]["views"].is_array() {
+        let full=value["freshness"].clone();
+        value["freshness"]=super::freshness::agent_summary(&full,&value);
+        value["freshness"]["presentation"]=json!("summary_by_budget");
+        let removed=serialized_bytes(&full)?.saturating_sub(serialized_bytes(&value["freshness"])?);
+        omitted(&mut value,"/freshness",removed);
     }
     let original_quoted = quoted_bytes(&json!({ "items": original_items })) > 0;
     if measure(&mut value,max_bytes,size_of)?>max_bytes && fit_metadata_page(&mut value,max_bytes,size_of)? {return Ok(value);}

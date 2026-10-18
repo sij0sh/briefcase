@@ -59,7 +59,12 @@ def main():
         report["checks"].append({"id": "followups", "status": "passed", "source_files": len(workflow.state["sources"]), "actions": step})
         # Real budget reduction must leave a contiguous UTF-8 source stream.
         candidates = call("page", {"report_id": workflow.state["case_id"], "section": "/candidates"})
-        long = next(row for row in candidates["items"] if row["path"] == "docs/long.md")
+        long = next((row for row in candidates["items"] if row["path"] == "docs/long.md"), None)
+        while long is None and candidates.get("continue_with"):
+            candidates = call(candidates["continue_with"]["operation"], candidates["continue_with"]["arguments"])
+            long = next((row for row in candidates["items"] if row["path"] == "docs/long.md"), None)
+        if long is None:
+            raise ValueError("Candidate pages did not reach docs/long.md")
         offset, collected = 0, bytearray()
         while True:
             page = call("explain", {"report_id": workflow.state["case_id"], "ref": long["source_ref"],

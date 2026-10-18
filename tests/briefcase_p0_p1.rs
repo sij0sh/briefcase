@@ -34,7 +34,7 @@ fn unselected_candidates_have_pinned_source_and_budgeted_bytes_never_skip() {
     let candidates=f.call("page",json!({"report_id":packet["case_id"],"section":"/candidates","max_bytes":1048576}));
     let candidate=rows(&candidates,"items").iter().find(|c|c["selected"]==false).unwrap();
     assert!(candidate["source_ref"].as_str().unwrap().starts_with("/candidates/"));
-    let mut offset=0;let mut reconstructed=Vec::new();
+    let mut offset=0;let mut reconstructed:Vec<u8>=Vec::new();
     loop {
         let source=f.call("explain",json!({"report_id":packet["case_id"],"ref":candidate["source_ref"],
             "source_offset":offset,"max_bytes":2600}));
@@ -91,4 +91,43 @@ fn revision_changes_are_visible_even_when_source_bytes_are_identical() {
     let check=f.call("worktree",json!({"case_id":packet["case_id"]}));
     assert_eq!(check["alignment"],"changed");assert_eq!(check["changed_paths"],0);
     assert_eq!(check["head_alignment"]["changed"],true);
+}
+
+#[test]
+fn oversized_status_keeps_the_pins_that_freshness_checks_compare() {
+    let value=json!({"operation":"status","current_view":"view:9","pending_or_interrupted":false,"retracted_count":0,
+        "ledger_watermark":4,"pinned_views":["view:9"],"inventory":{"rows":"x".repeat(4000)}});
+    let result=briefcase::architecture::response::bounded(value,1200).unwrap();
+    assert_eq!(result["truncated"],true);
+    assert_eq!(result["current_view"],"view:9");assert_eq!(result["pending_or_interrupted"],false);
+    assert_eq!(result["retracted_count"],0);assert_eq!(result["ledger_watermark"],4);
+}
+
+#[test]
+fn candidate_pages_progress_when_one_full_row_exceeds_the_budget() {
+    let row=|n:usize|json!({"path":format!("src/f{n}.rs"),"rank":n,"role":"impl","score":1,"selected":false,
+        "source_ref":format!("/candidates/{n}"),"signals":[{"detail":"s".repeat(3000)}],"spans":[{"detail":"p".repeat(1000)}]});
+    let value=json!({"kind":"page","report_id":"task-case:a","section":"/candidates",
+        "page":{"offset":0,"returned":3,"total":3,"remaining":0,"next_offset":null},"items":[row(0),row(1),row(2)]});
+    let result=briefcase::architecture::response::bounded(value,2000).unwrap();
+    assert!(serde_json::to_vec(&result).unwrap().len()+1<=2000);
+    let items=rows(&result,"items");assert!(!items.is_empty(),"{result}");
+    assert_eq!(items[0]["source_ref"],"/candidates/0");assert!(items[0].get("signals").is_none());
+    assert_eq!(result["page"]["next_offset"],json!((items.len()<3).then_some(items.len())));
+}
+
+#[test]
+fn small_pages_and_source_reads_compact_freshness_before_rows_or_bytes() {
+    let freshness=json!({"views":[{"view_id":"view:1","scope":"x".repeat(4000),"projection_state":"consistent"}],
+        "pending_or_interrupted":false,"capture_state":"complete"});
+    let page=json!({"kind":"page","report_id":"task-case:a","view_id":"view:1","section":"/not_covered","freshness":freshness,
+        "page":{"offset":0,"returned":1,"total":1,"remaining":0,"next_offset":null},"items":[{"area":"a","detail":"d".repeat(1500)}]});
+    let result=briefcase::architecture::response::bounded(page,3000).unwrap();
+    assert_eq!(rows(&result,"items").len(),1,"{result}");
+    assert_eq!(result["freshness"]["presentation"],"summary_by_budget");
+    assert_eq!(result["freshness"]["pending_or_interrupted"],false);assert_eq!(result["view_id"],"view:1");
+    let source=json!({"report_id":"task-case:a","ref":"/candidates/0","view_id":"view:1","freshness":freshness,
+        "entry":{"path":"src/a.rs","bytes":2000},"source_offset":0,"next_source_offset":null,"omitted_bytes":0,"text":"t".repeat(2000)});
+    let result=briefcase::architecture::response::bounded(source,3000).unwrap();
+    assert_eq!(result["text"].as_str().unwrap().len(),2000,"{result}");
 }
