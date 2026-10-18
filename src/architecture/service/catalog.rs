@@ -7,7 +7,7 @@ pub enum Kind {
     Describe, Brief, AgentContext, Search, Occurrences, Neighbors, Reachability, Page, Explain,
     Compare, HistoryLineage, Evolution, Policy, Unresolved, Domains, Drift,
     Sessions, Session, SessionEvents, SessionFiles, SessionCommands, SessionChanges,
-    SessionActivity, Status,
+    SessionActivity, Worktree, Status,
 }
 pub struct Operation {
     pub kind: Kind,
@@ -61,6 +61,7 @@ pub fn catalog() -> Vec<Operation> {
         (SessionChanges,"session_changes","Compare recorded edits with pinned source changes without causal attribution."),
         (SessionActivity,"session_activity","Inspect cross-session path activity, retained commits and net source changes."),
         (Status,"status","Inspect publication, coverage and readiness diagnostics."),
+        (Worktree,"worktree","Compare all currently capturable source paths against a pinned view or case, including added/deleted paths outside its slice. Retains a paged digest inventory; never publishes source or executes repository code."),
     ];
     entries.into_iter().map(|(kind,name,description)| {
         let mut s=match kind {
@@ -74,7 +75,7 @@ pub fn catalog() -> Vec<Operation> {
                 json!({"depth":integer(1,3),"limit":integer(1,1000),"offset":integer(0,u64::MAX)})),
             Reachability=>common(&["from","to"],&["from","to"]),
             Page=>schema(&["report_id","cursor","section","token"],&[],json!({"offset":integer(0,u64::MAX),"limit":integer(1,1000)})),
-            Explain=>schema(&["report_id","ref","handle","index_id","link_id"],&[],json!({"offset":integer(0,u64::MAX),"source_offset":integer(0,u64::MAX),"limit":integer(1,1000)})),
+            Explain=>schema(&["report_id","ref","handle","index_id","link_id"],&[],json!({"offset":integer(0,u64::MAX),"source_offset":integer(0,u64::MAX),"source_bytes":integer(4,65536),"limit":integer(1,1000)})),
             Compare=>common(&["base"],&["base"]),
             HistoryLineage=>common(&["base","mode"],&["base"]),
             Evolution=>common(&["base","since","until","format"],&[]),
@@ -85,6 +86,7 @@ pub fn catalog() -> Vec<Operation> {
             SessionChanges=>session(&["view","base"]),
             SessionActivity=>common(&["base","since","until","format"],&[]),
             Status=>schema(&[],&[],json!({"summary":{"type":"boolean"}})),
+            Worktree=>schema(&["view","case_id"],&[],json!({"limit":integer(1,1000)})),
         };
         if matches!(kind,Brief|AgentContext) {s["properties"]["duty"]["enum"]=json!(Duty::names());}
         if kind==AgentContext {s["properties"]["limit"]["description"]=json!("Deprecated compatibility argument; ignored. max_files bounds the retained case; max_bytes bounds delivery.");}

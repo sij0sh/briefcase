@@ -1,5 +1,9 @@
 use super::*;
 impl Ledger {
+    pub(crate) fn source_exclusions(&self) -> Result<Vec<std::path::PathBuf>> {
+        let file:String=self.db.query_row("SELECT file FROM pragma_database_list WHERE name='main'",[],|r|r.get(0))?;
+        Ok(if file.is_empty() {vec![]} else {workspace::database_files(Path::new(&file))})
+    }
     /// Cheap readiness signal; do not hydrate every scan's diagnostics for a read.
     pub(crate) fn pending_source(&self) -> Result<bool> {
         Ok(self.db.query_row("SELECT EXISTS(SELECT 1 FROM namespace n JOIN scans s ON s.generation=n.intended WHERE s.scope='source' AND s.status!='published')", [], |r|r.get(0))?)

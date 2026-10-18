@@ -16,6 +16,8 @@ mod index;
 mod joins;
 mod queries;
 mod producers;
+mod worktree;
+pub use worktree::worktree;
 
 pub use brief::{brief, page};
 pub use agent::agent_context;

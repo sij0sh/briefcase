@@ -107,7 +107,17 @@ pub fn explain(l:&Ledger,a:&Value) -> Result<Value> {
         let mut args=a.clone();args["handle"]=row["explanation_handle"].clone();args["ref"]=row["explanation_handle"].clone();
         return explain(l,&args);
     }
-    let row=doc.pointer(reference).ok_or("EXPLAIN: Unknown report reference")?;
+    let entry=doc.pointer(reference).ok_or("EXPLAIN: Unknown report reference")?;
+    // A candidate is a reading hint, whether selected or not. Resolve its
+    // source through the same pinned index rather than consulting live files.
+    let candidate_source=if reference.strip_prefix("/candidates/").is_some_and(|n|n.parse::<usize>().is_ok())
+        && doc["kind"]=="case" {
+        let index=l.report(doc["index_id"].as_str().ok_or("EXPLAIN: Missing pinned index")?)?;
+        require(index["source_view"]==doc["view_id"],"EXPLAIN","Candidate index has a different source view")?;
+        Some(index["files"].get(entry["path"].as_str().ok_or("EXPLAIN: Candidate has no path")?)
+            .ok_or("EXPLAIN: Candidate source is absent from its pinned index")?.clone())
+    }else{None};
+    let row=candidate_source.as_ref().unwrap_or(entry);
     if let Some(assertion)=row["assertion_id"].as_str() {
         // Search annotations use the same retained assertion proof traversal as
         // query reports. No second evidence hydrator or authority rule.
@@ -128,9 +138,20 @@ pub fn explain(l:&Ledger,a:&Value) -> Result<Value> {
         let source=std::str::from_utf8(bytes)?;
         let offset=a["source_offset"].as_u64().unwrap_or(0) as usize;
         require(offset<=source.len()&&source.is_char_boundary(offset),"EXPLAIN","Invalid source byte offset")?;
-        let mut end=offset.saturating_add(4000).min(source.len());while !source.is_char_boundary(end) {end-=1;}
+        let length=a["source_bytes"].as_u64().unwrap_or(4000) as usize;
+        require((4..=65536).contains(&length),"ARGUMENTS","source_bytes must be 4..65536")?;
+        let mut end=offset.saturating_add(length).min(source.len());while !source.is_char_boundary(end) {end-=1;}
+        let epoch=l.retraction_epoch()?;
+        let source_view=doc.get("view_id").or_else(||doc.get("source_view"));
+        let source_index=report.filter(|id|id.starts_with("task-index:")).map(|id|json!(id)).unwrap_or_else(||doc["index_id"].clone());
+        let pins=doc.get("pinned_views").unwrap_or(&doc["coverage"]["profile_views"]);
         return Ok(json!({"kind":"explain","report_id":report,"ref":reference,"entry":row,"text":&source[offset..end],
-            "source_offset":offset,"next_source_offset":(end<source.len()).then_some(end),"omitted_bytes":source.len()-end}));
+            "view_id":source_view,"index_id":source_index,"pinned_views":pins,
+            "historical_packet":doc["provenance"]["retraction_epoch"].as_u64().or(doc["retraction_epoch"].as_u64())
+                .is_some_and(|pin|pin!=epoch),
+            "source_offset":offset,"next_source_offset":(end<source.len()).then_some(end),"omitted_bytes":source.len()-end,
+            "continue_with":(end<source.len()).then(||json!({"operation":"explain","arguments":{
+                "report_id":report,"ref":reference,"source_offset":end,"source_bytes":length}}))}));
     }
     Ok(json!({"kind":"explain","report_id":report,"ref":reference,"entry":row,
         "interpretation":"Retained report entry; its class and basis keep their original authority."}))

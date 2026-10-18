@@ -338,6 +338,16 @@ fn shorten_excerpt(
             );
         }
     } else {
+        // Resume a source page at the delivered byte after budget reduction.
+        if pointer=="/text" && value["source_offset"].is_u64() && value["entry"]["bytes"].is_u64() {
+            let offset=value["source_offset"].as_u64().unwrap();
+            let total=value["entry"]["bytes"].as_u64().unwrap();
+            let next=offset+end as u64;
+            value["next_source_offset"]=json!((next<total).then_some(next));
+            value["omitted_bytes"]=json!(total.saturating_sub(next));
+            value["continue_with"]=json!({"operation":"explain","arguments":{
+                "report_id":value["report_id"],"ref":value["ref"],"source_offset":next}});
+        }
         value["omitted_text_bytes"] =
             json!(value["omitted_text_bytes"].as_u64().unwrap_or(0) + (raw.len() - end) as u64);
         if value.get("bytes").is_some() {
@@ -389,6 +399,10 @@ fn notice(
         } else {
             result["continue_with"]=value["continue_with"].clone();result["continue_with"]["arguments"]["offset"]=json!(offset);
         }
+    } else if value["source_offset"].is_u64() && value["ref"].is_string() {
+        result["ref"]=value["ref"].clone();
+        result["continue_with"]=json!({"operation":"explain","arguments":{
+            "report_id":value["report_id"],"ref":value["ref"],"source_offset":value["source_offset"]}});
     } else if value["kind"] == "agent_context" {
         result["outcome"]=value["outcome"].clone();
         let section=if value["sections"].get("/candidates").is_some() {"/candidates"} else {"/not_covered"};

@@ -22,6 +22,7 @@ pub(super) fn examples(name:&str)->Vec<Value>{
         "neighbors"=>json!({"target":"src/session.rs","direction":"in","predicate":"TESTS"}),
         "page"=>json!({"report_id":"<retained report id>","section":"/slice/test"}),
         "explain"=>json!({"report_id":"<retained report id>","ref":"<task-link id>"}),
+        "worktree"=>json!({"case_id":"<retained task-case id>","limit":100}),
         "reachability"=>json!({"from":"orders::create","to":"payments::authorize"}),
         "compare"|"history_lineage"=>json!({"base":"before","view":"latest"}),
         "describe"=>json!({"query":"what calls this function","limit":5}),
@@ -48,6 +49,7 @@ fn search_terms(name:&str)->&'static str{
         "session"|"session_events"|"session_activity"=>"previous agent activity session forensic history",
         "evolution"|"compare"|"history_lineage"=>"history changes revisions snapshots rename correspondence",
         "status"=>"ready readiness initialized diagnostics database",
+        "worktree"=>"current dirty untracked added deleted modified freshness working tree diff outside initial slice",
         _=>"",
     }
 }

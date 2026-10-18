@@ -114,6 +114,7 @@ def run_evaluation(binary, root, db, view, scenarios, output, *, timeout, budget
                "--scenarios", str(scenarios), "--output", str(output), "--timeout", str(timeout),
                "--manifest-bytes", str(budget), "--harness", harness, "--diagnostics", "--ablations", ablations,
                "--verify-sources", "--budget-sweep", "3000,4000,6000,8000,12000"]
+    command.extend(["--trace-dir", str(output.with_suffix(".rpc")), "--source-budget", str(budget)])
     print(f"Evaluating {output.parent.name}/{output.stem}", file=sys.stderr, flush=True)
     # Each RPC has its own evaluator deadline; no shell or background watcher runs.
     result = subprocess.run(command, capture_output=True, text=True)

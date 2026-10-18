@@ -1,5 +1,8 @@
 # Briefcase
 
+See [P0/P1 implementation and validation](P0_P1_IMPLEMENTATION.md) for candidate
+source recovery, the resumable investigation CLI, and current-source rechecks.
+
 Briefcase traces retained evidence from a codebase to build a case around a
 task, delivered as a brief. Source, coverage and provenance stay explicit.
 Start a task with `brief`; follow relationships through

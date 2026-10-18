@@ -30,10 +30,13 @@ pub(super) struct Candidate {
     pub authority:String,
     pub signals:Vec<Signal>,
     pub spans:Vec<Value>,
+    /// Source routing is valid for unselected candidates too. Omitted in old pins.
+    #[serde(default,skip_serializing_if="String::is_empty")]
+    pub source_ref:String,
 }
 impl Candidate {
     fn new(path:&str)->Self {Self {path:path.into(),rank:0,score:0,selected:false,
-        delivery_rank:None,role:None,authority:"retrieval_hint; not implementation membership".into(),signals:vec![],spans:vec![]}}
+        delivery_rank:None,role:None,authority:"retrieval_hint; not implementation membership".into(),signals:vec![],spans:vec![],source_ref:String::new()}}
     pub fn reach(&self)->Reach {
         let signal=self.signals.iter().min_by_key(|s|(std::cmp::Reverse(s.strength),s.depth));
         Reach {depth:signal.map_or(0,|s|s.depth),via_link:signal.and_then(|s|s.via_link.clone())}
@@ -268,6 +271,7 @@ pub(super) fn rank(ix:&Index,r:&Request,candidates:Candidates)->Vec<Candidate> {
     ranked.sort_by_key(|c|(std::cmp::Reverse(c.score),c.path.clone()));
     for (i,candidate) in ranked.iter_mut().enumerate() {
         candidate.rank=i+1;
+        candidate.source_ref=format!("/candidates/{i}");
         candidate.selected=false;candidate.delivery_rank=None;
     }
     let order=delivery_order(ix,r,&ranked);

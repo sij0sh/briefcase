@@ -35,6 +35,12 @@ pub fn event(db:&Path,root:&Path,phase:&str,input:&Value)->Result<Value>{
         Err(error)=>(std::collections::BTreeSet::new(),json!({"state":"unavailable","reason":error.to_string().chars().take(400).collect::<String>()})),
     };
     let mut comparison=task::case::compare(&initial,&review,&dirty);
+    let worktree=match service::call_with_context(&l,"worktree",&json!({"case_id":id,"limit":1,"max_bytes":context_budget()}),Some(root),false) {
+        Ok(check)=>json!({"report_id":check["report_id"],"alignment":check["alignment"],"tree_digest":check["tree_digest"],
+            "changed_paths":check["changed_paths"],"outside_initial_slice":check["outside_initial_slice"]}),
+        Err(error)=>json!({"state":"unavailable","reason":error.to_string().chars().take(400).collect::<String>()}),
+    };
+    comparison["worktree"]=worktree;
     let outside=rows(&comparison,"dirty_paths_outside_initial_slice").len();
     comparison["dirty_paths_outside_initial_slice"].as_array_mut().unwrap().truncate(50);
     comparison["prompt_report_id"]=state["report_id"].clone();

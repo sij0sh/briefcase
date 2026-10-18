@@ -125,7 +125,7 @@ fn call_validated(
     size_of: &dyn Fn(&Value) -> Result<usize>,
 ) -> Result<Value> {
     let mut fallback = None;
-    let result = dispatch(l, operation, args);
+    let result = dispatch(l, operation, args, root);
     let mut result = match result {
         Ok(result) => result,
         Err(error)
@@ -147,7 +147,7 @@ fn call_validated(
                 pinned = json!({});
             }
             pinned[argument] = json!(pin);
-            let result = dispatch(l, operation, &pinned)?;
+            let result = dispatch(l, operation, &pinned, root)?;
             fallback = Some(
                 json!({"used":true,"reason":"pending_source_capture","argument":argument,"requested":"latest","pinned_view":pin}),
             );

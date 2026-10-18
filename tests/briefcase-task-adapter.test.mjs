@@ -10,6 +10,16 @@ const source = stripTypeScriptTypes(readFileSync(new URL('../extensions/briefcas
   .replace('from "typebox"', `from ${JSON.stringify(schema)}`);
 const adapter = await import(dataUrl(source));
 
+test('legacy oversized responses retain an executable restart, including source bytes', () => {
+  const legacy = JSON.parse(adapter.formatOperation({response: {
+    continuation_token: 'report:abc@5', results: ['x'.repeat(70000)]}}, 2000));
+  assert.deepEqual(legacy.continue_with, {operation:'page', arguments:{token:'report:abc@0'}});
+  assert.match(legacy.instruction, /continue/);
+  const result = JSON.parse(adapter.formatOperation({kind:'explain',report_id:'task-case:a',ref:'/candidates/40',
+    source_offset:4000,text:'é'.repeat(10000),next_source_offset:24000},1800));
+  assert.deepEqual(result.continue_with,{operation:'explain',arguments:{report_id:'task-case:a',ref:'/candidates/40',source_offset:4000}});
+});
+
 test('coding duties are exposed in agent guidance without adding tool families', () => {
   const tools = [];
   adapter.default({registerTool: t => tools.push(t), registerCommand() {}, on() {}});
@@ -142,7 +152,12 @@ test('case dimension comparisons distinguish unchanged, changed and unavailable 
 test('post-task entries compare identified cases and keep dimension deltas', async () => {
   const events=new Map(), entries=[];let reads=0;
   adapter.default({registerTool(){},registerCommand(){},on:(name,handler)=>events.set(name,handler),
-    appendEntry:(type,value)=>entries.push({type,value}),exec:async()=>{
+    appendEntry:(type,value)=>entries.push({type,value}),exec:async(_program,args)=>{
+      if(args[args.indexOf('call')+1]==='worktree') {
+        reads++;
+        assert.equal(JSON.parse(args[args.indexOf('--args')+1]).case_id,'task-case:before');
+        return {code:0,stdout:JSON.stringify({kind:'worktree',report_id:'context-report:changes',alignment:'changed',changed_paths:2,outside_initial_slice:1}),stderr:''};
+      }
       const first=reads++===0;
       return {code:0,stdout:JSON.stringify({kind:'brief',id:first?'task-case:before':'task-case:after',
         case_id:first?'task-case:before':'task-case:after',coverage:{completeness:completeness(first?{}:{sessions:'partial'})}}),stderr:''};
@@ -154,7 +169,8 @@ test('post-task entries compare identified cases and keep dimension deltas', asy
   assert.equal(entries[0].value.case_id,'task-case:after');
   assert.equal(entries[0].value.dimension_comparison,'compared');
   assert.deepEqual(entries[0].value.dimension_deltas,{sessions:{before:'unknown',after:'partial'}});
-  assert.equal(reads,2);
+  assert.equal(reads,3);
+  assert.equal(entries[0].value.worktree.outside_initial_slice,1);
 });
 
 test('byte-budget notices recover dimension states from retained case metadata', async () => {
@@ -169,7 +185,7 @@ test('byte-budget notices recover dimension states from retained case metadata',
   const ctx={cwd:'/repo',ui:{notify(){}}};
   await events.get('before_agent_start')({prompt:'debug src/a.rs'},ctx);
   await events.get('agent_end')({},ctx);
-  assert.deepEqual(calls,['agent_context','explain','agent_context','explain']);
+  assert.deepEqual(calls,['agent_context','explain','agent_context','explain','worktree']);
   assert.deepEqual(entries[0].dimension_deltas,{});
   assert.equal(entries[0].dimension_comparison,'compared');
 });

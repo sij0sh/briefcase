@@ -8,7 +8,7 @@ fn options(a:&Value) -> Options {
         historical:a["historical"].as_bool().unwrap_or(false),include_structure:a["include_structure"].as_bool().unwrap_or(false)}
 }
 fn session_options(a:&Value) -> Options {Options{view:a["session"].as_str().unwrap_or("latest").into(),..options(a)}}
-pub(super) fn dispatch(l:&Ledger,op:&Operation,a:&Value) -> Result<Value> {
+pub(super) fn dispatch(l:&Ledger,op:&Operation,a:&Value,root:Option<&std::path::Path>) -> Result<Value> {
     use Kind::*;
     let o=options(a);
     let s=|key:&str|a[key].as_str();
@@ -47,5 +47,6 @@ pub(super) fn dispatch(l:&Ledger,op:&Operation,a:&Value) -> Result<Value> {
         SessionChanges=>session::query::changes(l,&session_options(a),s("view").unwrap_or("latest"),s("base")),
         SessionActivity=>session::activity::activity(l,&o,&session::activity::Request{since:s("since").map(str::to_owned),until:s("until").map(str::to_owned),view:s("view").map(str::to_owned),base:s("base").map(str::to_owned)}),
         Status=>if a["summary"]==true {inventory::summary(l)} else {l.status()},
+        Worktree=>task::worktree(l,a,root.ok_or("WORKTREE: An explicit invocation root is required")?),
     }
 }

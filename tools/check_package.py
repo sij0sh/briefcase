@@ -1,5 +1,6 @@
 """Run authored planning contracts and fixture expectations offline."""
 import copy
+import argparse
 import hashlib
 import json
 from pathlib import Path
@@ -39,7 +40,21 @@ def edge_keys(bundle, predicate):
 
 
 def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--schemas-only", action="store_true", help="Validate owned schemas without claiming historical fixture conformance")
+    args = parser.parse_args()
+    if args.schemas_only:
+        paths = sorted((ROOT / "contracts/v1").glob("*.schema.json"))
+        for path in paths:
+            inspect_schema(load_json(path))
+        print(json.dumps({"status": "passed", "scope": "owned schemas only", "schemas": len(paths)}))
+        return 0
     fixture_root = ROOT / "evaluation/fixtures"
+    if not (fixture_root / "index.json").is_file():
+        print(json.dumps({"status": "blocked", "scope": "historical package conformance",
+                          "missing": ["evaluation/fixtures/index.json"],
+                          "reason": "The original fixture archive was not supplied. New P0/P1 fixtures are not a replacement for historical labels."}))
+        return 2
     index = load_json(fixture_root / "index.json")
     successes, failures = [], []
 

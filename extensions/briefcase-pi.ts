@@ -150,6 +150,9 @@ export function rewindContinuation(result: any): any {
   const id = result?.report_id ?? result?.response?.id ?? (result?.kind === "brief" ? result.id : undefined);
   const previous = result?.continue_with;
   const offset = result?.page?.offset ?? 0;
+  if (id && result?.ref && Number.isInteger(result?.source_offset)) {
+    return {operation: "explain", arguments: {report_id: id, ref: result.ref, source_offset: result.source_offset}};
+  }
   if (id) {
     let section = result?.section ?? previous?.arguments?.section ?? (result?.kind === "brief" ? "/slice/impl" : result?.kind === "agent_context" ? "/candidates" : "/items");
     if (previous?.arguments?.cursor) {
@@ -157,7 +160,12 @@ export function rewindContinuation(result: any): any {
     }
     return { operation: "page", arguments: { report_id: id, section, offset } };
   }
-  return previous ? {...previous, arguments: {...previous.arguments, offset}} : undefined;
+  if (previous) return {...previous, arguments: {...previous.arguments, offset}};
+  const token = result?.response?.continuation_token ?? result?.continuation_token;
+  if (typeof token === "string" && /@\d+$/.test(token)) {
+    return {operation: "page", arguments: {token: token.replace(/@\d+$/, `@${offset}`)}};
+  }
+  return undefined;
 }
 
 /** Complete UTF-8 JSON, or a valid pinned omission notice. Never slice JSON. */
@@ -186,7 +194,7 @@ export function formatOperation(result: any, maxBytes = MAX_TEXT): string {
       ? `${result.response.id}@${result.response.results[0].id.match(/:row:(\d+)$/)[1]}`
       : result?.response?.continuation_token ?? result?.continuation_token,
     freshness: result?.freshness,
-    instruction: "No result rows were delivered. Increase max_bytes or narrow the query; page reads retained sections and resumes pinned enumerations without skipping rows; explain expands provenance.",
+    instruction: "No result rows were delivered. Follow continue_with to retry the first undelivered row or source byte; increase max_bytes if needed. page reads retained sections; explain expands pinned source and provenance.",
   };
   let encoded = JSON.stringify(notice);
   if (Buffer.byteLength(encoded,"utf8") > limit) {
@@ -212,7 +220,7 @@ export async function execRead(
 ): Promise<{ result: any; degraded: boolean }> {
   const result = await runBriefcase(pi, [
     "--json", "call", operation, "--args", JSON.stringify(args), "--wait-ready",
-    ["brief", "agent_context", "search", "recall", "retrieve", "occurrences", "neighbors", "page", "explain", "task_page", "task_explain"].includes(operation) ? "0" : FIRST_QUERY_WAIT_SECS,
+    ["brief", "agent_context", "search", "recall", "retrieve", "occurrences", "neighbors", "worktree", "page", "explain", "task_page", "task_explain"].includes(operation) ? "0" : FIRST_QUERY_WAIT_SECS,
     "--fallback-published",
   ], cwd, signal);
   return { result, degraded: result?.freshness?.fallback?.used === true };
@@ -287,10 +295,20 @@ export default function briefcasePi(pi: ExtensionAPI) {
       const {result} = await execRead(pi, "agent_context", {task: task.task, duty: "review", max_bytes: contextBudget()}, ctx.cwd);
       const completeness = await caseCompleteness(pi, result, ctx.cwd);
       const dimensionDeltas = compareCompleteness(task.completeness, completeness);
+      let worktree: any = {state: "unavailable", reason: "Initial case pin unavailable"};
+      if (task.caseId) {
+        try {
+          const checked = (await execRead(pi, "worktree", {case_id: task.caseId, limit: 1, max_bytes: contextBudget()}, ctx.cwd)).result;
+          worktree = {report_id: checked.report_id, alignment: checked.alignment ?? "unknown",
+            tree_digest: checked.tree_digest, changed_paths: checked.changed_paths,
+            outside_initial_slice: checked.outside_initial_slice};
+        } catch (error) {worktree = {state: "unavailable", reason: bound(String(error), 400).text};}
+      }
       pi.appendEntry("briefcase-completeness", {prompt_report_id: task.report, report_id: result.report_id ?? result.id,
         prompt_case_id: task.caseId, case_id: result.case_id, dimension_deltas: dimensionDeltas,
         dimension_comparison: dimensionDeltas ? "compared" : "unavailable",
         not_covered_areas: result.coverage?.not_covered_areas, freshness: result.freshness,
+        worktree,
         interpretation: "Advisory retained context; live edits may postdate capture. No completion verdict."});
       ctx.ui?.notify?.(`Briefcase coverage check saved: ${result.report_id ?? result.id}. Inspect not_covered and live changes.`, "info");
     } catch (error) {
@@ -341,6 +359,7 @@ export default function briefcasePi(pi: ExtensionAPI) {
       "For coding duties, begin with agent_context or brief and inspect not_covered. For completion checks, paginate occurrences against its returned view_id; use neighbors direction in for callers, dependents and tests.",
       "For debug, refactor, impact, extend, continue, review, test or run/configure duties, start with brief {task: <request>, target: <exact path or canonical key when known>}. Treat not_covered as the remaining evidence checklist; page reads omitted sections.",
       "For renames and completion checks, use occurrences instead of ranked search. Follow every next_offset with the returned view_id; neighbors direction in finds reverse relationships such as TESTS and DEPENDS_ON.",
+      "Selection is an initial reading batch. Page /candidates and use source_ref with explain {report_id: case_id, ref: source_ref}, including unselected candidates. Follow next_source_offset for remaining bytes. Use worktree {case_id} before planning and after edits to find changed paths outside the initial slice.",
       "Use operation describe with {query: <need>} for discovery or {operation: <name>} for the full schema before guessing arguments.",
       "Report coverage and knowledge labels; partial or unknown results do not establish absence.",
       "A complete case means complete for its retained evidence scope. It does not establish runtime truth or task completion. coverage.completeness records evidence states; coverage.delivery describes only the brief presentation.",
