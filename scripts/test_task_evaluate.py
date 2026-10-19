@@ -282,6 +282,34 @@ class TaskEvaluationTests(unittest.TestCase):
             self.assertEqual(report["errors"], 1)
 
 
+class Stage1ControlTests(unittest.TestCase):
+    def test_lexical_only_disables_every_non_lexical_facet(self):
+        excluded = task_evaluate.lexical_only_exclusions()
+        self.assertNotIn("lexical", excluded)
+        self.assertEqual(set(excluded), set(task_evaluate.FACETS) - {"lexical"})
+        self.assertEqual(task_evaluate.resolve_exclusions("lexical-only"), excluded)
+        self.assertEqual(task_evaluate.resolve_exclusions("history"), ("history",))
+
+    def test_manifest_latency_is_measured_separately_from_brief(self):
+        packet = {"case_id": "task-case:t", "id": "task-case:t", "outcome": "partial", "not_covered": [],
+                  "slice": {role: [] for role in task_evaluate.ROLES},
+                  "coverage": {"delivery": {"/not_covered": {"omitted": 0}, **{
+                      f"/slice/{role}": {"omitted": 0} for role in task_evaluate.ROLES}}}}
+        packet["slice"]["impl"] = [{"path": "a", "rank": 1}]
+        manifest = {"kind": "agent_context", "case_id": "task-case:t",
+                    "anchor": {"path": "a", "ref": "/slice/impl/0"}, "files": [],
+                    "fetch_source": {"operation": "explain", "arguments": {"report_id": "task-case:t"}},
+                    "continue_with": None}
+        call = lambda operation, _: manifest if operation == "agent_context" else packet
+        result = task_evaluate.evaluate_scenario(
+            {"id": "t", "task": "x", "required_paths": ["a"]}, call, manifest_bytes=8000, cold=True)
+        self.assertEqual(result["brief_ms"], result["first_packet_ms"])
+        self.assertIsNotNone(result["manifest_latency_ms"])
+        self.assertEqual(result["timing_phase"], "cold")
+        self.assertIsNotNone(result["first_relevant_passage_ms"])
+        self.assertIn("integrity_verification_ms", result)
+
+
 class SourceTransportTests(unittest.TestCase):
     def fixture(self):
         import hashlib

@@ -10,9 +10,23 @@ impl Ledger {
     }
     /// Capture metadata only. Projection validity is explicitly not checked here.
     pub(crate) fn view_freshness(&self, id: &str) -> Result<Value> {
-        let (scope, capture, state): (String, Option<String>, Option<String>) = self.db.query_row(
-            "SELECT s.scope,json_extract(v.diagnostics,'$.capture'),COALESCE(json_extract(v.bundle,'$.snapshots[0].capture_state'),json_extract(v.diagnostics,'$.capture_state')) FROM views v JOIN scans s ON s.generation=v.generation WHERE v.id=?",
-            [id], |r|Ok((r.get(0)?,r.get(1)?,r.get(2)?)))?;
+        let (scope, capture): (String, Option<String>) = self.db.query_row(
+            "SELECT s.scope,json_extract(v.diagnostics,'$.capture') FROM views v JOIN scans s ON s.generation=v.generation WHERE v.id=?",
+            [id], |r|Ok((r.get(0)?,r.get(1)?)))?;
+        // Views are immutable, so the memo is exact. Views published before the
+        // memo existed are extracted once; a read-only reader just skips the write.
+        let memo: Option<Option<String>> = self.db.query_row(
+            "SELECT capture_state FROM view_capture_states WHERE view_id=?", [id], |r|r.get(0)).optional().unwrap_or(None);
+        let state = match memo {
+            Some(state) => state,
+            None => {
+                let state: Option<String> = self.db.query_row(
+                    "SELECT COALESCE(json_extract(bundle,'$.snapshots[0].capture_state'),json_extract(diagnostics,'$.capture_state')) FROM views WHERE id=?",
+                    [id], |r|r.get(0))?;
+                let _ = self.db.execute("INSERT OR IGNORE INTO view_capture_states(view_id,capture_state) VALUES(?,?)", params![id, state]);
+                state
+            }
+        };
         let capture = capture
             .map(|raw| identity::parse(raw.as_bytes()))
             .transpose()?

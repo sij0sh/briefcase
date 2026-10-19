@@ -1,11 +1,16 @@
 use super::*;
 impl Ledger {
     /// Select one already published profile under the caller's writer lock.
-    pub(crate) fn select_source_profile(&self, id:&str) -> Result<()> {
-        require(self.scope_of(id)? == "source" && !self.pending_source()?,"FRESHNESS","Cannot select an unpublished or pending source profile")?;
+    pub(crate) fn select_source_profile(&self, id: &str) -> Result<()> {
+        require(
+            self.scope_of(id)? == "source" && !self.pending_source()?,
+            "FRESHNESS",
+            "Cannot select an unpublished or pending source profile",
+        )?;
         let published:bool=self.db.query_row("SELECT EXISTS(SELECT 1 FROM views v JOIN scans s ON s.generation=v.generation WHERE v.id=? AND s.status='published')",[id],|r|r.get(0))?;
-        require(published,"FRESHNESS","Profile must be published")?;
-        self.db.execute("UPDATE namespace SET current_view=?",[id])?;
+        require(published, "FRESHNESS", "Profile must be published")?;
+        self.db
+            .execute("UPDATE namespace SET current_view=?", [id])?;
         Ok(())
     }
     pub fn publish(&mut self, view_id: &str, select_current: bool) -> Result<Vec<Value>> {
@@ -18,6 +23,7 @@ impl Ledger {
             .filter(|a| !removed.contains(&text(a, "id")))
             .map(|r| text(r, "id"))
             .collect();
+        let input_set: std::collections::HashSet<String> = inputs.iter().cloned().collect();
         let units = super::super::evidence_index::build_units(
             &view.bundle,
             &self.payloads(&view.bundle)?,
@@ -82,7 +88,7 @@ impl Ledger {
             tx.execute("INSERT INTO projections(id,view_id,generation,kind,watermark,body) VALUES(?,?,?,?,?,?)",params![id,view_id,generation,kind,watermark,m.to_string()])?;
             for a in rows(&view.bundle, "assertions")
                 .iter()
-                .filter(|a| inputs.contains(&text(a, "id")))
+                .filter(|a| input_set.contains(&text(a, "id")))
             {
                 let aid = text(a, "id");
                 if kind == "graph" {
@@ -150,7 +156,9 @@ impl Ledger {
         self.db
             .query_row("SELECT repository FROM namespace", [], |r| r.get(0))
             .optional()?
-            .ok_or_else(|| "NAMESPACE: Capture a source revision before other evidence producers".into())
+            .ok_or_else(|| {
+                "NAMESPACE: Capture a source revision before other evidence producers".into()
+            })
     }
     pub fn scope_of(&self, view_id: &str) -> Result<String> {
         Ok(self.db.query_row(

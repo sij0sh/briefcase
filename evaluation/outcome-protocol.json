@@ -1,0 +1,84 @@
+{
+  "schema_version": "1.0",
+  "kind": "outcome_protocol",
+  "phase": "Phase 4 (change set 07): validate outcomes and expand only demonstrated gaps",
+  "frozen": "2026-10-18, before any outcome trial was run; later edits require a new protocol revision and must be reported beside results",
+  "revision": "p4-r1",
+  "scorer_only_inputs": [
+    "evaluation/t3-outcome-claims.json",
+    "evaluation/repairs/*/fixture.json (claims, tests, reference decision)",
+    "evaluation/repairs/*/reference.patch",
+    "evaluation/repairs/*/naive.patch"
+  ],
+  "scorer_only_rule": "Scorer-only files never reach a condition's index, prompt or delivered text. Repair projects are materialized from evaluation/repairs/*/project only; the fixture directory itself is never captured.",
+  "task_sets": {
+    "t3": {"scenarios": ".agents/artifacts/t3code-scenarios.json", "claims": "evaluation/t3-outcome-claims.json",
+           "held_out": true, "note": "Held out from findings rule tuning since Phase 1; 14 scenarios in 12 families, 44 claims."},
+    "repairs": {"fixtures": "evaluation/repairs", "held_out": true,
+                "note": "Authored for Phase 4 after the Phase 1-3 rules were frozen; no rule was tuned on them."}
+  },
+  "conditions": {
+    "rg": {"kind": "rg_read", "sessions": false, "description": "Predeclared rg/read baseline (scripts/task_baseline.py protocol v3) over the source tree only."},
+    "rg+sessions": {"kind": "rg_read", "sessions": true, "description": "Same baseline with the raw session transcripts placed in the searched tree."},
+    "lexical": {"kind": "briefcase", "exclude_facets": "all non-lexical (task-evaluate.py lexical_only_exclusions)", "sessions": false},
+    "hybrid": {"kind": "briefcase", "exclude_facets": ["behavior", "sessions", "convergence"], "sessions": false,
+               "description": "Current hybrid retrieval without any findings producer (the pre-Phase-1 Case)."},
+    "findings": {"kind": "briefcase", "exclude_facets": ["sessions"], "sessions": false,
+                 "description": "Findings-enabled hybrid, source-only: behavior and convergence findings."},
+    "findings+sessions": {"kind": "briefcase", "exclude_facets": [], "sessions": true,
+                          "description": "Findings-enabled hybrid with imported session experience."}
+  },
+  "session_rule": "Source-only and source-plus-session conditions are run and reported separately. In session comparisons the rg baseline searches the same transcripts (rg+sessions).",
+  "budgets": {"manifest_bytes": 8000, "max_files": 32,
+              "stopping": {"max_calls": 300, "max_bytes": 2097152, "max_seconds": 180},
+              "investigation_mode": "manifest-first",
+              "rg_read_bytes_per_file": 65536},
+  "tiers": {
+    "deterministic": {
+      "description": "No model. Reconstructs exactly the text each condition delivered under its budget and scores claim supportability: a claim is supportable when every witness (path+regex over delivered source text, or finding kind+regex over delivered findings) matches. Necessary, not sufficient, for a correct conclusion.",
+      "repeats": 2,
+      "repeat_purpose": "Determinism check; any disagreement between repeats is reported as nondeterminism, not averaged away."
+    },
+    "agent": {
+      "description": "Stochastic. An external agent command receives only the delivered context (and for repair fixtures a writable copy of the project) and returns claims with citations, a decision and a patch. Scored by citations, forbidden patterns, repair tests and edit scope.",
+      "repeats": 5,
+      "requires": "explicit operator authorization (paid model calls); never run implicitly by tests or CI"
+    }
+  },
+  "metrics": {
+    "claim_supportability": "Share of scenario claims whose witnesses were all delivered (deterministic).",
+    "validated_repair": "Agent patch applies, every target test passes, every neighbor and negative test passes (agent).",
+    "justified_decision": "Agent decision equals the reference decision and cites at least one decision-witness path that the condition delivered (agent).",
+    "unnecessary_edits": "Files changed by the agent patch outside the fixture's allowed_paths (agent).",
+    "unsupported_assertions": "Agent claims without a citation, or citing a path the condition never delivered (agent).",
+    "unsupported_critical_claims": "Deterministic: delivered findings that assert runtime satisfaction, executed verification, current session guidance, automatic change or adopted policy without basis (critical-claim audit). Agent: claims matching a scenario forbidden_pattern.",
+    "cost": "calls, delivered bytes, wall seconds, files delivered."
+  },
+  "statistics": {
+    "unit": "scenario (claims nested in scenarios; repeats nested in scenarios for the agent tier)",
+    "method": "paired percentile bootstrap over scenarios, 10000 resamples, seed 20261018, 95% interval",
+    "uncertainty_reporting": "Every contrast reports the mean paired difference, its 95% interval, the number of scenarios, and for the agent tier the per-scenario repeat spread."
+  },
+  "contrasts": {
+    "primary": {"treatment": "findings", "control": "hybrid", "metric": "claim_supportability", "tier": "deterministic", "tasks": ["t3", "repairs"]},
+    "secondary": [
+      {"treatment": "findings", "control": "rg", "metric": "claim_supportability", "tier": "deterministic", "tasks": ["t3", "repairs"]},
+      {"treatment": "findings", "control": "lexical", "metric": "claim_supportability", "tier": "deterministic", "tasks": ["t3", "repairs"]},
+      {"treatment": "findings+sessions", "control": "rg+sessions", "metric": "claim_supportability", "tier": "deterministic", "tasks": ["repairs:sessions"]},
+      {"treatment": "findings+sessions", "control": "findings", "metric": "claim_supportability", "tier": "deterministic", "tasks": ["repairs:sessions"]},
+      {"treatment": "findings", "control": "hybrid", "metric": "validated_repair+justified_decision", "tier": "agent", "tasks": ["repairs"]}
+    ]
+  },
+  "exit_gate": {
+    "minimum_useful_effect": 0.10,
+    "rule": "The primary contrast passes when its mean paired claim_supportability gain is at least 0.10 AND the 95% bootstrap interval's lower bound is above 0, under identical budgets, AND the treatment's unsupported_critical_claims do not exceed the control's (tolerance 0). Any other outcome is reported as 'not met' (interval includes or is below 0) or 'inconclusive' (point gain >= 0.10 but interval lower bound <= 0).",
+    "honesty": "An inconclusive or negative result is reported as such; the protocol is not revised to rescue it."
+  },
+  "failure_classes": {
+    "selection": "A witness path was in the candidate set but not delivered within budget.",
+    "discovery": "A witness path never reached candidates.",
+    "producer": "The witness path was delivered but the witnessed fact needs a relationship or finding no producer emits.",
+    "consumption": "The witness text was within a delivered file but beyond the delivered byte range."
+  },
+  "expansion_rule": "TypeScript coverage, typed entities or behavioral relationships are expanded only where a classified producer failure demonstrates a missing producer or join; storage or index structures only where profiling shows a bottleneck."
+}

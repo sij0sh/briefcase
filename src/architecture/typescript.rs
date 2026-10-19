@@ -111,7 +111,7 @@ fn node_adapter_mode(
     )?;
     let deadline = Instant::now() + options.timeout;
     require(
-        c.files.contains_key(&options.project),
+        workspace(options) || c.files.contains_key(&options.project),
         "ANALYZER",
         "Project configuration must be a retained input",
     )?;
@@ -120,6 +120,11 @@ fn node_adapter_mode(
     let temp = native_host::scratch()?;
     let script = temp.path().join(name);
     std::fs::write(&script, adapter)?;
+    // Workspace partitions are loaded by the adapter from its own directory.
+    std::fs::write(
+        temp.path().join("typescript_workspace.cjs"),
+        WORKSPACE_ADAPTER,
+    )?;
     let files: BTreeMap<_, _> = c
         .files
         .iter()
@@ -147,6 +152,25 @@ fn node_adapter_mode(
         "Compiler identity changed while analyzing",
     )?;
     Ok(out)
+}
+const WORKSPACE_ADAPTER: &[u8] = include_bytes!("typescript_workspace.cjs");
+/// `workspace` (every retained tsconfig.json) or a comma list of configs selects
+/// partitioned, module-level analysis; calls are classified, never resolved.
+pub(crate) fn workspace(options: &ScanOptions) -> bool {
+    options.project == "workspace" || options.project.contains(',')
+}
+/// One limitation per top-level directory, not per omitted file.
+fn omitted_limitations(omitted: &[String], label: &str) -> Vec<String> {
+    let mut groups: BTreeMap<&str, (usize, &str)> = BTreeMap::new();
+    for p in omitted {
+        let top = p.split('/').next().unwrap_or(p);
+        let entry = groups.entry(top).or_insert((0, p));
+        entry.0 += 1;
+    }
+    groups
+        .into_iter()
+        .map(|(top, (n, example))| format!("{label}: {n} file(s) under {top} (e.g. {example})"))
+        .collect()
 }
 fn coverage(out: &Value, predicate: &str) -> Value {
     let unresolved = rows(out, "unresolved")
@@ -188,6 +212,7 @@ pub fn produce(
     let adapter = identity::digest(
         &json!({"rust":identity::bytes_digest(include_bytes!("typescript.rs")),
         "compiler_adapter":identity::bytes_digest(include_bytes!("typescript.cjs")),
+        "workspace_adapter":identity::bytes_digest(WORKSPACE_ADAPTER),
         "launcher":identity::bytes_digest(include_bytes!("native_host.rs"))}),
     )?;
     let (mut b, mut payloads, ctx) = c.seed(repository, producer)?;
@@ -215,7 +240,9 @@ pub fn produce(
     }
     let import_run = run(&mut b, &ctx, &config_id, &imports)?;
     let calls = coverage(&out, "CALLS_STATIC");
-    let call_run = if options.calls {
+    let partitioned = workspace(options);
+    let resolve_calls = options.calls && !partitioned;
+    let call_run = if resolve_calls {
         Some(run(&mut b, &ctx, &config_id, &calls)?)
     } else {
         None
@@ -234,8 +261,20 @@ pub fn produce(
     for m in rows(&out, "modules") {
         let path = text(m, "path");
         let language = text(m, "language");
+        // Import-only targets outside analyzed partitions are module identities
+        // without declarations; their file containment is still syntax.
         let module = rust::entity_for_language(
-            &mut b, &ctx, "module", &path, &provider, "compiler", &language,
+            &mut b,
+            &ctx,
+            "module",
+            &path,
+            &provider,
+            if m["analyzed"] == false {
+                "syntax"
+            } else {
+                "compiler"
+            },
+            &language,
         )?;
         let file = rust::entity_for_language(
             &mut b,
@@ -339,13 +378,19 @@ pub fn produce(
                 knowledge::target(to),
                 json!({"run_id":rid}),
                 vec![er],
-                Some(json!({"status":"resolved","method":"compiler","candidate_ids":[to]})),
+                Some(
+                    json!({"status":"resolved","method":match s["method"].as_str() {
+                    None | Some("compiler") => "compiler",
+                    // Manifest, explicit-path and re-export resolution read retained syntax.
+                    Some(_) => "syntax",
+                },"candidate_ids":[to]}),
+                ),
             )?;
         }
     }
     for u in rows(&out, "unresolved")
         .iter()
-        .filter(|u| u["predicate"] == "IMPORTS" || options.calls)
+        .filter(|u| u["predicate"] == "IMPORTS" || resolve_calls)
     {
         let er = rust::evidence(
             &mut b,
@@ -362,17 +407,24 @@ pub fn produce(
         add(&mut b, "unresolved_references", u);
     }
     passes::produce(&mut b, &mut payloads, &ctx, &imports)?;
-    if options.calls {
+    if resolve_calls {
         passes::produce_execution(&mut b, &mut payloads, &ctx, &calls)?;
     }
-    let mut limitations = vec!["Captured TS/JS project only; no external/ambient targets, project references, methods, callbacks, function values, dynamic dispatch or runtime guarantee.".to_owned()];
-    limitations.extend(
-        strings(&out["omitted"])
-            .iter()
-            .map(|p| format!("Source outside configured project: {p}")),
-    );
+    let mut limitations = vec![if partitioned {
+        "Captured TS/JS workspace partitions; module-level imports only (compiler, retained workspace manifests, explicit paths, syntactic re-exports). No external/ambient targets and no call resolution; call constructs are counted by kind.".to_owned()
+    } else {
+        "Captured TS/JS project only; no external/ambient targets, project references, methods, callbacks, function values, dynamic dispatch or runtime guarantee.".to_owned()
+    }];
+    limitations.extend(omitted_limitations(
+        &strings(&out["omitted"]),
+        if partitioned {
+            "Source not analyzed (outside partitions or bounds)"
+        } else {
+            "Source outside configured project"
+        },
+    ));
     super::declarations::apply(&mut b, &c, &ctx, &provider, &mut limitations)?;
-    let diagnostics = json!({"requested_analyses":json!({"dependencies":true,"static_calls":options.calls,"data":false}),"capture":c.metadata(),"provider":producer,"coverage":imports,"call_coverage":if options.calls {calls}else{Value::Null},
+    let diagnostics = json!({"requested_analyses":json!({"dependencies":true,"static_calls":options.calls,"data":false}),"capture":c.metadata(),"provider":producer,"coverage":imports,"call_coverage":if resolve_calls {calls}else{Value::Null},"workspace":out["workspace"],
         "compiler_diagnostics":out["diagnostics"],"omitted_source_files":out["omitted"],
         "limitations":limitations,"correspondence_artifact_id":witness,"exclusions":c.exclusions});
     Prepared::seal(b, payloads, generation, diagnostics)

@@ -14,9 +14,11 @@ fn render(doc: &Value) -> Value {
     let mut files = vec![];
     for role in source::ARTIFACT_ROLES {
         for (index, row) in rows(&doc["slice"], role).iter().enumerate() {
-            let primary = rows(row, "selection_reasons").iter()
+            let primary = rows(row, "selection_reasons")
+                .iter()
                 .max_by_key(|reason| reason["strength"].as_i64().unwrap_or(0));
-            let why = primary.map(|reason| format!("{}: {}", text(reason, "facet"), text(reason, "kind")))
+            let why = primary
+                .map(|reason| format!("{}: {}", text(reason, "facet"), text(reason, "kind")))
                 .unwrap_or_else(|| "selected retained evidence".into());
             let mut file = json!({"path":row["path"],"role":role,"rank":row["rank"],
                 "why":why.chars().take(96).collect::<String>(),"ref":format!("/slice/{role}/{index}")});
@@ -25,9 +27,13 @@ fn render(doc: &Value) -> Value {
             if let Some(span) = rows(row, "spans").first() {
                 let mut location = serde_json::Map::new();
                 for key in ["byte_range", "line_range"] {
-                    if let Some(range) = span.get(key) { location.insert(key.into(), range.clone()); }
+                    if let Some(range) = span.get(key) {
+                        location.insert(key.into(), range.clone());
+                    }
                 }
-                if !location.is_empty() { file["spans"] = json!([location]); }
+                if !location.is_empty() {
+                    file["spans"] = json!([location]);
+                }
                 if let Some(offset) = span["byte_range"]["start"].as_u64().filter(|n| *n > 0) {
                     file["source_offset"] = json!(offset);
                 }
@@ -48,23 +54,64 @@ fn render(doc: &Value) -> Value {
             if let Some(index) = files.iter().position(|file| file["path"] == paths[0]) {
                 let file = files.remove(index);
                 for key in ["path", "ref", "source_offset", "spans"] {
-                    if let Some(value) = file.get(key) { anchor[key] = value.clone(); }
+                    if let Some(value) = file.get(key) {
+                        anchor[key] = value.clone();
+                    }
                 }
             }
         }
     }
 
+    // Compact findings ride the same manifest budget as files: claim plus a
+    // pinned `/findings/{i}` continuation, never copied source passages.
+    let findings: Vec<_> = rows(doc, "findings")
+        .iter()
+        .enumerate()
+        .map(|(index, f)| {
+            let assessments: Vec<_> = rows(&f["payload"], "conditions")
+                .iter()
+                .map(|c| text(c, "relationship_assessment"))
+                .collect::<BTreeSet<_>>()
+                .into_iter()
+                .collect::<Vec<_>>();
+            let mut compact = json!({"ref":format!("/findings/{index}"),"kind":f["kind"],
+            "claim":text(f, "claim").chars().take(160).collect::<String>(),
+            "subjects":f["subjects"],"condition_assessments":assessments,
+            "applicability_status":f["applicability"]["status"],
+            "runtime_satisfaction":"unknown",
+            "limitations":rows(f, "limitations").len()});
+            // Convergence counts survive claim truncation: analyzed and
+            // unresolved stay side by side, never one merged denominator.
+            if f["payload"]["type"] == "cohort_convergence" {
+                let c = &f["payload"]["cohort"];
+                compact["convergence"] = json!({"status":f["payload"]["status"],"conforming":c["conforming"],
+                    "analyzed":c["analyzed"],"unresolved":c["unresolved"],"cohort_status":f["applicability"]["cohort_status"]});
+            }
+            compact
+        })
+        .collect();
     let mut sections = BTreeMap::new();
     for section in case::sections(doc) {
-        let count = doc.pointer(&section).and_then(Value::as_array).map_or(0, Vec::len);
-        if count > 0 { sections.insert(section, count); }
+        let count = doc
+            .pointer(&section)
+            .and_then(Value::as_array)
+            .map_or(0, Vec::len);
+        if count > 0 {
+            sections.insert(section, count);
+        }
     }
     let mut gaps: Vec<_> = rows(doc, "not_covered").iter().collect();
     gaps.sort_by_key(|gap| gap["actionable"] == false);
-    let preview: Vec<_> = gaps.iter().take(3).map(|gap| json!({
+    let preview: Vec<_> = gaps
+        .iter()
+        .take(3)
+        .map(|gap| {
+            json!({
         "area":gap["area"],"dimension":gap["dimension"],"count":gap["count"],
         "actionable":gap["actionable"].as_bool().unwrap_or(true),
-        "reason":text(gap,"reason").chars().take(96).collect::<String>()})).collect();
+        "reason":text(gap,"reason").chars().take(96).collect::<String>()})
+        })
+        .collect();
     // Candidate ranks are not offsets in a supplemental file list: anchors,
     // unselected candidates and role partitions can all intervene. Restart the
     // pinned inventory rather than skipping evidence using files.len().
@@ -72,10 +119,13 @@ fn render(doc: &Value) -> Value {
         crate::architecture::reports::continuation(id.as_str().unwrap(), "/candidates", 0, 20)
     } else if !gaps.is_empty() {
         crate::architecture::reports::continuation(id.as_str().unwrap(), "/not_covered", 0, 20)
-    } else { Value::Null };
+    } else {
+        Value::Null
+    };
     json!({"schema_version":"2.0","kind":"agent_context","case_id":id,"report_id":id,
         "view_id":doc["view_id"],"pinned_views":doc["pinned_views"],"index_id":doc["index_id"],
-        "outcome":doc["outcome"],"outcome_scope":"retained_evidence","anchor":anchor,"files":files,
+        "outcome":doc["outcome"],"outcome_scope":"retained_evidence","anchor":anchor,"files":files,"findings":findings,
+        "findings_status":doc["findings_status"].as_str().unwrap_or("not_evaluated"),
         "not_covered":preview,"coverage":{"completeness":doc["coverage"]["completeness"],
             "not_covered_areas":doc["coverage"]["not_covered_areas"],
             "delivery":{"files":{"total":files.len(),"returned":files.len(),"omitted":0},
@@ -89,26 +139,56 @@ fn render(doc: &Value) -> Value {
 /// Reduce diagnostics and source-location detail before sacrificing paths.
 /// Ref + source_offset always survives, so compacting spans cannot alter reads.
 pub(super) fn trim(doc: &mut Value) -> bool {
-    if doc["not_covered"].as_array_mut().is_some_and(|gaps| gaps.pop().is_some()) {
+    // Findings are advisory routing detail: shrink them before files, but
+    // never before gaps; their pinned refs stay in `sections`.
+    if doc["findings"].as_array().is_some_and(|f| f.len() > 1)
+        && doc["not_covered"]
+            .as_array()
+            .is_some_and(|gaps| gaps.is_empty())
+    {
+        doc["findings"].as_array_mut().unwrap().pop();
+        return true;
+    }
+    if doc["not_covered"]
+        .as_array_mut()
+        .is_some_and(|gaps| gaps.pop().is_some())
+    {
         update_delivery(doc, "not_covered");
         return true;
     }
-    if doc["coverage"].as_object_mut().is_some_and(|coverage| coverage.remove("not_covered_areas").is_some()) {
+    if doc["coverage"]
+        .as_object_mut()
+        .is_some_and(|coverage| coverage.remove("not_covered_areas").is_some())
+    {
         return true;
     }
     let mut removed_spans = false;
     if let Some(files) = doc["files"].as_array_mut() {
         for file in files {
-            removed_spans |= file.as_object_mut().is_some_and(|file| file.remove("spans").is_some());
+            removed_spans |= file
+                .as_object_mut()
+                .is_some_and(|file| file.remove("spans").is_some());
         }
     }
-    if let Some(anchor) = doc["anchor"].as_object_mut() { removed_spans |= anchor.remove("spans").is_some(); }
-    if removed_spans { return true; }
-    if doc["files"].as_array_mut().is_some_and(|files| files.pop().is_some()) {
+    if let Some(anchor) = doc["anchor"].as_object_mut() {
+        removed_spans |= anchor.remove("spans").is_some();
+    }
+    if removed_spans {
+        return true;
+    }
+    if doc["files"]
+        .as_array_mut()
+        .is_some_and(|files| files.pop().is_some())
+    {
         update_delivery(doc, "files");
         if doc["continue_with"].is_null() {
-            let section = if doc["sections"].get("/candidates").is_some() { "/candidates" } else { "/not_covered" };
-            doc["continue_with"] = crate::architecture::reports::continuation(&text(doc, "case_id"), section, 0, 20);
+            let section = if doc["sections"].get("/candidates").is_some() {
+                "/candidates"
+            } else {
+                "/not_covered"
+            };
+            doc["continue_with"] =
+                crate::architecture::reports::continuation(&text(doc, "case_id"), section, 0, 20);
         }
         return true;
     }
@@ -117,8 +197,11 @@ pub(super) fn trim(doc: &mut Value) -> bool {
 
 fn update_delivery(doc: &mut Value, field: &str) {
     let returned = rows(doc, field).len();
-    let total = doc["coverage"]["delivery"][field]["total"].as_u64().unwrap_or(returned as u64 + 1);
-    doc["coverage"]["delivery"][field] = json!({"total":total,"returned":returned,"omitted":total.saturating_sub(returned as u64)});
+    let total = doc["coverage"]["delivery"][field]["total"]
+        .as_u64()
+        .unwrap_or(returned as u64 + 1);
+    doc["coverage"]["delivery"][field] =
+        json!({"total":total,"returned":returned,"omitted":total.saturating_sub(returned as u64)});
 }
 
 #[cfg(test)]
@@ -157,70 +240,107 @@ mod tests {
 
     #[test]
     fn routing_projection_keeps_all_selected_files_and_one_primary_reason() {
-        let doc=retained(41);
-        let manifest=render(&doc);
-        crate::architecture::contracts::schema(&manifest,"agent-context",None).unwrap();
-        assert_eq!(rows(&manifest,"files").len(),40);
-        assert_eq!(manifest["anchor"]["path"],"src/anchor.rs");
-        assert_eq!(manifest["anchor"]["source_offset"],123);
-        assert_eq!(manifest["files"][0]["why"],"structure: direct_dependency");
-        assert_eq!(rows(&manifest["files"][0],"spans").len(),1);
+        let doc = retained(41);
+        let manifest = render(&doc);
+        crate::architecture::contracts::schema(&manifest, "agent-context", None).unwrap();
+        assert_eq!(rows(&manifest, "files").len(), 40);
+        assert_eq!(manifest["anchor"]["path"], "src/anchor.rs");
+        assert_eq!(manifest["anchor"]["source_offset"], 123);
+        assert_eq!(manifest["files"][0]["why"], "structure: direct_dependency");
+        assert_eq!(rows(&manifest["files"][0], "spans").len(), 1);
         assert!(manifest["files"][0]["spans"][0].get("symbol").is_none());
         assert!(manifest["files"][0].get("fetch").is_none());
-        assert_eq!(manifest["fetch_source"]["arguments"]["report_id"],doc["id"]);
-        assert_eq!(manifest["sections"]["/not_covered"],100);
-        assert_eq!(manifest["coverage"]["delivery"]["not_covered"]["omitted"],97);
+        assert_eq!(
+            manifest["fetch_source"]["arguments"]["report_id"],
+            doc["id"]
+        );
+        assert_eq!(manifest["sections"]["/not_covered"], 100);
+        assert_eq!(
+            manifest["coverage"]["delivery"]["not_covered"]["omitted"],
+            97
+        );
         assert!(manifest["coverage"].get("retrieval").is_none());
     }
 
     #[test]
     fn ambiguous_directory_and_inferred_anchors_keep_paths_in_the_supplemental_ranking() {
-        let mut doc=retained(3);
-        doc["anchors"]["paths"]=json!(["src/anchor.rs",doc["slice"]["impl"][1]["path"]]);
-        assert_eq!(rows(&render(&doc),"files").len(),3);
-        doc["anchors"]["paths"]=json!(["src/anchor.rs"]);
-        for status in ["ambiguous","unresolved"] {
-            doc["anchors"]["status"]=json!(status);
-            assert_eq!(rows(&render(&doc),"files").len(),3);
+        let mut doc = retained(3);
+        doc["anchors"]["paths"] = json!(["src/anchor.rs", doc["slice"]["impl"][1]["path"]]);
+        assert_eq!(rows(&render(&doc), "files").len(), 3);
+        doc["anchors"]["paths"] = json!(["src/anchor.rs"]);
+        for status in ["ambiguous", "unresolved"] {
+            doc["anchors"]["status"] = json!(status);
+            assert_eq!(rows(&render(&doc), "files").len(), 3);
         }
-        doc["anchors"]["status"]=json!("resolved");doc["request"]["target"]=Value::Null;
-        let manifest=render(&doc);
-        assert!(manifest["anchor"].is_null());assert_eq!(rows(&manifest,"files").len(),3);
+        doc["anchors"]["status"] = json!("resolved");
+        doc["request"]["target"] = Value::Null;
+        let manifest = render(&doc);
+        assert!(manifest["anchor"].is_null());
+        assert_eq!(rows(&manifest, "files").len(), 3);
     }
 
     #[test]
     fn six_view_delivery_is_compact_monotonic_and_preserves_pinned_inventory() {
-        let doc=retained(41);
-        let mut packet=render(&doc);packet["freshness"]=diagnostic_freshness();
-        let mut previous=Vec::<String>::new();
-        for budget in [8000,12000,16000,32000] {
-            let manifest=response::bounded(packet.clone(),budget).unwrap();
-            crate::architecture::contracts::schema(&manifest,"agent-context",None).unwrap();
-            assert!(response::serialized_bytes(&manifest).unwrap()<=budget);
-            assert_eq!(manifest["budget"]["returned_response_bytes"],response::serialized_bytes(&manifest).unwrap());
-            assert!(serde_json::to_vec(&manifest["freshness"]).unwrap().len()<=300);
-            assert_eq!(manifest["freshness"]["view_count"],6);
-            assert_eq!(manifest["freshness"]["pending_or_interrupted"],true);
-            assert_eq!(manifest["freshness"]["fallback"],true);
-            assert_eq!(manifest["coverage"]["completeness"],doc["coverage"]["completeness"]);
-            assert_eq!(manifest["anchor"]["path"],"src/anchor.rs");
-            let delivered:Vec<_>=rows(&manifest,"files").iter().map(|file|text(file,"path")).collect();
-            assert!(delivered.len()>=8);assert!(delivered.starts_with(&previous));
-            for file in rows(&manifest,"files") {
-                assert_eq!(file["source_offset"],123);
-                assert_eq!(doc.pointer(file["ref"].as_str().unwrap()).unwrap()["path"],file["path"]);
+        let doc = retained(41);
+        let mut packet = render(&doc);
+        packet["freshness"] = diagnostic_freshness();
+        let mut previous = Vec::<String>::new();
+        for budget in [8000, 12000, 16000, 32000] {
+            let manifest = response::bounded(packet.clone(), budget).unwrap();
+            crate::architecture::contracts::schema(&manifest, "agent-context", None).unwrap();
+            assert!(response::serialized_bytes(&manifest).unwrap() <= budget);
+            assert_eq!(
+                manifest["budget"]["returned_response_bytes"],
+                response::serialized_bytes(&manifest).unwrap()
+            );
+            assert!(serde_json::to_vec(&manifest["freshness"]).unwrap().len() <= 300);
+            assert_eq!(manifest["freshness"]["view_count"], 6);
+            assert_eq!(manifest["freshness"]["pending_or_interrupted"], true);
+            assert_eq!(manifest["freshness"]["fallback"], true);
+            assert_eq!(
+                manifest["coverage"]["completeness"],
+                doc["coverage"]["completeness"]
+            );
+            assert_eq!(manifest["anchor"]["path"], "src/anchor.rs");
+            let delivered: Vec<_> = rows(&manifest, "files")
+                .iter()
+                .map(|file| text(file, "path"))
+                .collect();
+            assert!(delivered.len() >= 8);
+            assert!(delivered.starts_with(&previous));
+            for file in rows(&manifest, "files") {
+                assert_eq!(file["source_offset"], 123);
+                assert_eq!(
+                    doc.pointer(file["ref"].as_str().unwrap()).unwrap()["path"],
+                    file["path"]
+                );
             }
-            assert_eq!(manifest["coverage"]["delivery"]["files"]["omitted"],40-delivered.len());
-            let cursor:Value=serde_json::from_str(manifest["continue_with"]["arguments"]["cursor"].as_str().unwrap()).unwrap();
-            assert_eq!(cursor["report_id"],doc["id"]);assert_eq!(cursor["section"],"/candidates");assert_eq!(cursor["offset"],0);
-            previous=delivered;
+            assert_eq!(
+                manifest["coverage"]["delivery"]["files"]["omitted"],
+                40 - delivered.len()
+            );
+            let cursor: Value = serde_json::from_str(
+                manifest["continue_with"]["arguments"]["cursor"]
+                    .as_str()
+                    .unwrap(),
+            )
+            .unwrap();
+            assert_eq!(cursor["report_id"], doc["id"]);
+            assert_eq!(cursor["section"], "/candidates");
+            assert_eq!(cursor["offset"], 0);
+            previous = delivered;
         }
-        assert_eq!(previous.len(),40,"large budgets must not plateau at 10, 12 or 20 files");
+        assert_eq!(
+            previous.len(),
+            40,
+            "large budgets must not plateau at 10, 12 or 20 files"
+        );
     }
 
     #[test]
     fn prompt_framing_and_the_manifest_together_fit_eight_thousand_bytes() {
-        let mut packet=render(&retained(41));packet["freshness"]=diagnostic_freshness();
+        let mut packet = render(&retained(41));
+        packet["freshness"] = diagnostic_freshness();
         // These are the actual Pi/Claude text frames; the evaluator suite also
         // checks their equality with the adapters' source constants.
         for prefix in [

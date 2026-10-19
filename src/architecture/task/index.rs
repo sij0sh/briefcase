@@ -115,7 +115,6 @@ fn build(s: &Snapshot, id: String) -> Result<Index> {
     let artifact_paths:BTreeMap<_,_>=rows(&v.bundle,"artifacts").iter().map(|a|(text(a,"id"),text(a,"path"))).collect();
     let evidence_paths:BTreeMap<_,_>=rows(&v.bundle,"evidence_refs").iter().filter_map(|r|artifact_paths.get(&text(r,"artifact_id")).map(|p|(text(r,"id"),p.clone()))).collect();
     let mut links = BTreeMap::new();
-    let mut omitted=0usize;
     for a in &assertions {
         let p = &a["proposition"];
         let Some(from)=by_id.get(&text(p,"subject_id")) else {continue};
@@ -138,18 +137,18 @@ fn build(s: &Snapshot, id: String) -> Result<Index> {
             vec![text(a,"id")],vec![],from_files.clone(),to_files.clone())?;
         link.value=value;
         link.support_files=support_files;
-        insert_link(&mut links,link,&mut omitted);
+        insert_link(&mut links,link);
         if ["IMPORTS","REFERENCES","CALLS_STATIC","DEPENDS_ON"].contains(&predicate.as_str()) {
             for test in from_files.iter().filter(|p|s.files.get(*p).is_some_and(|f|f.role == "test")) {
                 for implementation in to_files.iter().filter(|p|s.files.get(*p).is_some_and(|f|f.role == "impl")) {
                     let link = Link::new("TESTS",test,implementation,"derived",&format!("test_{predicate}; static association, not executed coverage"),
                         vec![text(a,"id")],vec![],BTreeSet::from([test.clone()]),BTreeSet::from([implementation.clone()]))?;
-                    insert_link(&mut links,link,&mut omitted);
+                    insert_link(&mut links,link);
                 }
             }
         }
     }
-    for link in &s.producer_links {insert_link(&mut links,link.clone(),&mut omitted);}
+    for link in &s.producer_links {insert_link(&mut links,link.clone());}
     // A path token is joined only when it resolves to a captured exact path.
     // Relative references are resolved against the referring artifact directory.
     let path_token = Regex::new(r#"[\p{L}\p{N}_@.+-]+(?:[/\\][\p{L}\p{N}_@.+-]+)+"#)?;
@@ -170,7 +169,7 @@ fn build(s: &Snapshot, id: String) -> Result<Index> {
             let predicate = if s.files[path].role == "test" && s.files[&target].role == "impl" {"TESTS"} else {"REFERENCES_ARTIFACT"};
             let link = Link::new(predicate,path,&target,"derived","exact retained path reference; not execution or implementation proof",
                 vec![],vec![s.witness(path,found.start(),found.start()+literal.len())],BTreeSet::from([path.clone()]),BTreeSet::from([target.clone()]))?;
-            insert_link(&mut links,link,&mut omitted);
+            insert_link(&mut links,link);
         }
         // Includes such as #[path="briefcase_cases.rs"] name a local file
         // without a slash. The retained relative path is an exact association.
@@ -180,7 +179,7 @@ fn build(s: &Snapshot, id: String) -> Result<Index> {
             let predicate=if s.files[path].role=="test"&&s.files[&target].role=="impl" {"TESTS"} else {"REFERENCES_ARTIFACT"};
             let link=Link::new(predicate,path,&target,"derived","exact quoted relative path; static association, not executed coverage",vec![],
                 vec![s.witness(path,literal.start(),literal.end())],BTreeSet::from([path.clone()]),BTreeSet::from([target.clone()]))?;
-            insert_link(&mut links,link,&mut omitted);
+            insert_link(&mut links,link);
         }
         if s.files[path].role == "test" {
             for found in qualified.find_iter(content) {
@@ -188,13 +187,13 @@ fn build(s: &Snapshot, id: String) -> Result<Index> {
                 for implementation in target.iter().filter(|p|s.files.get(*p).is_some_and(|f|f.role == "impl")) {
                     let link = Link::new("TESTS",path,implementation,"derived","test mentions exact qualified entity; static association, not executed coverage",
                         vec![],vec![s.witness(path,found.start(),found.end())],BTreeSet::from([path.clone()]),BTreeSet::from([implementation.clone()]))?;
-                    insert_link(&mut links,link,&mut omitted);
+                    insert_link(&mut links,link);
                 }
             }
         }
     }
-    let rust_syntax=rust_test_links(s,&mut links,&mut omitted)?;
-    config_links(s,&mut links,&mut omitted)?;
+    let rust_syntax=rust_test_links(s,&mut links)?;
+    config_links(s,&mut links)?;
     // Feature membership uses only declared implementation/workflow bindings.
     let mut memberships: BTreeMap<String,BTreeSet<String>> = entities.iter().filter(|(_,e)|e.kind == "feature")
         .map(|(key,_)|(key.clone(),BTreeSet::new())).collect();
@@ -251,6 +250,8 @@ fn build(s: &Snapshot, id: String) -> Result<Index> {
         if edge.from_files.is_empty() {if let Some(e)=entities.get(&edge.from) {edge.from_files=e.files.clone();}}
         if let Some(e)=entities.get(&edge.to) {edge.to_files=e.files.clone();}
     }
+    // Ownership propagation above sees every structural link before the limit applies.
+    let omitted=limit_links(&mut links,RELATIONSHIP_LIMIT);
     let captured_languages: BTreeSet<_> = s.files.values().map(|f|f.language.clone()).filter(|l|l != "text").collect();
     let analyzed_languages: BTreeSet<_> = rows(&v.bundle,"entity_versions").iter().filter(|e|e["kind"] == "module")
         .map(|e|text(e,"language")).filter(|l|!l.is_empty() && l != "none").collect();
@@ -269,7 +270,7 @@ fn build(s: &Snapshot, id: String) -> Result<Index> {
         "capture":inventory_summary(&v.diagnostics["capture"]["inventory"]),"profile_boundaries":s.profile_boundaries,"languages":languages,"unresolved_bindings":unresolved_bindings,
         "semantic_coverage":v.diagnostics["coverage"],
         "producer_boundaries":s.profiles.iter().chain(s.evidence_views.iter()).map(|p|json!({"view_id":p.id,"scope":p.scope,
-            "unresolved":rows(&p.bundle,"unresolved_references"),"limitations":p.diagnostics["limitations"]})).collect::<Vec<_>>(),"relationship_limit":100000,"omitted_relationship_occurrences":omitted,"relationships":"retained eligible assertions and labelled exact-text derivations; no inferred feature ownership",
+            "unresolved":rows(&p.bundle,"unresolved_references"),"limitations":p.diagnostics["limitations"]})).collect::<Vec<_>>(),"relationship_limit":RELATIONSHIP_LIMIT,"omitted_relationship_occurrences":omitted.values().sum::<usize>(),"omitted_relationship_predicates":omitted,"relationships":"retained eligible assertions and labelled exact-text derivations; no inferred feature ownership",
         "projection_check":"not_requested; durable source records and digest-verified bytes only",
         "propagation":{"iteration_limit":64,"feature_membership_complete":membership_complete,"file_associations_complete":ownership_complete},
         "uncovered":["dynamic dispatch and generated references", "unrecorded sessions", "runtime selection of configuration", "live installed files"]});
@@ -286,7 +287,7 @@ fn normalize_relative(path: &str, token: &str) -> Option<String> {
 
 /// Cargo roots and real module declarations carry test ownership through
 /// #[path] includes. This is a static association, never executed coverage.
-fn rust_test_links(s:&Snapshot,links:&mut BTreeMap<String,Link>,omitted:&mut usize)->Result<Value> {
+fn rust_test_links(s:&Snapshot,links:&mut BTreeMap<String,Link>)->Result<Value> {
     let syntax=crate::architecture::rust::context_syntax(&s.all_contents()?)?;
     let mut parents=BTreeMap::<String,BTreeSet<String>>::new();
     for inclusion in &syntax.inclusions {
@@ -296,7 +297,7 @@ fn rust_test_links(s:&Snapshot,links:&mut BTreeMap<String,Link>,omitted:&mut usi
             &format!("Rust module inclusion {}; retained syntax and exact path",inclusion.module),vec![],
             vec![s.witness(&inclusion.from,inclusion.start,inclusion.end)],
             BTreeSet::from([inclusion.from.clone()]),BTreeSet::from([inclusion.to.clone()]))?;
-        insert_link(links,link,omitted);
+        insert_link(links,link);
     }
     let associations:Vec<_>=links.values().filter(|link|["TESTS","IMPORTS","REFERENCES","CALLS_STATIC","DEPENDS_ON","REFERENCES_ARTIFACT"]
         .contains(&link.predicate.as_str())).cloned().collect();
@@ -330,7 +331,7 @@ fn rust_test_links(s:&Snapshot,links:&mut BTreeMap<String,Link>,omitted:&mut usi
                     let link=Link::new("TESTS",&owner,implementation,"derived",
                         "Cargo test module ownership and retained association; not executed coverage",association.assertion_ids.clone(),witnesses.clone(),
                         BTreeSet::from([owner.clone()]),BTreeSet::from([implementation.clone()]))?;
-                    insert_link(links,link,omitted);
+                    insert_link(links,link);
                 }
             }
         }
@@ -338,7 +339,7 @@ fn rust_test_links(s:&Snapshot,links:&mut BTreeMap<String,Link>,omitted:&mut usi
     Ok(crate::architecture::rust::syntax_diagnostics(&syntax))
 }
 
-fn config_links(s: &Snapshot, links: &mut BTreeMap<String,Link>, omitted: &mut usize) -> Result<()> {
+fn config_links(s: &Snapshot, links: &mut BTreeMap<String,Link>) -> Result<()> {
     let access = Regex::new(r#"(?:env::var(?:_os)?|std::env::var(?:_os)?|os\.getenv|getenv)\s*\(\s*["']([A-Za-z_][A-Za-z0-9_]*)["']|process\.env\.([A-Za-z_][A-Za-z0-9_]*)|os\.environ\s*\[\s*["']([A-Za-z_][A-Za-z0-9_]*)["']"#)?;
     let declaration = Regex::new(r#"(?m)^\s*["']?([A-Z][A-Z0-9_]+)["']?\s*[:=]"#)?;
     let executable = Regex::new(r#"(?:Command::new|spawn|execFile)\s*\(\s*["']([^"'\r\n]+)["']"#)?;
@@ -354,13 +355,13 @@ fn config_links(s: &Snapshot, links: &mut BTreeMap<String,Link>, omitted: &mut u
                 let target = format!("env:{}",key.as_str());
                 let link = Link::new("READS_CONFIG",path,&target,"derived","literal environment access; runtime value/source unknown",vec![],
                     vec![s.witness(path,key.start(),key.end())],BTreeSet::from([path.clone()]),BTreeSet::new())?;
-                insert_link(links,link,omitted);
+                insert_link(links,link);
             }
             for found in executable.captures_iter(content) {
                 let value = found.get(1).unwrap(); let target = format!("executable:{}",value.as_str());
                 let link = Link::new("REFERENCES_TOUCHPOINT",path,&target,"derived","literal spawned executable; installed binary identity unknown",vec![],
                     vec![s.witness(path,value.start(),value.end())],BTreeSet::from([path.clone()]),BTreeSet::new())?;
-                insert_link(links,link,omitted);
+                insert_link(links,link);
             }
         }
         if ["config","build"].contains(&role.as_str()) {
@@ -368,14 +369,14 @@ fn config_links(s: &Snapshot, links: &mut BTreeMap<String,Link>, omitted: &mut u
                 let key = found.get(1).unwrap(); let target = format!("env:{}",key.as_str());
                 let link = Link::new("DECLARES_CONFIG_KEY",path,&target,"derived","literal configuration key; active runtime configuration unknown",vec![],
                     vec![s.witness(path,key.start(),key.end())],BTreeSet::from([path.clone()]),BTreeSet::new())?;
-                insert_link(links,link,omitted);
+                insert_link(links,link);
             }
         }
         for value in external.find_iter(content) {
             let target=format!("path:{}",value.as_str());
             let link=Link::new("REFERENCES_TOUCHPOINT",path,&target,"derived","literal external path; external filesystem was not read",vec![],
                 vec![s.witness(path,value.start(),value.end())],BTreeSet::from([path.clone()]),BTreeSet::new())?;
-            insert_link(links,link,omitted);
+            insert_link(links,link);
         }
         for annotation in plan.captures_iter(content) {
             let target=annotation.get(1).unwrap();
@@ -385,7 +386,7 @@ fn config_links(s: &Snapshot, links: &mut BTreeMap<String,Link>, omitted: &mut u
             let found=annotation.get(0).unwrap();
             let link=Link::new("IMPLEMENTS_PLAN_SECTION",path,&target_key,"derived","literal implements-plan annotation; declared intent, not verified completion",vec![],
                 vec![s.witness(path,found.start(),found.end())],BTreeSet::from([path.clone()]),BTreeSet::from([target.as_str().to_owned()]))?;
-            insert_link(links,link,omitted);
+            insert_link(links,link);
         }
         if s.files[path].role == "install" || s.files[path].role == "script" {
             for declaration in install.captures_iter(content) {
@@ -395,16 +396,28 @@ fn config_links(s: &Snapshot, links: &mut BTreeMap<String,Link>, omitted: &mut u
                 let mut link=Link::new("INSTALLS_TO",from.as_str(),&target,"derived","retained copy/install command; desired installation only, actual installed bytes unknown",vec![],
                     vec![s.witness(path,found.start(),found.end())],BTreeSet::from([from.as_str().to_owned()]),BTreeSet::new())?;
                 link.support_files.insert(path.clone());
-                insert_link(links,link,omitted);
+                insert_link(links,link);
             }
         }
     }
     Ok(())
 }
 
-fn insert_link(links:&mut BTreeMap<String,Link>,link:Link,omitted:&mut usize) {
-    if links.len()<100000 || links.contains_key(&link.id) {links.insert(link.id.clone(),link);}
-    else {*omitted+=1;}
+fn insert_link(links:&mut BTreeMap<String,Link>,link:Link) {links.insert(link.id.clone(),link);}
+
+const RELATIONSHIP_LIMIT:usize=100000;
+/// Bound the index by retrieval value, not insertion order: a large joined
+/// profile otherwise fills the limit with file-to-symbol structure and evicts
+/// every later exact-text, test and configuration link. Ties break by id.
+fn limit_links(links:&mut BTreeMap<String,Link>,limit:usize)->BTreeMap<String,usize> {
+    let mut omitted=BTreeMap::new();
+    if links.len()<=limit {return omitted;}
+    let mut ranked:Vec<_>=links.values().map(|l|(std::cmp::Reverse(super::retrieval::facet(&l.predicate).map_or(0,|(_,w)|w)),l.id.clone())).collect();
+    ranked.sort();
+    for (_,id) in ranked.into_iter().skip(limit) {
+        if let Some(link)=links.remove(&id) {*omitted.entry(link.predicate).or_insert(0usize)+=1;}
+    }
+    omitted
 }
 
 #[cfg(test)]
@@ -418,5 +431,18 @@ mod cache_tests {
             let mut sources=INDEX_SOURCES.to_vec();sources[i]=&changed;
             assert_ne!(original,implementation_digest(&sources),"source {i}");
         }
+    }
+    #[test]
+    fn relationship_limit_evicts_structure_before_cross_file_links() {
+        let mut links=BTreeMap::new();
+        for (predicate,from,to) in [("DECLARES","a.ts","a.ts#x"),("TESTS","a.test.ts","a.ts"),("UNWEIGHTED","a.ts","b.ts"),("REFERENCES_ARTIFACT","doc.md","a.ts")] {
+            let link=Link::new(predicate,from,to,"derived","test",vec![],vec![],BTreeSet::from([from.into()]),BTreeSet::from([to.into()])).unwrap();
+            insert_link(&mut links,link);
+        }
+        assert!(limit_links(&mut links.clone(),4).is_empty());
+        let omitted=limit_links(&mut links,2);
+        let kept:BTreeSet<_>=links.values().map(|l|l.predicate.as_str()).collect();
+        assert_eq!(kept,BTreeSet::from(["TESTS","REFERENCES_ARTIFACT"]));
+        assert_eq!(omitted,BTreeMap::from([("DECLARES".to_string(),1),("UNWEIGHTED".to_string(),1)]));
     }
 }

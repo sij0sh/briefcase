@@ -158,7 +158,7 @@ class TaskControlsTests(unittest.TestCase):
             self.assertTrue(report["clean"]["ready"])
             self.assertFalse(report["clean"]["static_calls"]["coverage"]["resolution_complete"], "readiness must not promote semantic coverage")
             heldout = json.loads((output / "retained/heldout.json").read_text())
-            self.assertEqual(len(heldout["facet_ablations"]), 10)
+            self.assertEqual(len(heldout["facet_ablations"]), 12)
             self.assertEqual(heldout["inputs"]["source_view"], report["retained"]["view_id"])
             self.assertEqual(heldout["scenarios"][0]["source_fetch"]["state"], "verified")
             self.assertEqual([row["budget"] for row in heldout["scenarios"][0]["budget_sweep"]], [3000,4000,6000,8000,12000])

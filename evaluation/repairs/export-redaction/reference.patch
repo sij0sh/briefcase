@@ -1,0 +1,11 @@
+--- a/src/settings/export.py
++++ b/src/settings/export.py
+@@ -10,4 +10,8 @@
+     for field in schema.SECRET_FIELDS:
+         if exported.get(field):
+             exported[field] = REDACTED
++    for provider in exported.get("providers", {}).values():
++        for field in schema.PROVIDER_SECRET_FIELDS:
++            if provider.get(field):
++                provider[field] = REDACTED
+     return exported

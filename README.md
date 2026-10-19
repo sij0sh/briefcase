@@ -4,6 +4,10 @@ See [P0/P1 implementation and validation](P0_P1_IMPLEMENTATION.md) for candidate
 source recovery, the resumable investigation CLI, and current-source rechecks.
 See [P2 implementation](P2_IMPLEMENTATION.md) for resumable discovery, lazy
 source access, monorepo scope, two-repository federation, and the task corpus.
+See [engine Phase 0/1](ENGINE_PHASE0_PHASE1.md) for the substrate audit,
+corrected evaluation baseline, and the shared Case findings contract with the
+first capability/condition explanation, and [engine Phase 3](ENGINE_PHASE3.md)
+for the task-local dependency-convention cohort rule.
 
 Briefcase traces retained evidence from a codebase to build a case around a
 task, delivered as a brief. Source, coverage and provenance stay explicit.

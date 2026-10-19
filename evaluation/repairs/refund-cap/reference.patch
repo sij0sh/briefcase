@@ -1,0 +1,18 @@
+--- a/src/payments/refund.py
++++ b/src/payments/refund.py
+@@ -1,4 +1,4 @@
+-from payments import config, ledger, orders
++from payments import config, ledger
+ 
+ 
+ class RefundError(Exception):
+@@ -12,7 +12,8 @@
+         raise RefundError("order is not settled")
+     if amount <= 0:
+         raise RefundError("amount must be positive")
+-    if amount > orders.amount_due_basis(order) - order.refunded:
++    # Refunds are bounded by settled captured funds, not the invoiced total.
++    if amount > order.captured - order.refunded:
+         raise RefundError("amount exceeds the refundable balance")
+     order.refunded += amount
+     return order.refunded

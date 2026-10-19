@@ -120,6 +120,11 @@ class InvestigationTests(unittest.TestCase):
         self.flow.save()
         self.assertEqual(self.flow.state["context_readiness"], "blocked")
 
+    def test_unknown_worktree_alignment_does_not_invalidate_traversal(self):
+        self.protocol.alignment = "unknown"
+        self.assertTrue(self.flow.check_current())
+        self.assertEqual(self.flow.state["requirements"]["scope"]["status"], "open")
+
     def test_pin_change_and_pending_capture_are_not_retrieval_completion(self):
         self.protocol.view = "view:two"
         self.assertFalse(self.flow.check_current())
@@ -159,6 +164,53 @@ class InvestigationTests(unittest.TestCase):
             self.flow.add_query({"operation": "sync"})
         self.flow.add_query({"operation": "occurrences", "arguments": {"text": "save"}})
         self.drain()
+
+
+class ManifestFirstTests(unittest.TestCase):
+    def protocol_with_manifest(self):
+        class ManifestProtocol(Protocol):
+            def __call__(self, op, args):
+                result = super().__call__(op, args)
+                if op == "agent_context":
+                    result["anchor"] = {"path": "src/a.rs", "ref": "/files/src~1a.rs"}
+                    result["files"] = [{"path": "src/b.rs", "ref": "/files/src~1b.rs"}]
+                return result
+        return ManifestProtocol()
+
+    def test_manifest_first_reads_anchor_and_selected_before_candidates(self):
+        with tempfile.TemporaryDirectory() as directory:
+            flow = Investigation(self.protocol_with_manifest(), directory)
+            flow.start({"task": "refactor storage", "target": "src/a.rs"}, budget=3000, mode="manifest-first")
+            self.assertEqual(flow.state["mode"], "manifest_first")
+            self.assertEqual(flow.state["manifest"]["paths"], ["src/a.rs", "src/b.rs"])
+            queue = flow.state["queue"]
+            self.assertEqual([a["kind"] for a in queue[:2]], ["source", "source"])
+            self.assertEqual([a["path"] for a in queue[:2]], ["src/a.rs", "src/b.rs"])
+            self.assertTrue(any(a["kind"] == "candidates" for a in queue[2:]))
+
+    def test_exhaustive_mode_keeps_candidate_traversal_without_manifest_sources(self):
+        with tempfile.TemporaryDirectory() as directory:
+            flow = Investigation(self.protocol_with_manifest(), directory)
+            flow.start({"task": "refactor storage", "target": "src/a.rs"}, budget=3000, mode="exhaustive")
+            self.assertEqual(flow.state["mode"], "exhaustive")
+            self.assertFalse(any(a["kind"] == "source" for a in flow.state["queue"]))
+
+    def test_unknown_mode_is_rejected(self):
+        with tempfile.TemporaryDirectory() as directory:
+            flow = Investigation(Protocol(), directory)
+            with self.assertRaisesRegex(ValueError, "mode"):
+                flow.start({"task": "x"}, budget=3000, mode="sideways")
+
+    def test_bounded_investigation_reports_call_limit(self):
+        from task_investigation import run_bounded_investigation
+        protocol = self.protocol_with_manifest()
+        with tempfile.TemporaryDirectory() as directory:
+            result = run_bounded_investigation(protocol, directory,
+                {"task": "refactor storage", "target": "src/a.rs", "required_paths": ["src/a.rs"]},
+                mode="manifest-first", max_calls=3, max_bytes=2_000_000, max_seconds=60, budget=3000)
+            self.assertEqual(result["limit_reached"], "calls")
+            self.assertLessEqual(result["calls"], 3)
+            self.assertIn("recovered_required_paths", result)
 
 
 class InvestigationCliTests(unittest.TestCase):

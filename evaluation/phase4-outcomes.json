@@ -1,0 +1,7901 @@
+{
+ "schema_version": "1.0",
+ "kind": "phase4_outcomes",
+ "protocol": "p4-r1",
+ "tier": "deterministic",
+ "agent_tier": "not_run (requires an authorized --agent-command)",
+ "binary_note": "Run with the release binary after the worktree --policy fix, before the view capture-state memo; every Briefcase T3 run reached the 180 s stopping limit.",
+ "summary": {
+  "protocol": "p4-r1",
+  "statistics": "paired percentile bootstrap over scenarios, 10000 resamples, seed 20261018, 95% interval",
+  "sets": [
+   "repairs",
+   "t3"
+  ],
+  "by_condition": {
+   "rg": {
+    "mean_supportability": 0.3333,
+    "unsupported_critical_claims": 0,
+    "mean_calls": 27.28,
+    "mean_bytes": 1594346.0,
+    "mean_seconds": 0.03,
+    "mean_files": 26.28
+   },
+   "lexical": {
+    "mean_supportability": 0.5926,
+    "unsupported_critical_claims": 0,
+    "mean_calls": 192.83,
+    "mean_bytes": 1368368.92,
+    "mean_seconds": 140.42,
+    "mean_files": 18.67
+   },
+   "hybrid": {
+    "mean_supportability": 0.6713,
+    "unsupported_critical_claims": 0,
+    "mean_calls": 169.86,
+    "mean_bytes": 1263564.86,
+    "mean_seconds": 140.43,
+    "mean_files": 18.72
+   },
+   "findings": {
+    "mean_supportability": 0.6713,
+    "unsupported_critical_claims": 0,
+    "mean_calls": 165.08,
+    "mean_bytes": 1229686.39,
+    "mean_seconds": 140.52,
+    "mean_files": 18.44
+   },
+   "rg+sessions": {
+    "mean_supportability": 1.0,
+    "unsupported_critical_claims": 0,
+    "mean_calls": 7.0,
+    "mean_bytes": 5125.0,
+    "mean_seconds": 0.01,
+    "mean_files": 6.0
+   },
+   "findings+sessions": {
+    "mean_supportability": 0.8333,
+    "unsupported_critical_claims": 0,
+    "mean_calls": 16.0,
+    "mean_bytes": 133659.0,
+    "mean_seconds": 0.57,
+    "mean_files": 6.0
+   }
+  },
+  "by_condition_all_claims": {
+   "rg": {
+    "mean_supportability_all": 0.6667,
+    "unsupported_critical_claims": 0,
+    "mean_calls": 6.0,
+    "mean_bytes": 2709.0,
+    "mean_seconds": 0.01,
+    "mean_files": 5.0
+   },
+   "rg+sessions": {
+    "mean_supportability_all": 1.0,
+    "unsupported_critical_claims": 0,
+    "mean_calls": 7.0,
+    "mean_bytes": 5125.0,
+    "mean_seconds": 0.01,
+    "mean_files": 6.0
+   },
+   "lexical": {
+    "mean_supportability_all": 0.6667,
+    "unsupported_critical_claims": 0,
+    "mean_calls": 15.0,
+    "mean_bytes": 89367.0,
+    "mean_seconds": 0.52,
+    "mean_files": 5.0
+   },
+   "hybrid": {
+    "mean_supportability_all": 0.6667,
+    "unsupported_critical_claims": 0,
+    "mean_calls": 16.0,
+    "mean_bytes": 131060.0,
+    "mean_seconds": 0.54,
+    "mean_files": 6.0
+   },
+   "findings": {
+    "mean_supportability_all": 0.6667,
+    "unsupported_critical_claims": 0,
+    "mean_calls": 16.0,
+    "mean_bytes": 132433.0,
+    "mean_seconds": 0.57,
+    "mean_files": 6.0
+   },
+   "findings+sessions": {
+    "mean_supportability_all": 0.8333,
+    "unsupported_critical_claims": 0,
+    "mean_calls": 16.0,
+    "mean_bytes": 133659.0,
+    "mean_seconds": 0.57,
+    "mean_files": 6.0
+   }
+  },
+  "contrasts": {
+   "primary": {
+    "treatment": "findings",
+    "control": "hybrid",
+    "metric": "supportability",
+    "scenarios": [
+     "R-export-redaction",
+     "R-health-audit-exception",
+     "R-refund-cap",
+     "R-retry-ceiling",
+     "T3-R-H1-rpc-permission",
+     "T3-R-H10-attachment-retry",
+     "T3-R-H11-monitor-sequence",
+     "T3-R-H12-mobile-reveal-patch",
+     "T3-R-H2-checkpoint-finalization",
+     "T3-R-H3-huge-history-item",
+     "T3-R-H4-stale-pr-display",
+     "T3-R-H5-redacted-settings-save",
+     "T3-R-H6-rollback-capability",
+     "T3-R-H7-offline-webhook-retry",
+     "T3-R-H8-flapping-backoff",
+     "T3-R-H9-linux-portal-ordering",
+     "T3-R-S1-terminal-bounds",
+     "T3-R-S2-keybinding-owners"
+    ],
+    "n": 18,
+    "mean": 0.0,
+    "interval": [
+     0.0,
+     0.0
+    ],
+    "unsupported_critical_claims": {
+     "findings": 0,
+     "hybrid": 0
+    }
+   },
+   "secondary": [
+    {
+     "treatment": "findings",
+     "control": "rg",
+     "metric": "supportability",
+     "scenarios": [
+      "R-export-redaction",
+      "R-health-audit-exception",
+      "R-refund-cap",
+      "R-retry-ceiling",
+      "T3-R-H1-rpc-permission",
+      "T3-R-H10-attachment-retry",
+      "T3-R-H11-monitor-sequence",
+      "T3-R-H12-mobile-reveal-patch",
+      "T3-R-H2-checkpoint-finalization",
+      "T3-R-H3-huge-history-item",
+      "T3-R-H4-stale-pr-display",
+      "T3-R-H5-redacted-settings-save",
+      "T3-R-H6-rollback-capability",
+      "T3-R-H7-offline-webhook-retry",
+      "T3-R-H8-flapping-backoff",
+      "T3-R-H9-linux-portal-ordering",
+      "T3-R-S1-terminal-bounds",
+      "T3-R-S2-keybinding-owners"
+     ],
+     "n": 18,
+     "mean": 0.337963,
+     "interval": [
+      0.175926,
+      0.513889
+     ],
+     "unsupported_critical_claims": {
+      "findings": 0,
+      "rg": 0
+     }
+    },
+    {
+     "treatment": "findings",
+     "control": "lexical",
+     "metric": "supportability",
+     "scenarios": [
+      "R-export-redaction",
+      "R-health-audit-exception",
+      "R-refund-cap",
+      "R-retry-ceiling",
+      "T3-R-H1-rpc-permission",
+      "T3-R-H10-attachment-retry",
+      "T3-R-H11-monitor-sequence",
+      "T3-R-H12-mobile-reveal-patch",
+      "T3-R-H2-checkpoint-finalization",
+      "T3-R-H3-huge-history-item",
+      "T3-R-H4-stale-pr-display",
+      "T3-R-H5-redacted-settings-save",
+      "T3-R-H6-rollback-capability",
+      "T3-R-H7-offline-webhook-retry",
+      "T3-R-H8-flapping-backoff",
+      "T3-R-H9-linux-portal-ordering",
+      "T3-R-S1-terminal-bounds",
+      "T3-R-S2-keybinding-owners"
+     ],
+     "n": 18,
+     "mean": 0.078704,
+     "interval": [
+      0.018519,
+      0.157407
+     ],
+     "unsupported_critical_claims": {
+      "findings": 0,
+      "lexical": 0
+     }
+    },
+    {
+     "treatment": "findings+sessions",
+     "control": "rg+sessions",
+     "metric": "supportability_all",
+     "scenarios": [
+      "R-retry-ceiling"
+     ],
+     "n": 1,
+     "mean": -0.166667,
+     "interval": [
+      -0.166667,
+      -0.166667
+     ],
+     "unsupported_critical_claims": {
+      "findings+sessions": 0,
+      "rg+sessions": 0
+     }
+    },
+    {
+     "treatment": "findings+sessions",
+     "control": "findings",
+     "metric": "supportability_all",
+     "scenarios": [
+      "R-retry-ceiling"
+     ],
+     "n": 1,
+     "mean": 0.166666,
+     "interval": [
+      0.166666,
+      0.166666
+     ],
+     "unsupported_critical_claims": {
+      "findings+sessions": 0,
+      "findings": 0
+     }
+    },
+    {
+     "treatment": "findings",
+     "control": "hybrid",
+     "metric": "validated_repair",
+     "status": "not_run",
+     "reason": "agent tier requires an authorized --agent-command"
+    },
+    {
+     "treatment": "findings",
+     "control": "hybrid",
+     "metric": "justified_decision",
+     "status": "not_run",
+     "reason": "agent tier requires an authorized --agent-command"
+    }
+   ]
+  },
+  "gate": {
+   "status": "not_met",
+   "reason": "mean paired gain 0.0 is below the minimum useful effect 0.1"
+  },
+  "gate_scope": "deterministic tier only; agent tier not run",
+  "miss_classes": {
+   "lexical": {
+    "selection": 5,
+    "discovery": 19
+   },
+   "hybrid": {
+    "discovery": 15,
+    "selection": 5
+   },
+   "findings": {
+    "discovery": 15,
+    "selection": 5
+   },
+   "findings+sessions": {
+    "consumption": 1
+   }
+  },
+  "miss_detail": {
+   "lexical": {
+    "selection": [
+     "T3-R-S2-keybinding-owners:S2.F1",
+     "T3-R-H8-flapping-backoff:H8.F1",
+     "T3-R-H10-attachment-retry:H10.F1",
+     "T3-R-H10-attachment-retry:H10.F2",
+     "T3-R-H10-attachment-retry:H10.F3"
+    ],
+    "discovery": [
+     "T3-R-H1-rpc-permission:H1.F1",
+     "T3-R-H1-rpc-permission:H1.F2",
+     "T3-R-H1-rpc-permission:H1.F3",
+     "T3-R-H2-checkpoint-finalization:H2.F2",
+     "T3-R-H2-checkpoint-finalization:H2.F3",
+     "T3-R-H3-huge-history-item:H3.F1",
+     "T3-R-H3-huge-history-item:H3.F2",
+     "T3-R-H3-huge-history-item:H3.F3",
+     "T3-R-H4-stale-pr-display:H4.F1",
+     "T3-R-H4-stale-pr-display:H4.F2",
+     "T3-R-H4-stale-pr-display:H4.F3",
+     "T3-R-H4-stale-pr-display:H4.F4",
+     "T3-R-H6-rollback-capability:H6.F1",
+     "T3-R-H6-rollback-capability:H6.F2",
+     "T3-R-H6-rollback-capability:H6.F4",
+     "T3-R-H7-offline-webhook-retry:H7.F1",
+     "T3-R-H7-offline-webhook-retry:H7.F2",
+     "T3-R-H11-monitor-sequence:H11.F2",
+     "T3-R-H12-mobile-reveal-patch:H12.F3"
+    ]
+   },
+   "hybrid": {
+    "discovery": [
+     "T3-R-H1-rpc-permission:H1.F1",
+     "T3-R-H1-rpc-permission:H1.F3",
+     "T3-R-H2-checkpoint-finalization:H2.F2",
+     "T3-R-H2-checkpoint-finalization:H2.F3",
+     "T3-R-H4-stale-pr-display:H4.F2",
+     "T3-R-H4-stale-pr-display:H4.F4",
+     "T3-R-H6-rollback-capability:H6.F1",
+     "T3-R-H6-rollback-capability:H6.F2",
+     "T3-R-H6-rollback-capability:H6.F4",
+     "T3-R-H7-offline-webhook-retry:H7.F1",
+     "T3-R-H7-offline-webhook-retry:H7.F2",
+     "T3-R-H10-attachment-retry:H10.F1",
+     "T3-R-H10-attachment-retry:H10.F2",
+     "T3-R-H10-attachment-retry:H10.F3",
+     "T3-R-H12-mobile-reveal-patch:H12.F3"
+    ],
+    "selection": [
+     "T3-R-H3-huge-history-item:H3.F1",
+     "T3-R-H3-huge-history-item:H3.F2",
+     "T3-R-H3-huge-history-item:H3.F3",
+     "T3-R-H4-stale-pr-display:H4.F1",
+     "T3-R-H4-stale-pr-display:H4.F3"
+    ]
+   },
+   "findings": {
+    "discovery": [
+     "T3-R-H1-rpc-permission:H1.F1",
+     "T3-R-H1-rpc-permission:H1.F3",
+     "T3-R-H2-checkpoint-finalization:H2.F2",
+     "T3-R-H2-checkpoint-finalization:H2.F3",
+     "T3-R-H4-stale-pr-display:H4.F2",
+     "T3-R-H4-stale-pr-display:H4.F4",
+     "T3-R-H6-rollback-capability:H6.F1",
+     "T3-R-H6-rollback-capability:H6.F2",
+     "T3-R-H6-rollback-capability:H6.F4",
+     "T3-R-H7-offline-webhook-retry:H7.F1",
+     "T3-R-H7-offline-webhook-retry:H7.F2",
+     "T3-R-H10-attachment-retry:H10.F1",
+     "T3-R-H10-attachment-retry:H10.F2",
+     "T3-R-H10-attachment-retry:H10.F3",
+     "T3-R-H12-mobile-reveal-patch:H12.F3"
+    ],
+    "selection": [
+     "T3-R-H3-huge-history-item:H3.F1",
+     "T3-R-H3-huge-history-item:H3.F2",
+     "T3-R-H3-huge-history-item:H3.F3",
+     "T3-R-H4-stale-pr-display:H4.F1",
+     "T3-R-H4-stale-pr-display:H4.F3"
+    ]
+   },
+   "findings+sessions": {
+    "consumption": [
+     "R-retry-ceiling:RT.S1"
+    ]
+   }
+  },
+  "nondeterministic": [
+   {
+    "scenario": "T3-R-S2-keybinding-owners",
+    "condition": "hybrid"
+   },
+   {
+    "scenario": "T3-R-H12-mobile-reveal-patch",
+    "condition": "hybrid"
+   }
+  ]
+ },
+ "views": {
+  "t3": {
+   "t3": "view:1"
+  },
+  "repairs": {
+   "R-export-redaction": "view:1",
+   "R-health-audit-exception": "view:1",
+   "R-refund-cap": "view:1",
+   "R-retry-ceiling": "view:1"
+  }
+ },
+ "rows": [
+  {
+   "set": "repairs",
+   "scenario": "R-export-redaction",
+   "family": "settings",
+   "condition": "rg",
+   "repeat": 0,
+   "sessions_task": false,
+   "supportability": 1.0,
+   "supportability_all": 1.0,
+   "supported": [
+    "RX.F1",
+    "RX.F2",
+    "RX.F3",
+    "RX.F4"
+   ],
+   "misses": {},
+   "unsupported_critical_claims": 0,
+   "critical_violations": [],
+   "findings_delivered": {},
+   "findings_status": null,
+   "cost": {
+    "calls": 6,
+    "bytes": 2451,
+    "seconds": 0.006,
+    "files": 5,
+    "limit_reached": "complete"
+   }
+  },
+  {
+   "set": "repairs",
+   "scenario": "R-export-redaction",
+   "family": "settings",
+   "condition": "rg",
+   "repeat": 1,
+   "sessions_task": false,
+   "supportability": 1.0,
+   "supportability_all": 1.0,
+   "supported": [
+    "RX.F1",
+    "RX.F2",
+    "RX.F3",
+    "RX.F4"
+   ],
+   "misses": {},
+   "unsupported_critical_claims": 0,
+   "critical_violations": [],
+   "findings_delivered": {},
+   "findings_status": null,
+   "cost": {
+    "calls": 6,
+    "bytes": 2451,
+    "seconds": 0.006,
+    "files": 5,
+    "limit_reached": "complete"
+   }
+  },
+  {
+   "set": "repairs",
+   "scenario": "R-export-redaction",
+   "family": "settings",
+   "condition": "lexical",
+   "repeat": 0,
+   "sessions_task": false,
+   "supportability": 1.0,
+   "supportability_all": 1.0,
+   "supported": [
+    "RX.F1",
+    "RX.F2",
+    "RX.F3",
+    "RX.F4"
+   ],
+   "misses": {},
+   "unsupported_critical_claims": 0,
+   "critical_violations": [],
+   "findings_delivered": {},
+   "findings_status": "evaluated",
+   "cost": {
+    "calls": 15,
+    "bytes": 84127,
+    "seconds": 0.536,
+    "files": 6,
+    "limit_reached": "complete"
+   }
+  },
+  {
+   "set": "repairs",
+   "scenario": "R-export-redaction",
+   "family": "settings",
+   "condition": "lexical",
+   "repeat": 1,
+   "sessions_task": false,
+   "supportability": 1.0,
+   "supportability_all": 1.0,
+   "supported": [
+    "RX.F1",
+    "RX.F2",
+    "RX.F3",
+    "RX.F4"
+   ],
+   "misses": {},
+   "unsupported_critical_claims": 0,
+   "critical_violations": [],
+   "findings_delivered": {},
+   "findings_status": "evaluated",
+   "cost": {
+    "calls": 15,
+    "bytes": 84127,
+    "seconds": 0.472,
+    "files": 6,
+    "limit_reached": "complete"
+   }
+  },
+  {
+   "set": "repairs",
+   "scenario": "R-export-redaction",
+   "family": "settings",
+   "condition": "hybrid",
+   "repeat": 0,
+   "sessions_task": false,
+   "supportability": 1.0,
+   "supportability_all": 1.0,
+   "supported": [
+    "RX.F1",
+    "RX.F2",
+    "RX.F3",
+    "RX.F4"
+   ],
+   "misses": {},
+   "unsupported_critical_claims": 0,
+   "critical_violations": [],
+   "findings_delivered": {},
+   "findings_status": "evaluated",
+   "cost": {
+    "calls": 15,
+    "bytes": 118605,
+    "seconds": 0.507,
+    "files": 6,
+    "limit_reached": "complete"
+   }
+  },
+  {
+   "set": "repairs",
+   "scenario": "R-export-redaction",
+   "family": "settings",
+   "condition": "hybrid",
+   "repeat": 1,
+   "sessions_task": false,
+   "supportability": 1.0,
+   "supportability_all": 1.0,
+   "supported": [
+    "RX.F1",
+    "RX.F2",
+    "RX.F3",
+    "RX.F4"
+   ],
+   "misses": {},
+   "unsupported_critical_claims": 0,
+   "critical_violations": [],
+   "findings_delivered": {},
+   "findings_status": "evaluated",
+   "cost": {
+    "calls": 15,
+    "bytes": 118605,
+    "seconds": 0.479,
+    "files": 6,
+    "limit_reached": "complete"
+   }
+  },
+  {
+   "set": "repairs",
+   "scenario": "R-export-redaction",
+   "family": "settings",
+   "condition": "findings",
+   "repeat": 0,
+   "sessions_task": false,
+   "supportability": 1.0,
+   "supportability_all": 1.0,
+   "supported": [
+    "RX.F1",
+    "RX.F2",
+    "RX.F3",
+    "RX.F4"
+   ],
+   "misses": {},
+   "unsupported_critical_claims": 0,
+   "critical_violations": [],
+   "findings_delivered": {
+    "behavior_condition": 4
+   },
+   "findings_status": "evaluated",
+   "cost": {
+    "calls": 15,
+    "bytes": 120005,
+    "seconds": 0.514,
+    "files": 6,
+    "limit_reached": "complete"
+   }
+  },
+  {
+   "set": "repairs",
+   "scenario": "R-export-redaction",
+   "family": "settings",
+   "condition": "findings",
+   "repeat": 1,
+   "sessions_task": false,
+   "supportability": 1.0,
+   "supportability_all": 1.0,
+   "supported": [
+    "RX.F1",
+    "RX.F2",
+    "RX.F3",
+    "RX.F4"
+   ],
+   "misses": {},
+   "unsupported_critical_claims": 0,
+   "critical_violations": [],
+   "findings_delivered": {
+    "behavior_condition": 4
+   },
+   "findings_status": "evaluated",
+   "cost": {
+    "calls": 15,
+    "bytes": 120005,
+    "seconds": 0.505,
+    "files": 6,
+    "limit_reached": "complete"
+   }
+  },
+  {
+   "set": "repairs",
+   "scenario": "R-health-audit-exception",
+   "family": "conventions",
+   "condition": "rg",
+   "repeat": 0,
+   "sessions_task": false,
+   "supportability": 1.0,
+   "supportability_all": 1.0,
+   "supported": [
+    "EX.F1",
+    "EX.F2",
+    "EX.F3",
+    "EX.F4"
+   ],
+   "misses": {},
+   "unsupported_critical_claims": 0,
+   "critical_violations": [],
+   "findings_delivered": {},
+   "findings_status": null,
+   "cost": {
+    "calls": 9,
+    "bytes": 2388,
+    "seconds": 0.006,
+    "files": 8,
+    "limit_reached": "complete"
+   }
+  },
+  {
+   "set": "repairs",
+   "scenario": "R-health-audit-exception",
+   "family": "conventions",
+   "condition": "rg",
+   "repeat": 1,
+   "sessions_task": false,
+   "supportability": 1.0,
+   "supportability_all": 1.0,
+   "supported": [
+    "EX.F1",
+    "EX.F2",
+    "EX.F3",
+    "EX.F4"
+   ],
+   "misses": {},
+   "unsupported_critical_claims": 0,
+   "critical_violations": [],
+   "findings_delivered": {},
+   "findings_status": null,
+   "cost": {
+    "calls": 9,
+    "bytes": 2388,
+    "seconds": 0.007,
+    "files": 8,
+    "limit_reached": "complete"
+   }
+  },
+  {
+   "set": "repairs",
+   "scenario": "R-health-audit-exception",
+   "family": "conventions",
+   "condition": "lexical",
+   "repeat": 0,
+   "sessions_task": false,
+   "supportability": 1.0,
+   "supportability_all": 1.0,
+   "supported": [
+    "EX.F1",
+    "EX.F2",
+    "EX.F3",
+    "EX.F4"
+   ],
+   "misses": {},
+   "unsupported_critical_claims": 0,
+   "critical_violations": [],
+   "findings_delivered": {},
+   "findings_status": "evaluated",
+   "cost": {
+    "calls": 17,
+    "bytes": 77374,
+    "seconds": 0.626,
+    "files": 9,
+    "limit_reached": "complete"
+   }
+  },
+  {
+   "set": "repairs",
+   "scenario": "R-health-audit-exception",
+   "family": "conventions",
+   "condition": "lexical",
+   "repeat": 1,
+   "sessions_task": false,
+   "supportability": 1.0,
+   "supportability_all": 1.0,
+   "supported": [
+    "EX.F1",
+    "EX.F2",
+    "EX.F3",
+    "EX.F4"
+   ],
+   "misses": {},
+   "unsupported_critical_claims": 0,
+   "critical_violations": [],
+   "findings_delivered": {},
+   "findings_status": "evaluated",
+   "cost": {
+    "calls": 17,
+    "bytes": 77374,
+    "seconds": 0.532,
+    "files": 9,
+    "limit_reached": "complete"
+   }
+  },
+  {
+   "set": "repairs",
+   "scenario": "R-health-audit-exception",
+   "family": "conventions",
+   "condition": "hybrid",
+   "repeat": 0,
+   "sessions_task": false,
+   "supportability": 1.0,
+   "supportability_all": 1.0,
+   "supported": [
+    "EX.F1",
+    "EX.F2",
+    "EX.F3",
+    "EX.F4"
+   ],
+   "misses": {},
+   "unsupported_critical_claims": 0,
+   "critical_violations": [],
+   "findings_delivered": {},
+   "findings_status": "evaluated",
+   "cost": {
+    "calls": 19,
+    "bytes": 131630,
+    "seconds": 0.662,
+    "files": 11,
+    "limit_reached": "complete"
+   }
+  },
+  {
+   "set": "repairs",
+   "scenario": "R-health-audit-exception",
+   "family": "conventions",
+   "condition": "hybrid",
+   "repeat": 1,
+   "sessions_task": false,
+   "supportability": 1.0,
+   "supportability_all": 1.0,
+   "supported": [
+    "EX.F1",
+    "EX.F2",
+    "EX.F3",
+    "EX.F4"
+   ],
+   "misses": {},
+   "unsupported_critical_claims": 0,
+   "critical_violations": [],
+   "findings_delivered": {},
+   "findings_status": "evaluated",
+   "cost": {
+    "calls": 19,
+    "bytes": 131630,
+    "seconds": 0.638,
+    "files": 11,
+    "limit_reached": "complete"
+   }
+  },
+  {
+   "set": "repairs",
+   "scenario": "R-health-audit-exception",
+   "family": "conventions",
+   "condition": "findings",
+   "repeat": 0,
+   "sessions_task": false,
+   "supportability": 1.0,
+   "supportability_all": 1.0,
+   "supported": [
+    "EX.F1",
+    "EX.F2",
+    "EX.F3",
+    "EX.F4"
+   ],
+   "misses": {},
+   "unsupported_critical_claims": 0,
+   "critical_violations": [],
+   "findings_delivered": {
+    "behavior_condition": 8,
+    "architectural_convergence": 1
+   },
+   "findings_status": "evaluated",
+   "cost": {
+    "calls": 19,
+    "bytes": 134876,
+    "seconds": 0.705,
+    "files": 11,
+    "limit_reached": "complete"
+   }
+  },
+  {
+   "set": "repairs",
+   "scenario": "R-health-audit-exception",
+   "family": "conventions",
+   "condition": "findings",
+   "repeat": 1,
+   "sessions_task": false,
+   "supportability": 1.0,
+   "supportability_all": 1.0,
+   "supported": [
+    "EX.F1",
+    "EX.F2",
+    "EX.F3",
+    "EX.F4"
+   ],
+   "misses": {},
+   "unsupported_critical_claims": 0,
+   "critical_violations": [],
+   "findings_delivered": {
+    "behavior_condition": 8,
+    "architectural_convergence": 1
+   },
+   "findings_status": "evaluated",
+   "cost": {
+    "calls": 19,
+    "bytes": 134876,
+    "seconds": 0.688,
+    "files": 11,
+    "limit_reached": "complete"
+   }
+  },
+  {
+   "set": "repairs",
+   "scenario": "R-refund-cap",
+   "family": "payments",
+   "condition": "rg",
+   "repeat": 0,
+   "sessions_task": false,
+   "supportability": 1.0,
+   "supportability_all": 1.0,
+   "supported": [
+    "RC.F1",
+    "RC.F2",
+    "RC.F3",
+    "RC.F4"
+   ],
+   "misses": {},
+   "unsupported_critical_claims": 0,
+   "critical_violations": [],
+   "findings_delivered": {},
+   "findings_status": null,
+   "cost": {
+    "calls": 8,
+    "bytes": 3202,
+    "seconds": 0.006,
+    "files": 7,
+    "limit_reached": "complete"
+   }
+  },
+  {
+   "set": "repairs",
+   "scenario": "R-refund-cap",
+   "family": "payments",
+   "condition": "rg",
+   "repeat": 1,
+   "sessions_task": false,
+   "supportability": 1.0,
+   "supportability_all": 1.0,
+   "supported": [
+    "RC.F1",
+    "RC.F2",
+    "RC.F3",
+    "RC.F4"
+   ],
+   "misses": {},
+   "unsupported_critical_claims": 0,
+   "critical_violations": [],
+   "findings_delivered": {},
+   "findings_status": null,
+   "cost": {
+    "calls": 8,
+    "bytes": 3202,
+    "seconds": 0.006,
+    "files": 7,
+    "limit_reached": "complete"
+   }
+  },
+  {
+   "set": "repairs",
+   "scenario": "R-refund-cap",
+   "family": "payments",
+   "condition": "lexical",
+   "repeat": 0,
+   "sessions_task": false,
+   "supportability": 1.0,
+   "supportability_all": 1.0,
+   "supported": [
+    "RC.F1",
+    "RC.F2",
+    "RC.F3",
+    "RC.F4"
+   ],
+   "misses": {},
+   "unsupported_critical_claims": 0,
+   "critical_violations": [],
+   "findings_delivered": {},
+   "findings_status": "evaluated",
+   "cost": {
+    "calls": 18,
+    "bytes": 100623,
+    "seconds": 0.644,
+    "files": 8,
+    "limit_reached": "complete"
+   }
+  },
+  {
+   "set": "repairs",
+   "scenario": "R-refund-cap",
+   "family": "payments",
+   "condition": "lexical",
+   "repeat": 1,
+   "sessions_task": false,
+   "supportability": 1.0,
+   "supportability_all": 1.0,
+   "supported": [
+    "RC.F1",
+    "RC.F2",
+    "RC.F3",
+    "RC.F4"
+   ],
+   "misses": {},
+   "unsupported_critical_claims": 0,
+   "critical_violations": [],
+   "findings_delivered": {},
+   "findings_status": "evaluated",
+   "cost": {
+    "calls": 18,
+    "bytes": 100623,
+    "seconds": 0.571,
+    "files": 8,
+    "limit_reached": "complete"
+   }
+  },
+  {
+   "set": "repairs",
+   "scenario": "R-refund-cap",
+   "family": "payments",
+   "condition": "hybrid",
+   "repeat": 0,
+   "sessions_task": false,
+   "supportability": 1.0,
+   "supportability_all": 1.0,
+   "supported": [
+    "RC.F1",
+    "RC.F2",
+    "RC.F3",
+    "RC.F4"
+   ],
+   "misses": {},
+   "unsupported_critical_claims": 0,
+   "critical_violations": [],
+   "findings_delivered": {},
+   "findings_status": "evaluated",
+   "cost": {
+    "calls": 18,
+    "bytes": 135306,
+    "seconds": 0.62,
+    "files": 8,
+    "limit_reached": "complete"
+   }
+  },
+  {
+   "set": "repairs",
+   "scenario": "R-refund-cap",
+   "family": "payments",
+   "condition": "hybrid",
+   "repeat": 1,
+   "sessions_task": false,
+   "supportability": 1.0,
+   "supportability_all": 1.0,
+   "supported": [
+    "RC.F1",
+    "RC.F2",
+    "RC.F3",
+    "RC.F4"
+   ],
+   "misses": {},
+   "unsupported_critical_claims": 0,
+   "critical_violations": [],
+   "findings_delivered": {},
+   "findings_status": "evaluated",
+   "cost": {
+    "calls": 18,
+    "bytes": 135306,
+    "seconds": 0.606,
+    "files": 8,
+    "limit_reached": "complete"
+   }
+  },
+  {
+   "set": "repairs",
+   "scenario": "R-refund-cap",
+   "family": "payments",
+   "condition": "findings",
+   "repeat": 0,
+   "sessions_task": false,
+   "supportability": 1.0,
+   "supportability_all": 1.0,
+   "supported": [
+    "RC.F1",
+    "RC.F2",
+    "RC.F3",
+    "RC.F4"
+   ],
+   "misses": {},
+   "unsupported_critical_claims": 0,
+   "critical_violations": [],
+   "findings_delivered": {
+    "behavior_condition": 6
+   },
+   "findings_status": "evaluated",
+   "cost": {
+    "calls": 18,
+    "bytes": 137404,
+    "seconds": 0.656,
+    "files": 8,
+    "limit_reached": "complete"
+   }
+  },
+  {
+   "set": "repairs",
+   "scenario": "R-refund-cap",
+   "family": "payments",
+   "condition": "findings",
+   "repeat": 1,
+   "sessions_task": false,
+   "supportability": 1.0,
+   "supportability_all": 1.0,
+   "supported": [
+    "RC.F1",
+    "RC.F2",
+    "RC.F3",
+    "RC.F4"
+   ],
+   "misses": {},
+   "unsupported_critical_claims": 0,
+   "critical_violations": [],
+   "findings_delivered": {
+    "behavior_condition": 6
+   },
+   "findings_status": "evaluated",
+   "cost": {
+    "calls": 18,
+    "bytes": 137404,
+    "seconds": 0.635,
+    "files": 8,
+    "limit_reached": "complete"
+   }
+  },
+  {
+   "set": "repairs",
+   "scenario": "R-retry-ceiling",
+   "family": "connection",
+   "condition": "rg",
+   "repeat": 0,
+   "sessions_task": true,
+   "supportability": 1.0,
+   "supportability_all": 0.666667,
+   "supported": [
+    "RT.F1",
+    "RT.F2",
+    "RT.F3",
+    "RT.F4"
+   ],
+   "misses": {},
+   "unsupported_critical_claims": 0,
+   "critical_violations": [],
+   "findings_delivered": {},
+   "findings_status": null,
+   "cost": {
+    "calls": 6,
+    "bytes": 2709,
+    "seconds": 0.006,
+    "files": 5,
+    "limit_reached": "complete"
+   }
+  },
+  {
+   "set": "repairs",
+   "scenario": "R-retry-ceiling",
+   "family": "connection",
+   "condition": "rg",
+   "repeat": 1,
+   "sessions_task": true,
+   "supportability": 1.0,
+   "supportability_all": 0.666667,
+   "supported": [
+    "RT.F1",
+    "RT.F2",
+    "RT.F3",
+    "RT.F4"
+   ],
+   "misses": {},
+   "unsupported_critical_claims": 0,
+   "critical_violations": [],
+   "findings_delivered": {},
+   "findings_status": null,
+   "cost": {
+    "calls": 6,
+    "bytes": 2709,
+    "seconds": 0.006,
+    "files": 5,
+    "limit_reached": "complete"
+   }
+  },
+  {
+   "set": "repairs",
+   "scenario": "R-retry-ceiling",
+   "family": "connection",
+   "condition": "rg+sessions",
+   "repeat": 0,
+   "sessions_task": true,
+   "supportability": 1.0,
+   "supportability_all": 1.0,
+   "supported": [
+    "RT.F1",
+    "RT.F2",
+    "RT.F3",
+    "RT.F4",
+    "RT.S1",
+    "RT.S2"
+   ],
+   "misses": {},
+   "unsupported_critical_claims": 0,
+   "critical_violations": [],
+   "findings_delivered": {},
+   "findings_status": null,
+   "cost": {
+    "calls": 7,
+    "bytes": 5125,
+    "seconds": 0.007,
+    "files": 6,
+    "limit_reached": "complete"
+   }
+  },
+  {
+   "set": "repairs",
+   "scenario": "R-retry-ceiling",
+   "family": "connection",
+   "condition": "rg+sessions",
+   "repeat": 1,
+   "sessions_task": true,
+   "supportability": 1.0,
+   "supportability_all": 1.0,
+   "supported": [
+    "RT.F1",
+    "RT.F2",
+    "RT.F3",
+    "RT.F4",
+    "RT.S1",
+    "RT.S2"
+   ],
+   "misses": {},
+   "unsupported_critical_claims": 0,
+   "critical_violations": [],
+   "findings_delivered": {},
+   "findings_status": null,
+   "cost": {
+    "calls": 7,
+    "bytes": 5125,
+    "seconds": 0.007,
+    "files": 6,
+    "limit_reached": "complete"
+   }
+  },
+  {
+   "set": "repairs",
+   "scenario": "R-retry-ceiling",
+   "family": "connection",
+   "condition": "lexical",
+   "repeat": 0,
+   "sessions_task": true,
+   "supportability": 1.0,
+   "supportability_all": 0.666667,
+   "supported": [
+    "RT.F1",
+    "RT.F2",
+    "RT.F3",
+    "RT.F4"
+   ],
+   "misses": {},
+   "unsupported_critical_claims": 0,
+   "critical_violations": [],
+   "findings_delivered": {},
+   "findings_status": "evaluated",
+   "cost": {
+    "calls": 15,
+    "bytes": 89367,
+    "seconds": 0.558,
+    "files": 5,
+    "limit_reached": "complete"
+   }
+  },
+  {
+   "set": "repairs",
+   "scenario": "R-retry-ceiling",
+   "family": "connection",
+   "condition": "lexical",
+   "repeat": 1,
+   "sessions_task": true,
+   "supportability": 1.0,
+   "supportability_all": 0.666667,
+   "supported": [
+    "RT.F1",
+    "RT.F2",
+    "RT.F3",
+    "RT.F4"
+   ],
+   "misses": {},
+   "unsupported_critical_claims": 0,
+   "critical_violations": [],
+   "findings_delivered": {},
+   "findings_status": "evaluated",
+   "cost": {
+    "calls": 15,
+    "bytes": 89367,
+    "seconds": 0.481,
+    "files": 5,
+    "limit_reached": "complete"
+   }
+  },
+  {
+   "set": "repairs",
+   "scenario": "R-retry-ceiling",
+   "family": "connection",
+   "condition": "hybrid",
+   "repeat": 0,
+   "sessions_task": true,
+   "supportability": 1.0,
+   "supportability_all": 0.666667,
+   "supported": [
+    "RT.F1",
+    "RT.F2",
+    "RT.F3",
+    "RT.F4"
+   ],
+   "misses": {},
+   "unsupported_critical_claims": 0,
+   "critical_violations": [],
+   "findings_delivered": {},
+   "findings_status": "evaluated",
+   "cost": {
+    "calls": 16,
+    "bytes": 131060,
+    "seconds": 0.539,
+    "files": 6,
+    "limit_reached": "complete"
+   }
+  },
+  {
+   "set": "repairs",
+   "scenario": "R-retry-ceiling",
+   "family": "connection",
+   "condition": "hybrid",
+   "repeat": 1,
+   "sessions_task": true,
+   "supportability": 1.0,
+   "supportability_all": 0.666667,
+   "supported": [
+    "RT.F1",
+    "RT.F2",
+    "RT.F3",
+    "RT.F4"
+   ],
+   "misses": {},
+   "unsupported_critical_claims": 0,
+   "critical_violations": [],
+   "findings_delivered": {},
+   "findings_status": "evaluated",
+   "cost": {
+    "calls": 16,
+    "bytes": 131060,
+    "seconds": 0.54,
+    "files": 6,
+    "limit_reached": "complete"
+   }
+  },
+  {
+   "set": "repairs",
+   "scenario": "R-retry-ceiling",
+   "family": "connection",
+   "condition": "findings",
+   "repeat": 0,
+   "sessions_task": true,
+   "supportability": 1.0,
+   "supportability_all": 0.666667,
+   "supported": [
+    "RT.F1",
+    "RT.F2",
+    "RT.F3",
+    "RT.F4"
+   ],
+   "misses": {},
+   "unsupported_critical_claims": 0,
+   "critical_violations": [],
+   "findings_delivered": {
+    "behavior_condition": 4
+   },
+   "findings_status": "evaluated",
+   "cost": {
+    "calls": 16,
+    "bytes": 132433,
+    "seconds": 0.576,
+    "files": 6,
+    "limit_reached": "complete"
+   }
+  },
+  {
+   "set": "repairs",
+   "scenario": "R-retry-ceiling",
+   "family": "connection",
+   "condition": "findings",
+   "repeat": 1,
+   "sessions_task": true,
+   "supportability": 1.0,
+   "supportability_all": 0.666667,
+   "supported": [
+    "RT.F1",
+    "RT.F2",
+    "RT.F3",
+    "RT.F4"
+   ],
+   "misses": {},
+   "unsupported_critical_claims": 0,
+   "critical_violations": [],
+   "findings_delivered": {
+    "behavior_condition": 4
+   },
+   "findings_status": "evaluated",
+   "cost": {
+    "calls": 16,
+    "bytes": 132433,
+    "seconds": 0.555,
+    "files": 6,
+    "limit_reached": "complete"
+   }
+  },
+  {
+   "set": "repairs",
+   "scenario": "R-retry-ceiling",
+   "family": "connection",
+   "condition": "findings+sessions",
+   "repeat": 0,
+   "sessions_task": true,
+   "supportability": 0.833333,
+   "supportability_all": 0.833333,
+   "supported": [
+    "RT.F1",
+    "RT.F2",
+    "RT.F3",
+    "RT.F4",
+    "RT.S2"
+   ],
+   "misses": {
+    "RT.S1": {
+     "class": "consumption",
+     "witness": {
+      "finding": "session_review_requirement",
+      "pattern": "MAX_DELAY"
+     }
+    }
+   },
+   "unsupported_critical_claims": 0,
+   "critical_violations": [],
+   "findings_delivered": {
+    "behavior_condition": 4,
+    "session_environment_observation": 1,
+    "session_failure_recovery": 1,
+    "session_review_requirement": 1
+   },
+   "findings_status": "evaluated",
+   "cost": {
+    "calls": 16,
+    "bytes": 133659,
+    "seconds": 0.584,
+    "files": 6,
+    "limit_reached": "complete"
+   }
+  },
+  {
+   "set": "repairs",
+   "scenario": "R-retry-ceiling",
+   "family": "connection",
+   "condition": "findings+sessions",
+   "repeat": 1,
+   "sessions_task": true,
+   "supportability": 0.833333,
+   "supportability_all": 0.833333,
+   "supported": [
+    "RT.F1",
+    "RT.F2",
+    "RT.F3",
+    "RT.F4",
+    "RT.S2"
+   ],
+   "misses": {
+    "RT.S1": {
+     "class": "consumption",
+     "witness": {
+      "finding": "session_review_requirement",
+      "pattern": "MAX_DELAY"
+     }
+    }
+   },
+   "unsupported_critical_claims": 0,
+   "critical_violations": [],
+   "findings_delivered": {
+    "behavior_condition": 4,
+    "session_environment_observation": 1,
+    "session_failure_recovery": 1,
+    "session_review_requirement": 1
+   },
+   "findings_status": "evaluated",
+   "cost": {
+    "calls": 16,
+    "bytes": 133659,
+    "seconds": 0.555,
+    "files": 6,
+    "limit_reached": "complete"
+   }
+  },
+  {
+   "set": "t3",
+   "scenario": "T3-R-S1-terminal-bounds",
+   "family": "terminal",
+   "condition": "rg",
+   "repeat": 0,
+   "sessions_task": false,
+   "supportability": 1.0,
+   "supportability_all": 1.0,
+   "supported": [
+    "S1.F1",
+    "S1.F2",
+    "S1.F3"
+   ],
+   "misses": {},
+   "unsupported_critical_claims": 0,
+   "critical_violations": [],
+   "findings_delivered": {},
+   "findings_status": null,
+   "cost": {
+    "calls": 33,
+    "bytes": 1858243,
+    "seconds": 0.08,
+    "files": 32,
+    "limit_reached": "complete"
+   }
+  },
+  {
+   "set": "t3",
+   "scenario": "T3-R-S1-terminal-bounds",
+   "family": "terminal",
+   "condition": "rg",
+   "repeat": 1,
+   "sessions_task": false,
+   "supportability": 1.0,
+   "supportability_all": 1.0,
+   "supported": [
+    "S1.F1",
+    "S1.F2",
+    "S1.F3"
+   ],
+   "misses": {},
+   "unsupported_critical_claims": 0,
+   "critical_violations": [],
+   "findings_delivered": {},
+   "findings_status": null,
+   "cost": {
+    "calls": 33,
+    "bytes": 1858243,
+    "seconds": 0.033,
+    "files": 32,
+    "limit_reached": "complete"
+   }
+  },
+  {
+   "set": "t3",
+   "scenario": "T3-R-S1-terminal-bounds",
+   "family": "terminal",
+   "condition": "lexical",
+   "repeat": 0,
+   "sessions_task": false,
+   "supportability": 1.0,
+   "supportability_all": 1.0,
+   "supported": [
+    "S1.F1",
+    "S1.F2",
+    "S1.F3"
+   ],
+   "misses": {},
+   "unsupported_critical_claims": 0,
+   "critical_violations": [],
+   "findings_delivered": {},
+   "findings_status": "evaluated",
+   "cost": {
+    "calls": 256,
+    "bytes": 1819929,
+    "seconds": 180.468,
+    "files": 23,
+    "limit_reached": "seconds"
+   }
+  },
+  {
+   "set": "t3",
+   "scenario": "T3-R-S1-terminal-bounds",
+   "family": "terminal",
+   "condition": "lexical",
+   "repeat": 1,
+   "sessions_task": false,
+   "supportability": 1.0,
+   "supportability_all": 1.0,
+   "supported": [
+    "S1.F1",
+    "S1.F2",
+    "S1.F3"
+   ],
+   "misses": {},
+   "unsupported_critical_claims": 0,
+   "critical_violations": [],
+   "findings_delivered": {},
+   "findings_status": "evaluated",
+   "cost": {
+    "calls": 251,
+    "bytes": 1784733,
+    "seconds": 180.01,
+    "files": 23,
+    "limit_reached": "seconds"
+   }
+  },
+  {
+   "set": "t3",
+   "scenario": "T3-R-S1-terminal-bounds",
+   "family": "terminal",
+   "condition": "hybrid",
+   "repeat": 0,
+   "sessions_task": false,
+   "supportability": 1.0,
+   "supportability_all": 1.0,
+   "supported": [
+    "S1.F1",
+    "S1.F2",
+    "S1.F3"
+   ],
+   "misses": {},
+   "unsupported_critical_claims": 0,
+   "critical_violations": [],
+   "findings_delivered": {},
+   "findings_status": "evaluated",
+   "cost": {
+    "calls": 249,
+    "bytes": 1795618,
+    "seconds": 180.234,
+    "files": 28,
+    "limit_reached": "seconds"
+   }
+  },
+  {
+   "set": "t3",
+   "scenario": "T3-R-S1-terminal-bounds",
+   "family": "terminal",
+   "condition": "hybrid",
+   "repeat": 1,
+   "sessions_task": false,
+   "supportability": 1.0,
+   "supportability_all": 1.0,
+   "supported": [
+    "S1.F1",
+    "S1.F2",
+    "S1.F3"
+   ],
+   "misses": {},
+   "unsupported_critical_claims": 0,
+   "critical_violations": [],
+   "findings_delivered": {},
+   "findings_status": "evaluated",
+   "cost": {
+    "calls": 250,
+    "bytes": 1802689,
+    "seconds": 180.468,
+    "files": 28,
+    "limit_reached": "seconds"
+   }
+  },
+  {
+   "set": "t3",
+   "scenario": "T3-R-S1-terminal-bounds",
+   "family": "terminal",
+   "condition": "findings",
+   "repeat": 0,
+   "sessions_task": false,
+   "supportability": 1.0,
+   "supportability_all": 1.0,
+   "supported": [
+    "S1.F1",
+    "S1.F2",
+    "S1.F3"
+   ],
+   "misses": {},
+   "unsupported_critical_claims": 0,
+   "critical_violations": [],
+   "findings_delivered": {
+    "behavior_condition": 1
+   },
+   "findings_status": "evaluated",
+   "cost": {
+    "calls": 249,
+    "bytes": 1796014,
+    "seconds": 180.648,
+    "files": 28,
+    "limit_reached": "seconds"
+   }
+  },
+  {
+   "set": "t3",
+   "scenario": "T3-R-S1-terminal-bounds",
+   "family": "terminal",
+   "condition": "findings",
+   "repeat": 1,
+   "sessions_task": false,
+   "supportability": 1.0,
+   "supportability_all": 1.0,
+   "supported": [
+    "S1.F1",
+    "S1.F2",
+    "S1.F3"
+   ],
+   "misses": {},
+   "unsupported_critical_claims": 0,
+   "critical_violations": [],
+   "findings_delivered": {
+    "behavior_condition": 1
+   },
+   "findings_status": "evaluated",
+   "cost": {
+    "calls": 248,
+    "bytes": 1788975,
+    "seconds": 180.336,
+    "files": 28,
+    "limit_reached": "seconds"
+   }
+  },
+  {
+   "set": "t3",
+   "scenario": "T3-R-S2-keybinding-owners",
+   "family": "settings",
+   "condition": "rg",
+   "repeat": 0,
+   "sessions_task": false,
+   "supportability": 0.0,
+   "supportability_all": 0.0,
+   "supported": [],
+   "misses": {
+    "S2.F1": {
+     "class": "not_delivered",
+     "witness": {
+      "path": "packages/shared/src/keybindings.ts",
+      "pattern": "export const DEFAULT_KEYBINDINGS"
+     }
+    },
+    "S2.F2": {
+     "class": "not_delivered",
+     "witness": {
+      "path": "apps/server/src/keybindings.ts",
+      "pattern": "if \\(existingCommands\\.has\\(defaultRule\\.command\\)\\)"
+     }
+    },
+    "S2.F3": {
+     "class": "not_delivered",
+     "witness": {
+      "path": "apps/server/src/keybindings.ts",
+      "pattern": "!appliedMigrationIds\\.has\\(late\\.id\\)"
+     }
+    }
+   },
+   "unsupported_critical_claims": 0,
+   "critical_violations": [],
+   "findings_delivered": {},
+   "findings_status": null,
+   "cost": {
+    "calls": 33,
+    "bytes": 2036467,
+    "seconds": 0.039,
+    "files": 32,
+    "limit_reached": "complete"
+   }
+  },
+  {
+   "set": "t3",
+   "scenario": "T3-R-S2-keybinding-owners",
+   "family": "settings",
+   "condition": "rg",
+   "repeat": 1,
+   "sessions_task": false,
+   "supportability": 0.0,
+   "supportability_all": 0.0,
+   "supported": [],
+   "misses": {
+    "S2.F1": {
+     "class": "not_delivered",
+     "witness": {
+      "path": "packages/shared/src/keybindings.ts",
+      "pattern": "export const DEFAULT_KEYBINDINGS"
+     }
+    },
+    "S2.F2": {
+     "class": "not_delivered",
+     "witness": {
+      "path": "apps/server/src/keybindings.ts",
+      "pattern": "if \\(existingCommands\\.has\\(defaultRule\\.command\\)\\)"
+     }
+    },
+    "S2.F3": {
+     "class": "not_delivered",
+     "witness": {
+      "path": "apps/server/src/keybindings.ts",
+      "pattern": "!appliedMigrationIds\\.has\\(late\\.id\\)"
+     }
+    }
+   },
+   "unsupported_critical_claims": 0,
+   "critical_violations": [],
+   "findings_delivered": {},
+   "findings_status": null,
+   "cost": {
+    "calls": 33,
+    "bytes": 2036467,
+    "seconds": 0.041,
+    "files": 32,
+    "limit_reached": "complete"
+   }
+  },
+  {
+   "set": "t3",
+   "scenario": "T3-R-S2-keybinding-owners",
+   "family": "settings",
+   "condition": "lexical",
+   "repeat": 0,
+   "sessions_task": false,
+   "supportability": 0.666667,
+   "supportability_all": 0.666667,
+   "supported": [
+    "S2.F2",
+    "S2.F3"
+   ],
+   "misses": {
+    "S2.F1": {
+     "class": "selection",
+     "witness": {
+      "path": "packages/shared/src/keybindings.ts",
+      "pattern": "export const DEFAULT_KEYBINDINGS"
+     }
+    }
+   },
+   "unsupported_critical_claims": 0,
+   "critical_violations": [],
+   "findings_delivered": {},
+   "findings_status": "evaluated",
+   "cost": {
+    "calls": 213,
+    "bytes": 1540733,
+    "seconds": 181.046,
+    "files": 37,
+    "limit_reached": "seconds"
+   }
+  },
+  {
+   "set": "t3",
+   "scenario": "T3-R-S2-keybinding-owners",
+   "family": "settings",
+   "condition": "lexical",
+   "repeat": 1,
+   "sessions_task": false,
+   "supportability": 0.666667,
+   "supportability_all": 0.666667,
+   "supported": [
+    "S2.F2",
+    "S2.F3"
+   ],
+   "misses": {
+    "S2.F1": {
+     "class": "selection",
+     "witness": {
+      "path": "packages/shared/src/keybindings.ts",
+      "pattern": "export const DEFAULT_KEYBINDINGS"
+     }
+    }
+   },
+   "unsupported_critical_claims": 0,
+   "critical_violations": [],
+   "findings_delivered": {},
+   "findings_status": "evaluated",
+   "cost": {
+    "calls": 211,
+    "bytes": 1526853,
+    "seconds": 180.122,
+    "files": 37,
+    "limit_reached": "seconds"
+   }
+  },
+  {
+   "set": "t3",
+   "scenario": "T3-R-S2-keybinding-owners",
+   "family": "settings",
+   "condition": "hybrid",
+   "repeat": 0,
+   "sessions_task": false,
+   "supportability": 1.0,
+   "supportability_all": 1.0,
+   "supported": [
+    "S2.F1",
+    "S2.F2",
+    "S2.F3"
+   ],
+   "misses": {},
+   "unsupported_critical_claims": 0,
+   "critical_violations": [],
+   "findings_delivered": {},
+   "findings_status": "evaluated",
+   "cost": {
+    "calls": 199,
+    "bytes": 1440679,
+    "seconds": 180.111,
+    "files": 42,
+    "limit_reached": "seconds"
+   }
+  },
+  {
+   "set": "t3",
+   "scenario": "T3-R-S2-keybinding-owners",
+   "family": "settings",
+   "condition": "hybrid",
+   "repeat": 1,
+   "sessions_task": false,
+   "supportability": 1.0,
+   "supportability_all": 1.0,
+   "supported": [
+    "S2.F1",
+    "S2.F2",
+    "S2.F3"
+   ],
+   "misses": {},
+   "unsupported_critical_claims": 0,
+   "critical_violations": [],
+   "findings_delivered": {},
+   "findings_status": "evaluated",
+   "cost": {
+    "calls": 196,
+    "bytes": 1419682,
+    "seconds": 180.834,
+    "files": 41,
+    "limit_reached": "seconds"
+   }
+  },
+  {
+   "set": "t3",
+   "scenario": "T3-R-S2-keybinding-owners",
+   "family": "settings",
+   "condition": "findings",
+   "repeat": 0,
+   "sessions_task": false,
+   "supportability": 1.0,
+   "supportability_all": 1.0,
+   "supported": [
+    "S2.F1",
+    "S2.F2",
+    "S2.F3"
+   ],
+   "misses": {},
+   "unsupported_critical_claims": 0,
+   "critical_violations": [],
+   "findings_delivered": {
+    "behavior_condition": 1
+   },
+   "findings_status": "evaluated",
+   "cost": {
+    "calls": 192,
+    "bytes": 1396396,
+    "seconds": 180.231,
+    "files": 40,
+    "limit_reached": "seconds"
+   }
+  },
+  {
+   "set": "t3",
+   "scenario": "T3-R-S2-keybinding-owners",
+   "family": "settings",
+   "condition": "findings",
+   "repeat": 1,
+   "sessions_task": false,
+   "supportability": 1.0,
+   "supportability_all": 1.0,
+   "supported": [
+    "S2.F1",
+    "S2.F2",
+    "S2.F3"
+   ],
+   "misses": {},
+   "unsupported_critical_claims": 0,
+   "critical_violations": [],
+   "findings_delivered": {
+    "behavior_condition": 1
+   },
+   "findings_status": "evaluated",
+   "cost": {
+    "calls": 191,
+    "bytes": 1391967,
+    "seconds": 181.213,
+    "files": 40,
+    "limit_reached": "seconds"
+   }
+  },
+  {
+   "set": "t3",
+   "scenario": "T3-R-H1-rpc-permission",
+   "family": "permissions",
+   "condition": "rg",
+   "repeat": 0,
+   "sessions_task": false,
+   "supportability": 0.0,
+   "supportability_all": 0.0,
+   "supported": [],
+   "misses": {
+    "H1.F1": {
+     "class": "not_delivered",
+     "witness": {
+      "path": "packages/contracts/src/clientRpcPermissions.ts",
+      "pattern": "serverRunStorageCleanup\\]: AuthSettingsWriteScope"
+     }
+    },
+    "H1.F2": {
+     "class": "not_delivered",
+     "witness": {
+      "path": "packages/client-runtime/src/state/commandPermissions.ts",
+      "pattern": "UI availability and dispatch use the same target session"
+     }
+    },
+    "H1.F3": {
+     "class": "not_delivered",
+     "witness": {
+      "path": "packages/client-runtime/src/state/runtime.ts",
+      "pattern": "permissions\\.authorize\\(registry, environmentId, input\\)"
+     }
+    },
+    "H1.F4": {
+     "class": "not_delivered",
+     "witness": {
+      "path": "apps/web/src/components/settings/StorageSettings.tsx",
+      "pattern": "runStorageCleanup\\.permissionAtom"
+     }
+    }
+   },
+   "unsupported_critical_claims": 0,
+   "critical_violations": [],
+   "findings_delivered": {},
+   "findings_status": null,
+   "cost": {
+    "calls": 33,
+    "bytes": 2037915,
+    "seconds": 0.049,
+    "files": 32,
+    "limit_reached": "complete"
+   }
+  },
+  {
+   "set": "t3",
+   "scenario": "T3-R-H1-rpc-permission",
+   "family": "permissions",
+   "condition": "rg",
+   "repeat": 1,
+   "sessions_task": false,
+   "supportability": 0.0,
+   "supportability_all": 0.0,
+   "supported": [],
+   "misses": {
+    "H1.F1": {
+     "class": "not_delivered",
+     "witness": {
+      "path": "packages/contracts/src/clientRpcPermissions.ts",
+      "pattern": "serverRunStorageCleanup\\]: AuthSettingsWriteScope"
+     }
+    },
+    "H1.F2": {
+     "class": "not_delivered",
+     "witness": {
+      "path": "packages/client-runtime/src/state/commandPermissions.ts",
+      "pattern": "UI availability and dispatch use the same target session"
+     }
+    },
+    "H1.F3": {
+     "class": "not_delivered",
+     "witness": {
+      "path": "packages/client-runtime/src/state/runtime.ts",
+      "pattern": "permissions\\.authorize\\(registry, environmentId, input\\)"
+     }
+    },
+    "H1.F4": {
+     "class": "not_delivered",
+     "witness": {
+      "path": "apps/web/src/components/settings/StorageSettings.tsx",
+      "pattern": "runStorageCleanup\\.permissionAtom"
+     }
+    }
+   },
+   "unsupported_critical_claims": 0,
+   "critical_violations": [],
+   "findings_delivered": {},
+   "findings_status": null,
+   "cost": {
+    "calls": 33,
+    "bytes": 2037915,
+    "seconds": 0.04,
+    "files": 32,
+    "limit_reached": "complete"
+   }
+  },
+  {
+   "set": "t3",
+   "scenario": "T3-R-H1-rpc-permission",
+   "family": "permissions",
+   "condition": "lexical",
+   "repeat": 0,
+   "sessions_task": false,
+   "supportability": 0.25,
+   "supportability_all": 0.25,
+   "supported": [
+    "H1.F4"
+   ],
+   "misses": {
+    "H1.F1": {
+     "class": "discovery",
+     "witness": {
+      "path": "packages/contracts/src/clientRpcPermissions.ts",
+      "pattern": "serverRunStorageCleanup\\]: AuthSettingsWriteScope"
+     }
+    },
+    "H1.F2": {
+     "class": "discovery",
+     "witness": {
+      "path": "packages/client-runtime/src/state/commandPermissions.ts",
+      "pattern": "UI availability and dispatch use the same target session"
+     }
+    },
+    "H1.F3": {
+     "class": "discovery",
+     "witness": {
+      "path": "packages/client-runtime/src/state/runtime.ts",
+      "pattern": "permissions\\.authorize\\(registry, environmentId, input\\)"
+     }
+    }
+   },
+   "unsupported_critical_claims": 0,
+   "critical_violations": [],
+   "findings_delivered": {},
+   "findings_status": "evaluated",
+   "cost": {
+    "calls": 239,
+    "bytes": 1687429,
+    "seconds": 180.623,
+    "files": 25,
+    "limit_reached": "seconds"
+   }
+  },
+  {
+   "set": "t3",
+   "scenario": "T3-R-H1-rpc-permission",
+   "family": "permissions",
+   "condition": "lexical",
+   "repeat": 1,
+   "sessions_task": false,
+   "supportability": 0.25,
+   "supportability_all": 0.25,
+   "supported": [
+    "H1.F4"
+   ],
+   "misses": {
+    "H1.F1": {
+     "class": "discovery",
+     "witness": {
+      "path": "packages/contracts/src/clientRpcPermissions.ts",
+      "pattern": "serverRunStorageCleanup\\]: AuthSettingsWriteScope"
+     }
+    },
+    "H1.F2": {
+     "class": "discovery",
+     "witness": {
+      "path": "packages/client-runtime/src/state/commandPermissions.ts",
+      "pattern": "UI availability and dispatch use the same target session"
+     }
+    },
+    "H1.F3": {
+     "class": "discovery",
+     "witness": {
+      "path": "packages/client-runtime/src/state/runtime.ts",
+      "pattern": "permissions\\.authorize\\(registry, environmentId, input\\)"
+     }
+    }
+   },
+   "unsupported_critical_claims": 0,
+   "critical_violations": [],
+   "findings_delivered": {},
+   "findings_status": "evaluated",
+   "cost": {
+    "calls": 239,
+    "bytes": 1687429,
+    "seconds": 180.489,
+    "files": 25,
+    "limit_reached": "seconds"
+   }
+  },
+  {
+   "set": "t3",
+   "scenario": "T3-R-H1-rpc-permission",
+   "family": "permissions",
+   "condition": "hybrid",
+   "repeat": 0,
+   "sessions_task": false,
+   "supportability": 0.5,
+   "supportability_all": 0.5,
+   "supported": [
+    "H1.F2",
+    "H1.F4"
+   ],
+   "misses": {
+    "H1.F1": {
+     "class": "discovery",
+     "witness": {
+      "path": "packages/contracts/src/clientRpcPermissions.ts",
+      "pattern": "serverRunStorageCleanup\\]: AuthSettingsWriteScope"
+     }
+    },
+    "H1.F3": {
+     "class": "discovery",
+     "witness": {
+      "path": "packages/contracts/src/clientRpcPermissions.ts",
+      "pattern": "the server still authorizes every request"
+     }
+    }
+   },
+   "unsupported_critical_claims": 0,
+   "critical_violations": [],
+   "findings_delivered": {},
+   "findings_status": "evaluated",
+   "cost": {
+    "calls": 192,
+    "bytes": 1405959,
+    "seconds": 180.802,
+    "files": 26,
+    "limit_reached": "seconds"
+   }
+  },
+  {
+   "set": "t3",
+   "scenario": "T3-R-H1-rpc-permission",
+   "family": "permissions",
+   "condition": "hybrid",
+   "repeat": 1,
+   "sessions_task": false,
+   "supportability": 0.5,
+   "supportability_all": 0.5,
+   "supported": [
+    "H1.F2",
+    "H1.F4"
+   ],
+   "misses": {
+    "H1.F1": {
+     "class": "discovery",
+     "witness": {
+      "path": "packages/contracts/src/clientRpcPermissions.ts",
+      "pattern": "serverRunStorageCleanup\\]: AuthSettingsWriteScope"
+     }
+    },
+    "H1.F3": {
+     "class": "discovery",
+     "witness": {
+      "path": "packages/contracts/src/clientRpcPermissions.ts",
+      "pattern": "the server still authorizes every request"
+     }
+    }
+   },
+   "unsupported_critical_claims": 0,
+   "critical_violations": [],
+   "findings_delivered": {},
+   "findings_status": "evaluated",
+   "cost": {
+    "calls": 193,
+    "bytes": 1413213,
+    "seconds": 180.255,
+    "files": 26,
+    "limit_reached": "seconds"
+   }
+  },
+  {
+   "set": "t3",
+   "scenario": "T3-R-H1-rpc-permission",
+   "family": "permissions",
+   "condition": "findings",
+   "repeat": 0,
+   "sessions_task": false,
+   "supportability": 0.5,
+   "supportability_all": 0.5,
+   "supported": [
+    "H1.F2",
+    "H1.F4"
+   ],
+   "misses": {
+    "H1.F1": {
+     "class": "discovery",
+     "witness": {
+      "path": "packages/contracts/src/clientRpcPermissions.ts",
+      "pattern": "serverRunStorageCleanup\\]: AuthSettingsWriteScope"
+     }
+    },
+    "H1.F3": {
+     "class": "discovery",
+     "witness": {
+      "path": "packages/contracts/src/clientRpcPermissions.ts",
+      "pattern": "the server still authorizes every request"
+     }
+    }
+   },
+   "unsupported_critical_claims": 0,
+   "critical_violations": [],
+   "findings_delivered": {
+    "behavior_condition": 1
+   },
+   "findings_status": "evaluated",
+   "cost": {
+    "calls": 184,
+    "bytes": 1348536,
+    "seconds": 180.794,
+    "files": 26,
+    "limit_reached": "seconds"
+   }
+  },
+  {
+   "set": "t3",
+   "scenario": "T3-R-H1-rpc-permission",
+   "family": "permissions",
+   "condition": "findings",
+   "repeat": 1,
+   "sessions_task": false,
+   "supportability": 0.5,
+   "supportability_all": 0.5,
+   "supported": [
+    "H1.F2",
+    "H1.F4"
+   ],
+   "misses": {
+    "H1.F1": {
+     "class": "discovery",
+     "witness": {
+      "path": "packages/contracts/src/clientRpcPermissions.ts",
+      "pattern": "serverRunStorageCleanup\\]: AuthSettingsWriteScope"
+     }
+    },
+    "H1.F3": {
+     "class": "discovery",
+     "witness": {
+      "path": "packages/contracts/src/clientRpcPermissions.ts",
+      "pattern": "the server still authorizes every request"
+     }
+    }
+   },
+   "unsupported_critical_claims": 0,
+   "critical_violations": [],
+   "findings_delivered": {
+    "behavior_condition": 1
+   },
+   "findings_status": "evaluated",
+   "cost": {
+    "calls": 184,
+    "bytes": 1348536,
+    "seconds": 180.738,
+    "files": 26,
+    "limit_reached": "seconds"
+   }
+  },
+  {
+   "set": "t3",
+   "scenario": "T3-R-H2-checkpoint-finalization",
+   "family": "orchestration",
+   "condition": "rg",
+   "repeat": 0,
+   "sessions_task": false,
+   "supportability": 0.0,
+   "supportability_all": 0.0,
+   "supported": [],
+   "misses": {
+    "H2.F1": {
+     "class": "consumption",
+     "witness": {
+      "path": "apps/server/src/orchestration-v2/Orchestrator.ts",
+      "pattern": "id: `effect:checkpoint\\.capture:\\$\\{run\\.id\\}`"
+     }
+    },
+    "H2.F2": {
+     "class": "not_delivered",
+     "witness": {
+      "path": "apps/server/src/orchestration-v2/EffectWorker.ts",
+      "pattern": "Post-commit notifications are the low-latency path"
+     }
+    },
+    "H2.F3": {
+     "class": "not_delivered",
+     "witness": {
+      "path": "apps/server/src/orchestration-v2/RunFinalizationService.ts",
+      "pattern": "operation: \"capture-checkpoint\""
+     }
+    }
+   },
+   "unsupported_critical_claims": 0,
+   "critical_violations": [],
+   "findings_delivered": {},
+   "findings_status": null,
+   "cost": {
+    "calls": 33,
+    "bytes": 2095612,
+    "seconds": 0.038,
+    "files": 32,
+    "limit_reached": "complete"
+   }
+  },
+  {
+   "set": "t3",
+   "scenario": "T3-R-H2-checkpoint-finalization",
+   "family": "orchestration",
+   "condition": "rg",
+   "repeat": 1,
+   "sessions_task": false,
+   "supportability": 0.0,
+   "supportability_all": 0.0,
+   "supported": [],
+   "misses": {
+    "H2.F1": {
+     "class": "consumption",
+     "witness": {
+      "path": "apps/server/src/orchestration-v2/Orchestrator.ts",
+      "pattern": "id: `effect:checkpoint\\.capture:\\$\\{run\\.id\\}`"
+     }
+    },
+    "H2.F2": {
+     "class": "not_delivered",
+     "witness": {
+      "path": "apps/server/src/orchestration-v2/EffectWorker.ts",
+      "pattern": "Post-commit notifications are the low-latency path"
+     }
+    },
+    "H2.F3": {
+     "class": "not_delivered",
+     "witness": {
+      "path": "apps/server/src/orchestration-v2/RunFinalizationService.ts",
+      "pattern": "operation: \"capture-checkpoint\""
+     }
+    }
+   },
+   "unsupported_critical_claims": 0,
+   "critical_violations": [],
+   "findings_delivered": {},
+   "findings_status": null,
+   "cost": {
+    "calls": 33,
+    "bytes": 2095612,
+    "seconds": 0.037,
+    "files": 32,
+    "limit_reached": "complete"
+   }
+  },
+  {
+   "set": "t3",
+   "scenario": "T3-R-H2-checkpoint-finalization",
+   "family": "orchestration",
+   "condition": "lexical",
+   "repeat": 0,
+   "sessions_task": false,
+   "supportability": 0.333333,
+   "supportability_all": 0.333333,
+   "supported": [
+    "H2.F1"
+   ],
+   "misses": {
+    "H2.F2": {
+     "class": "discovery",
+     "witness": {
+      "path": "apps/server/src/orchestration-v2/EffectWorker.ts",
+      "pattern": "Post-commit notifications are the low-latency path"
+     }
+    },
+    "H2.F3": {
+     "class": "discovery",
+     "witness": {
+      "path": "apps/server/src/orchestration-v2/RunFinalizationService.ts",
+      "pattern": "operation: \"capture-checkpoint\""
+     }
+    }
+   },
+   "unsupported_critical_claims": 0,
+   "critical_violations": [],
+   "findings_delivered": {},
+   "findings_status": "evaluated",
+   "cost": {
+    "calls": 233,
+    "bytes": 1664586,
+    "seconds": 180.683,
+    "files": 3,
+    "limit_reached": "seconds"
+   }
+  },
+  {
+   "set": "t3",
+   "scenario": "T3-R-H2-checkpoint-finalization",
+   "family": "orchestration",
+   "condition": "lexical",
+   "repeat": 1,
+   "sessions_task": false,
+   "supportability": 0.333333,
+   "supportability_all": 0.333333,
+   "supported": [
+    "H2.F1"
+   ],
+   "misses": {
+    "H2.F2": {
+     "class": "discovery",
+     "witness": {
+      "path": "apps/server/src/orchestration-v2/EffectWorker.ts",
+      "pattern": "Post-commit notifications are the low-latency path"
+     }
+    },
+    "H2.F3": {
+     "class": "discovery",
+     "witness": {
+      "path": "apps/server/src/orchestration-v2/RunFinalizationService.ts",
+      "pattern": "operation: \"capture-checkpoint\""
+     }
+    }
+   },
+   "unsupported_critical_claims": 0,
+   "critical_violations": [],
+   "findings_delivered": {},
+   "findings_status": "evaluated",
+   "cost": {
+    "calls": 239,
+    "bytes": 1706064,
+    "seconds": 180.431,
+    "files": 3,
+    "limit_reached": "seconds"
+   }
+  },
+  {
+   "set": "t3",
+   "scenario": "T3-R-H2-checkpoint-finalization",
+   "family": "orchestration",
+   "condition": "hybrid",
+   "repeat": 0,
+   "sessions_task": false,
+   "supportability": 0.333333,
+   "supportability_all": 0.333333,
+   "supported": [
+    "H2.F1"
+   ],
+   "misses": {
+    "H2.F2": {
+     "class": "discovery",
+     "witness": {
+      "path": "apps/server/src/orchestration-v2/EffectWorker.ts",
+      "pattern": "Post-commit notifications are the low-latency path"
+     }
+    },
+    "H2.F3": {
+     "class": "discovery",
+     "witness": {
+      "path": "apps/server/src/orchestration-v2/RunFinalizationService.ts",
+      "pattern": "operation: \"capture-checkpoint\""
+     }
+    }
+   },
+   "unsupported_critical_claims": 0,
+   "critical_violations": [],
+   "findings_delivered": {},
+   "findings_status": "evaluated",
+   "cost": {
+    "calls": 228,
+    "bytes": 1625562,
+    "seconds": 180.327,
+    "files": 8,
+    "limit_reached": "seconds"
+   }
+  },
+  {
+   "set": "t3",
+   "scenario": "T3-R-H2-checkpoint-finalization",
+   "family": "orchestration",
+   "condition": "hybrid",
+   "repeat": 1,
+   "sessions_task": false,
+   "supportability": 0.333333,
+   "supportability_all": 0.333333,
+   "supported": [
+    "H2.F1"
+   ],
+   "misses": {
+    "H2.F2": {
+     "class": "discovery",
+     "witness": {
+      "path": "apps/server/src/orchestration-v2/EffectWorker.ts",
+      "pattern": "Post-commit notifications are the low-latency path"
+     }
+    },
+    "H2.F3": {
+     "class": "discovery",
+     "witness": {
+      "path": "apps/server/src/orchestration-v2/RunFinalizationService.ts",
+      "pattern": "operation: \"capture-checkpoint\""
+     }
+    }
+   },
+   "unsupported_critical_claims": 0,
+   "critical_violations": [],
+   "findings_delivered": {},
+   "findings_status": "evaluated",
+   "cost": {
+    "calls": 229,
+    "bytes": 1632518,
+    "seconds": 180.07,
+    "files": 8,
+    "limit_reached": "seconds"
+   }
+  },
+  {
+   "set": "t3",
+   "scenario": "T3-R-H2-checkpoint-finalization",
+   "family": "orchestration",
+   "condition": "findings",
+   "repeat": 0,
+   "sessions_task": false,
+   "supportability": 0.333333,
+   "supportability_all": 0.333333,
+   "supported": [
+    "H2.F1"
+   ],
+   "misses": {
+    "H2.F2": {
+     "class": "discovery",
+     "witness": {
+      "path": "apps/server/src/orchestration-v2/EffectWorker.ts",
+      "pattern": "Post-commit notifications are the low-latency path"
+     }
+    },
+    "H2.F3": {
+     "class": "discovery",
+     "witness": {
+      "path": "apps/server/src/orchestration-v2/RunFinalizationService.ts",
+      "pattern": "operation: \"capture-checkpoint\""
+     }
+    }
+   },
+   "unsupported_critical_claims": 0,
+   "critical_violations": [],
+   "findings_delivered": {
+    "behavior_condition": 1
+   },
+   "findings_status": "evaluated",
+   "cost": {
+    "calls": 227,
+    "bytes": 1619031,
+    "seconds": 180.133,
+    "files": 8,
+    "limit_reached": "seconds"
+   }
+  },
+  {
+   "set": "t3",
+   "scenario": "T3-R-H2-checkpoint-finalization",
+   "family": "orchestration",
+   "condition": "findings",
+   "repeat": 1,
+   "sessions_task": false,
+   "supportability": 0.333333,
+   "supportability_all": 0.333333,
+   "supported": [
+    "H2.F1"
+   ],
+   "misses": {
+    "H2.F2": {
+     "class": "discovery",
+     "witness": {
+      "path": "apps/server/src/orchestration-v2/EffectWorker.ts",
+      "pattern": "Post-commit notifications are the low-latency path"
+     }
+    },
+    "H2.F3": {
+     "class": "discovery",
+     "witness": {
+      "path": "apps/server/src/orchestration-v2/RunFinalizationService.ts",
+      "pattern": "operation: \"capture-checkpoint\""
+     }
+    }
+   },
+   "unsupported_critical_claims": 0,
+   "critical_violations": [],
+   "findings_delivered": {
+    "behavior_condition": 1
+   },
+   "findings_status": "evaluated",
+   "cost": {
+    "calls": 227,
+    "bytes": 1619031,
+    "seconds": 180.34,
+    "files": 8,
+    "limit_reached": "seconds"
+   }
+  },
+  {
+   "set": "t3",
+   "scenario": "T3-R-H3-huge-history-item",
+   "family": "orchestration",
+   "condition": "rg",
+   "repeat": 0,
+   "sessions_task": false,
+   "supportability": 0.0,
+   "supportability_all": 0.0,
+   "supported": [],
+   "misses": {
+    "H3.F1": {
+     "class": "not_delivered",
+     "witness": {
+      "path": "apps/server/src/orchestration-v2/threadHistoryPaging.ts",
+      "pattern": "always admit at least one row so oversized items cannot deadlock paging"
+     }
+    },
+    "H3.F2": {
+     "class": "not_delivered",
+     "witness": {
+      "path": "apps/server/src/orchestration-v2/threadHistoryPaging.ts",
+      "pattern": "Item/byte budgets only apply to histories"
+     }
+    },
+    "H3.F3": {
+     "class": "not_delivered",
+     "witness": {
+      "path": "apps/server/src/orchestration-v2/threadHistoryPaging.ts",
+      "pattern": "readonly payloadBudgetExceeded: boolean"
+     }
+    }
+   },
+   "unsupported_critical_claims": 0,
+   "critical_violations": [],
+   "findings_delivered": {},
+   "findings_status": null,
+   "cost": {
+    "calls": 33,
+    "bytes": 2099028,
+    "seconds": 0.042,
+    "files": 32,
+    "limit_reached": "bytes"
+   }
+  },
+  {
+   "set": "t3",
+   "scenario": "T3-R-H3-huge-history-item",
+   "family": "orchestration",
+   "condition": "rg",
+   "repeat": 1,
+   "sessions_task": false,
+   "supportability": 0.0,
+   "supportability_all": 0.0,
+   "supported": [],
+   "misses": {
+    "H3.F1": {
+     "class": "not_delivered",
+     "witness": {
+      "path": "apps/server/src/orchestration-v2/threadHistoryPaging.ts",
+      "pattern": "always admit at least one row so oversized items cannot deadlock paging"
+     }
+    },
+    "H3.F2": {
+     "class": "not_delivered",
+     "witness": {
+      "path": "apps/server/src/orchestration-v2/threadHistoryPaging.ts",
+      "pattern": "Item/byte budgets only apply to histories"
+     }
+    },
+    "H3.F3": {
+     "class": "not_delivered",
+     "witness": {
+      "path": "apps/server/src/orchestration-v2/threadHistoryPaging.ts",
+      "pattern": "readonly payloadBudgetExceeded: boolean"
+     }
+    }
+   },
+   "unsupported_critical_claims": 0,
+   "critical_violations": [],
+   "findings_delivered": {},
+   "findings_status": null,
+   "cost": {
+    "calls": 33,
+    "bytes": 2099028,
+    "seconds": 0.044,
+    "files": 32,
+    "limit_reached": "bytes"
+   }
+  },
+  {
+   "set": "t3",
+   "scenario": "T3-R-H3-huge-history-item",
+   "family": "orchestration",
+   "condition": "lexical",
+   "repeat": 0,
+   "sessions_task": false,
+   "supportability": 0.0,
+   "supportability_all": 0.0,
+   "supported": [],
+   "misses": {
+    "H3.F1": {
+     "class": "discovery",
+     "witness": {
+      "path": "apps/server/src/orchestration-v2/threadHistoryPaging.ts",
+      "pattern": "always admit at least one row so oversized items cannot deadlock paging"
+     }
+    },
+    "H3.F2": {
+     "class": "discovery",
+     "witness": {
+      "path": "apps/server/src/orchestration-v2/threadHistoryPaging.ts",
+      "pattern": "Item/byte budgets only apply to histories"
+     }
+    },
+    "H3.F3": {
+     "class": "discovery",
+     "witness": {
+      "path": "apps/server/src/orchestration-v2/threadHistoryPaging.ts",
+      "pattern": "readonly payloadBudgetExceeded: boolean"
+     }
+    }
+   },
+   "unsupported_critical_claims": 0,
+   "critical_violations": [],
+   "findings_delivered": {},
+   "findings_status": "evaluated",
+   "cost": {
+    "calls": 244,
+    "bytes": 1764682,
+    "seconds": 180.633,
+    "files": 9,
+    "limit_reached": "seconds"
+   }
+  },
+  {
+   "set": "t3",
+   "scenario": "T3-R-H3-huge-history-item",
+   "family": "orchestration",
+   "condition": "lexical",
+   "repeat": 1,
+   "sessions_task": false,
+   "supportability": 0.0,
+   "supportability_all": 0.0,
+   "supported": [],
+   "misses": {
+    "H3.F1": {
+     "class": "discovery",
+     "witness": {
+      "path": "apps/server/src/orchestration-v2/threadHistoryPaging.ts",
+      "pattern": "always admit at least one row so oversized items cannot deadlock paging"
+     }
+    },
+    "H3.F2": {
+     "class": "discovery",
+     "witness": {
+      "path": "apps/server/src/orchestration-v2/threadHistoryPaging.ts",
+      "pattern": "Item/byte budgets only apply to histories"
+     }
+    },
+    "H3.F3": {
+     "class": "discovery",
+     "witness": {
+      "path": "apps/server/src/orchestration-v2/threadHistoryPaging.ts",
+      "pattern": "readonly payloadBudgetExceeded: boolean"
+     }
+    }
+   },
+   "unsupported_critical_claims": 0,
+   "critical_violations": [],
+   "findings_delivered": {},
+   "findings_status": "evaluated",
+   "cost": {
+    "calls": 243,
+    "bytes": 1757519,
+    "seconds": 180.1,
+    "files": 9,
+    "limit_reached": "seconds"
+   }
+  },
+  {
+   "set": "t3",
+   "scenario": "T3-R-H3-huge-history-item",
+   "family": "orchestration",
+   "condition": "hybrid",
+   "repeat": 0,
+   "sessions_task": false,
+   "supportability": 0.0,
+   "supportability_all": 0.0,
+   "supported": [],
+   "misses": {
+    "H3.F1": {
+     "class": "selection",
+     "witness": {
+      "path": "apps/server/src/orchestration-v2/threadHistoryPaging.ts",
+      "pattern": "always admit at least one row so oversized items cannot deadlock paging"
+     }
+    },
+    "H3.F2": {
+     "class": "selection",
+     "witness": {
+      "path": "apps/server/src/orchestration-v2/threadHistoryPaging.ts",
+      "pattern": "Item/byte budgets only apply to histories"
+     }
+    },
+    "H3.F3": {
+     "class": "selection",
+     "witness": {
+      "path": "apps/server/src/orchestration-v2/threadHistoryPaging.ts",
+      "pattern": "readonly payloadBudgetExceeded: boolean"
+     }
+    }
+   },
+   "unsupported_critical_claims": 0,
+   "critical_violations": [],
+   "findings_delivered": {},
+   "findings_status": "evaluated",
+   "cost": {
+    "calls": 237,
+    "bytes": 1733375,
+    "seconds": 180.293,
+    "files": 17,
+    "limit_reached": "seconds"
+   }
+  },
+  {
+   "set": "t3",
+   "scenario": "T3-R-H3-huge-history-item",
+   "family": "orchestration",
+   "condition": "hybrid",
+   "repeat": 1,
+   "sessions_task": false,
+   "supportability": 0.0,
+   "supportability_all": 0.0,
+   "supported": [],
+   "misses": {
+    "H3.F1": {
+     "class": "selection",
+     "witness": {
+      "path": "apps/server/src/orchestration-v2/threadHistoryPaging.ts",
+      "pattern": "always admit at least one row so oversized items cannot deadlock paging"
+     }
+    },
+    "H3.F2": {
+     "class": "selection",
+     "witness": {
+      "path": "apps/server/src/orchestration-v2/threadHistoryPaging.ts",
+      "pattern": "Item/byte budgets only apply to histories"
+     }
+    },
+    "H3.F3": {
+     "class": "selection",
+     "witness": {
+      "path": "apps/server/src/orchestration-v2/threadHistoryPaging.ts",
+      "pattern": "readonly payloadBudgetExceeded: boolean"
+     }
+    }
+   },
+   "unsupported_critical_claims": 0,
+   "critical_violations": [],
+   "findings_delivered": {},
+   "findings_status": "evaluated",
+   "cost": {
+    "calls": 237,
+    "bytes": 1733375,
+    "seconds": 180.457,
+    "files": 17,
+    "limit_reached": "seconds"
+   }
+  },
+  {
+   "set": "t3",
+   "scenario": "T3-R-H3-huge-history-item",
+   "family": "orchestration",
+   "condition": "findings",
+   "repeat": 0,
+   "sessions_task": false,
+   "supportability": 0.0,
+   "supportability_all": 0.0,
+   "supported": [],
+   "misses": {
+    "H3.F1": {
+     "class": "selection",
+     "witness": {
+      "path": "apps/server/src/orchestration-v2/threadHistoryPaging.ts",
+      "pattern": "always admit at least one row so oversized items cannot deadlock paging"
+     }
+    },
+    "H3.F2": {
+     "class": "selection",
+     "witness": {
+      "path": "apps/server/src/orchestration-v2/threadHistoryPaging.ts",
+      "pattern": "Item/byte budgets only apply to histories"
+     }
+    },
+    "H3.F3": {
+     "class": "selection",
+     "witness": {
+      "path": "apps/server/src/orchestration-v2/threadHistoryPaging.ts",
+      "pattern": "readonly payloadBudgetExceeded: boolean"
+     }
+    }
+   },
+   "unsupported_critical_claims": 0,
+   "critical_violations": [],
+   "findings_delivered": {
+    "behavior_condition": 1
+   },
+   "findings_status": "evaluated",
+   "cost": {
+    "calls": 235,
+    "bytes": 1719645,
+    "seconds": 180.133,
+    "files": 17,
+    "limit_reached": "seconds"
+   }
+  },
+  {
+   "set": "t3",
+   "scenario": "T3-R-H3-huge-history-item",
+   "family": "orchestration",
+   "condition": "findings",
+   "repeat": 1,
+   "sessions_task": false,
+   "supportability": 0.0,
+   "supportability_all": 0.0,
+   "supported": [],
+   "misses": {
+    "H3.F1": {
+     "class": "selection",
+     "witness": {
+      "path": "apps/server/src/orchestration-v2/threadHistoryPaging.ts",
+      "pattern": "always admit at least one row so oversized items cannot deadlock paging"
+     }
+    },
+    "H3.F2": {
+     "class": "selection",
+     "witness": {
+      "path": "apps/server/src/orchestration-v2/threadHistoryPaging.ts",
+      "pattern": "Item/byte budgets only apply to histories"
+     }
+    },
+    "H3.F3": {
+     "class": "selection",
+     "witness": {
+      "path": "apps/server/src/orchestration-v2/threadHistoryPaging.ts",
+      "pattern": "readonly payloadBudgetExceeded: boolean"
+     }
+    }
+   },
+   "unsupported_critical_claims": 0,
+   "critical_violations": [],
+   "findings_delivered": {
+    "behavior_condition": 1
+   },
+   "findings_status": "evaluated",
+   "cost": {
+    "calls": 236,
+    "bytes": 1726716,
+    "seconds": 180.599,
+    "files": 17,
+    "limit_reached": "seconds"
+   }
+  },
+  {
+   "set": "t3",
+   "scenario": "T3-R-H4-stale-pr-display",
+   "family": "compatibility",
+   "condition": "rg",
+   "repeat": 0,
+   "sessions_task": false,
+   "supportability": 0.0,
+   "supportability_all": 0.0,
+   "supported": [],
+   "misses": {
+    "H4.F1": {
+     "class": "not_delivered",
+     "witness": {
+      "path": "packages/client-runtime/src/threadPullRequestCompatibility.ts",
+      "pattern": "Capability negotiation keeps both single-link and multi-link environments usable"
+     }
+    },
+    "H4.F2": {
+     "class": "not_delivered",
+     "witness": {
+      "path": "apps/mobile/src/state/thread-pr-presentation.ts",
+      "pattern": "Only the array capability replaces legacy references with persisted snapshots"
+     }
+    },
+    "H4.F3": {
+     "class": "not_delivered",
+     "witness": {
+      "path": "packages/client-runtime/src/threadPullRequestCompatibility.ts",
+      "pattern": "Older servers need the exact repository checkout"
+     }
+    },
+    "H4.F4": {
+     "class": "not_delivered",
+     "witness": {
+      "path": "apps/mobile/src/state/use-thread-pr.test.ts",
+      "pattern": "does not revive a removed modern link from the compatibility reference"
+     }
+    }
+   },
+   "unsupported_critical_claims": 0,
+   "critical_violations": [],
+   "findings_delivered": {},
+   "findings_status": null,
+   "cost": {
+    "calls": 33,
+    "bytes": 2056160,
+    "seconds": 0.042,
+    "files": 32,
+    "limit_reached": "complete"
+   }
+  },
+  {
+   "set": "t3",
+   "scenario": "T3-R-H4-stale-pr-display",
+   "family": "compatibility",
+   "condition": "rg",
+   "repeat": 1,
+   "sessions_task": false,
+   "supportability": 0.0,
+   "supportability_all": 0.0,
+   "supported": [],
+   "misses": {
+    "H4.F1": {
+     "class": "not_delivered",
+     "witness": {
+      "path": "packages/client-runtime/src/threadPullRequestCompatibility.ts",
+      "pattern": "Capability negotiation keeps both single-link and multi-link environments usable"
+     }
+    },
+    "H4.F2": {
+     "class": "not_delivered",
+     "witness": {
+      "path": "apps/mobile/src/state/thread-pr-presentation.ts",
+      "pattern": "Only the array capability replaces legacy references with persisted snapshots"
+     }
+    },
+    "H4.F3": {
+     "class": "not_delivered",
+     "witness": {
+      "path": "packages/client-runtime/src/threadPullRequestCompatibility.ts",
+      "pattern": "Older servers need the exact repository checkout"
+     }
+    },
+    "H4.F4": {
+     "class": "not_delivered",
+     "witness": {
+      "path": "apps/mobile/src/state/use-thread-pr.test.ts",
+      "pattern": "does not revive a removed modern link from the compatibility reference"
+     }
+    }
+   },
+   "unsupported_critical_claims": 0,
+   "critical_violations": [],
+   "findings_delivered": {},
+   "findings_status": null,
+   "cost": {
+    "calls": 33,
+    "bytes": 2056160,
+    "seconds": 0.041,
+    "files": 32,
+    "limit_reached": "complete"
+   }
+  },
+  {
+   "set": "t3",
+   "scenario": "T3-R-H4-stale-pr-display",
+   "family": "compatibility",
+   "condition": "lexical",
+   "repeat": 0,
+   "sessions_task": false,
+   "supportability": 0.0,
+   "supportability_all": 0.0,
+   "supported": [],
+   "misses": {
+    "H4.F1": {
+     "class": "discovery",
+     "witness": {
+      "path": "packages/client-runtime/src/threadPullRequestCompatibility.ts",
+      "pattern": "Capability negotiation keeps both single-link and multi-link environments usable"
+     }
+    },
+    "H4.F2": {
+     "class": "discovery",
+     "witness": {
+      "path": "apps/mobile/src/state/thread-pr-presentation.ts",
+      "pattern": "Only the array capability replaces legacy references with persisted snapshots"
+     }
+    },
+    "H4.F3": {
+     "class": "discovery",
+     "witness": {
+      "path": "packages/client-runtime/src/threadPullRequestCompatibility.ts",
+      "pattern": "Older servers need the exact repository checkout"
+     }
+    },
+    "H4.F4": {
+     "class": "discovery",
+     "witness": {
+      "path": "apps/mobile/src/state/use-thread-pr.test.ts",
+      "pattern": "does not revive a removed modern link from the compatibility reference"
+     }
+    }
+   },
+   "unsupported_critical_claims": 0,
+   "critical_violations": [],
+   "findings_delivered": {},
+   "findings_status": "evaluated",
+   "cost": {
+    "calls": 250,
+    "bytes": 1752145,
+    "seconds": 180.478,
+    "files": 32,
+    "limit_reached": "seconds"
+   }
+  },
+  {
+   "set": "t3",
+   "scenario": "T3-R-H4-stale-pr-display",
+   "family": "compatibility",
+   "condition": "lexical",
+   "repeat": 1,
+   "sessions_task": false,
+   "supportability": 0.0,
+   "supportability_all": 0.0,
+   "supported": [],
+   "misses": {
+    "H4.F1": {
+     "class": "discovery",
+     "witness": {
+      "path": "packages/client-runtime/src/threadPullRequestCompatibility.ts",
+      "pattern": "Capability negotiation keeps both single-link and multi-link environments usable"
+     }
+    },
+    "H4.F2": {
+     "class": "discovery",
+     "witness": {
+      "path": "apps/mobile/src/state/thread-pr-presentation.ts",
+      "pattern": "Only the array capability replaces legacy references with persisted snapshots"
+     }
+    },
+    "H4.F3": {
+     "class": "discovery",
+     "witness": {
+      "path": "packages/client-runtime/src/threadPullRequestCompatibility.ts",
+      "pattern": "Older servers need the exact repository checkout"
+     }
+    },
+    "H4.F4": {
+     "class": "discovery",
+     "witness": {
+      "path": "apps/mobile/src/state/use-thread-pr.test.ts",
+      "pattern": "does not revive a removed modern link from the compatibility reference"
+     }
+    }
+   },
+   "unsupported_critical_claims": 0,
+   "critical_violations": [],
+   "findings_delivered": {},
+   "findings_status": "evaluated",
+   "cost": {
+    "calls": 250,
+    "bytes": 1752145,
+    "seconds": 180.054,
+    "files": 32,
+    "limit_reached": "seconds"
+   }
+  },
+  {
+   "set": "t3",
+   "scenario": "T3-R-H4-stale-pr-display",
+   "family": "compatibility",
+   "condition": "hybrid",
+   "repeat": 0,
+   "sessions_task": false,
+   "supportability": 0.0,
+   "supportability_all": 0.0,
+   "supported": [],
+   "misses": {
+    "H4.F1": {
+     "class": "selection",
+     "witness": {
+      "path": "packages/client-runtime/src/threadPullRequestCompatibility.ts",
+      "pattern": "Capability negotiation keeps both single-link and multi-link environments usable"
+     }
+    },
+    "H4.F2": {
+     "class": "discovery",
+     "witness": {
+      "path": "apps/mobile/src/state/thread-pr-presentation.ts",
+      "pattern": "Only the array capability replaces legacy references with persisted snapshots"
+     }
+    },
+    "H4.F3": {
+     "class": "selection",
+     "witness": {
+      "path": "packages/client-runtime/src/threadPullRequestCompatibility.ts",
+      "pattern": "Older servers need the exact repository checkout"
+     }
+    },
+    "H4.F4": {
+     "class": "discovery",
+     "witness": {
+      "path": "apps/mobile/src/state/use-thread-pr.test.ts",
+      "pattern": "does not revive a removed modern link from the compatibility reference"
+     }
+    }
+   },
+   "unsupported_critical_claims": 0,
+   "critical_violations": [],
+   "findings_delivered": {},
+   "findings_status": "evaluated",
+   "cost": {
+    "calls": 180,
+    "bytes": 1406671,
+    "seconds": 181.327,
+    "files": 44,
+    "limit_reached": "seconds"
+   }
+  },
+  {
+   "set": "t3",
+   "scenario": "T3-R-H4-stale-pr-display",
+   "family": "compatibility",
+   "condition": "hybrid",
+   "repeat": 1,
+   "sessions_task": false,
+   "supportability": 0.0,
+   "supportability_all": 0.0,
+   "supported": [],
+   "misses": {
+    "H4.F1": {
+     "class": "selection",
+     "witness": {
+      "path": "packages/client-runtime/src/threadPullRequestCompatibility.ts",
+      "pattern": "Capability negotiation keeps both single-link and multi-link environments usable"
+     }
+    },
+    "H4.F2": {
+     "class": "discovery",
+     "witness": {
+      "path": "apps/mobile/src/state/thread-pr-presentation.ts",
+      "pattern": "Only the array capability replaces legacy references with persisted snapshots"
+     }
+    },
+    "H4.F3": {
+     "class": "selection",
+     "witness": {
+      "path": "packages/client-runtime/src/threadPullRequestCompatibility.ts",
+      "pattern": "Older servers need the exact repository checkout"
+     }
+    },
+    "H4.F4": {
+     "class": "discovery",
+     "witness": {
+      "path": "apps/mobile/src/state/use-thread-pr.test.ts",
+      "pattern": "does not revive a removed modern link from the compatibility reference"
+     }
+    }
+   },
+   "unsupported_critical_claims": 0,
+   "critical_violations": [],
+   "findings_delivered": {},
+   "findings_status": "evaluated",
+   "cost": {
+    "calls": 181,
+    "bytes": 1413639,
+    "seconds": 180.304,
+    "files": 44,
+    "limit_reached": "seconds"
+   }
+  },
+  {
+   "set": "t3",
+   "scenario": "T3-R-H4-stale-pr-display",
+   "family": "compatibility",
+   "condition": "findings",
+   "repeat": 0,
+   "sessions_task": false,
+   "supportability": 0.0,
+   "supportability_all": 0.0,
+   "supported": [],
+   "misses": {
+    "H4.F1": {
+     "class": "selection",
+     "witness": {
+      "path": "packages/client-runtime/src/threadPullRequestCompatibility.ts",
+      "pattern": "Capability negotiation keeps both single-link and multi-link environments usable"
+     }
+    },
+    "H4.F2": {
+     "class": "discovery",
+     "witness": {
+      "path": "apps/mobile/src/state/thread-pr-presentation.ts",
+      "pattern": "Only the array capability replaces legacy references with persisted snapshots"
+     }
+    },
+    "H4.F3": {
+     "class": "selection",
+     "witness": {
+      "path": "packages/client-runtime/src/threadPullRequestCompatibility.ts",
+      "pattern": "Older servers need the exact repository checkout"
+     }
+    },
+    "H4.F4": {
+     "class": "discovery",
+     "witness": {
+      "path": "apps/mobile/src/state/use-thread-pr.test.ts",
+      "pattern": "does not revive a removed modern link from the compatibility reference"
+     }
+    }
+   },
+   "unsupported_critical_claims": 0,
+   "critical_violations": [],
+   "findings_delivered": {
+    "behavior_condition": 1
+   },
+   "findings_status": "evaluated",
+   "cost": {
+    "calls": 176,
+    "bytes": 1379177,
+    "seconds": 180.851,
+    "files": 44,
+    "limit_reached": "seconds"
+   }
+  },
+  {
+   "set": "t3",
+   "scenario": "T3-R-H4-stale-pr-display",
+   "family": "compatibility",
+   "condition": "findings",
+   "repeat": 1,
+   "sessions_task": false,
+   "supportability": 0.0,
+   "supportability_all": 0.0,
+   "supported": [],
+   "misses": {
+    "H4.F1": {
+     "class": "selection",
+     "witness": {
+      "path": "packages/client-runtime/src/threadPullRequestCompatibility.ts",
+      "pattern": "Capability negotiation keeps both single-link and multi-link environments usable"
+     }
+    },
+    "H4.F2": {
+     "class": "discovery",
+     "witness": {
+      "path": "apps/mobile/src/state/thread-pr-presentation.ts",
+      "pattern": "Only the array capability replaces legacy references with persisted snapshots"
+     }
+    },
+    "H4.F3": {
+     "class": "selection",
+     "witness": {
+      "path": "packages/client-runtime/src/threadPullRequestCompatibility.ts",
+      "pattern": "Older servers need the exact repository checkout"
+     }
+    },
+    "H4.F4": {
+     "class": "discovery",
+     "witness": {
+      "path": "apps/mobile/src/state/use-thread-pr.test.ts",
+      "pattern": "does not revive a removed modern link from the compatibility reference"
+     }
+    }
+   },
+   "unsupported_critical_claims": 0,
+   "critical_violations": [],
+   "findings_delivered": {
+    "behavior_condition": 1
+   },
+   "findings_status": "evaluated",
+   "cost": {
+    "calls": 176,
+    "bytes": 1379177,
+    "seconds": 180.722,
+    "files": 44,
+    "limit_reached": "seconds"
+   }
+  },
+  {
+   "set": "t3",
+   "scenario": "T3-R-H5-redacted-settings-save",
+   "family": "settings",
+   "condition": "rg",
+   "repeat": 0,
+   "sessions_task": false,
+   "supportability": 0.333333,
+   "supportability_all": 0.333333,
+   "supported": [
+    "H5.F3"
+   ],
+   "misses": {
+    "H5.F1": {
+     "class": "not_delivered",
+     "witness": {
+      "path": "packages/contracts/src/settings.ts",
+      "pattern": "annotateKey\\(\\{ settingsSecret: true \\}\\)"
+     }
+    },
+    "H5.F2": {
+     "class": "not_delivered",
+     "witness": {
+      "path": "apps/server/src/settingsSecrets.ts",
+      "pattern": "writeSecretFieldValues"
+     }
+    }
+   },
+   "unsupported_critical_claims": 0,
+   "critical_violations": [],
+   "findings_delivered": {},
+   "findings_status": null,
+   "cost": {
+    "calls": 33,
+    "bytes": 2073753,
+    "seconds": 0.041,
+    "files": 32,
+    "limit_reached": "complete"
+   }
+  },
+  {
+   "set": "t3",
+   "scenario": "T3-R-H5-redacted-settings-save",
+   "family": "settings",
+   "condition": "rg",
+   "repeat": 1,
+   "sessions_task": false,
+   "supportability": 0.333333,
+   "supportability_all": 0.333333,
+   "supported": [
+    "H5.F3"
+   ],
+   "misses": {
+    "H5.F1": {
+     "class": "not_delivered",
+     "witness": {
+      "path": "packages/contracts/src/settings.ts",
+      "pattern": "annotateKey\\(\\{ settingsSecret: true \\}\\)"
+     }
+    },
+    "H5.F2": {
+     "class": "not_delivered",
+     "witness": {
+      "path": "apps/server/src/settingsSecrets.ts",
+      "pattern": "writeSecretFieldValues"
+     }
+    }
+   },
+   "unsupported_critical_claims": 0,
+   "critical_violations": [],
+   "findings_delivered": {},
+   "findings_status": null,
+   "cost": {
+    "calls": 33,
+    "bytes": 2073753,
+    "seconds": 0.04,
+    "files": 32,
+    "limit_reached": "complete"
+   }
+  },
+  {
+   "set": "t3",
+   "scenario": "T3-R-H5-redacted-settings-save",
+   "family": "settings",
+   "condition": "lexical",
+   "repeat": 0,
+   "sessions_task": false,
+   "supportability": 1.0,
+   "supportability_all": 1.0,
+   "supported": [
+    "H5.F1",
+    "H5.F2",
+    "H5.F3"
+   ],
+   "misses": {},
+   "unsupported_critical_claims": 0,
+   "critical_violations": [],
+   "findings_delivered": {},
+   "findings_status": "evaluated",
+   "cost": {
+    "calls": 242,
+    "bytes": 1761618,
+    "seconds": 180.815,
+    "files": 35,
+    "limit_reached": "seconds"
+   }
+  },
+  {
+   "set": "t3",
+   "scenario": "T3-R-H5-redacted-settings-save",
+   "family": "settings",
+   "condition": "lexical",
+   "repeat": 1,
+   "sessions_task": false,
+   "supportability": 1.0,
+   "supportability_all": 1.0,
+   "supported": [
+    "H5.F1",
+    "H5.F2",
+    "H5.F3"
+   ],
+   "misses": {},
+   "unsupported_critical_claims": 0,
+   "critical_violations": [],
+   "findings_delivered": {},
+   "findings_status": "evaluated",
+   "cost": {
+    "calls": 242,
+    "bytes": 1761618,
+    "seconds": 180.581,
+    "files": 35,
+    "limit_reached": "seconds"
+   }
+  },
+  {
+   "set": "t3",
+   "scenario": "T3-R-H5-redacted-settings-save",
+   "family": "settings",
+   "condition": "hybrid",
+   "repeat": 0,
+   "sessions_task": false,
+   "supportability": 1.0,
+   "supportability_all": 1.0,
+   "supported": [
+    "H5.F1",
+    "H5.F2",
+    "H5.F3"
+   ],
+   "misses": {},
+   "unsupported_critical_claims": 0,
+   "critical_violations": [],
+   "findings_delivered": {},
+   "findings_status": "evaluated",
+   "cost": {
+    "calls": 199,
+    "bytes": 1507131,
+    "seconds": 180.312,
+    "files": 18,
+    "limit_reached": "seconds"
+   }
+  },
+  {
+   "set": "t3",
+   "scenario": "T3-R-H5-redacted-settings-save",
+   "family": "settings",
+   "condition": "hybrid",
+   "repeat": 1,
+   "sessions_task": false,
+   "supportability": 1.0,
+   "supportability_all": 1.0,
+   "supported": [
+    "H5.F1",
+    "H5.F2",
+    "H5.F3"
+   ],
+   "misses": {},
+   "unsupported_critical_claims": 0,
+   "critical_violations": [],
+   "findings_delivered": {},
+   "findings_status": "evaluated",
+   "cost": {
+    "calls": 199,
+    "bytes": 1507131,
+    "seconds": 180.068,
+    "files": 18,
+    "limit_reached": "seconds"
+   }
+  },
+  {
+   "set": "t3",
+   "scenario": "T3-R-H5-redacted-settings-save",
+   "family": "settings",
+   "condition": "findings",
+   "repeat": 0,
+   "sessions_task": false,
+   "supportability": 1.0,
+   "supportability_all": 1.0,
+   "supported": [
+    "H5.F1",
+    "H5.F2",
+    "H5.F3"
+   ],
+   "misses": {},
+   "unsupported_critical_claims": 0,
+   "critical_violations": [],
+   "findings_delivered": {
+    "behavior_condition": 1
+   },
+   "findings_status": "evaluated",
+   "cost": {
+    "calls": 190,
+    "bytes": 1437791,
+    "seconds": 180.867,
+    "files": 18,
+    "limit_reached": "seconds"
+   }
+  },
+  {
+   "set": "t3",
+   "scenario": "T3-R-H5-redacted-settings-save",
+   "family": "settings",
+   "condition": "findings",
+   "repeat": 1,
+   "sessions_task": false,
+   "supportability": 1.0,
+   "supportability_all": 1.0,
+   "supported": [
+    "H5.F1",
+    "H5.F2",
+    "H5.F3"
+   ],
+   "misses": {},
+   "unsupported_critical_claims": 0,
+   "critical_violations": [],
+   "findings_delivered": {
+    "behavior_condition": 1
+   },
+   "findings_status": "evaluated",
+   "cost": {
+    "calls": 189,
+    "bytes": 1430030,
+    "seconds": 180.115,
+    "files": 18,
+    "limit_reached": "seconds"
+   }
+  },
+  {
+   "set": "t3",
+   "scenario": "T3-R-H6-rollback-capability",
+   "family": "rollback",
+   "condition": "rg",
+   "repeat": 0,
+   "sessions_task": false,
+   "supportability": 0.0,
+   "supportability_all": 0.0,
+   "supported": [],
+   "misses": {
+    "H6.F1": {
+     "class": "not_delivered",
+     "witness": {
+      "path": "apps/server/src/orchestration-v2/CommandPolicy.ts",
+      "pattern": "capabilities\\.checkpointing\\.providerCanRollbackConversation"
+     }
+    },
+    "H6.F2": {
+     "class": "not_delivered",
+     "witness": {
+      "path": "apps/server/src/orchestration-v2/Adapters/AntigravityAdapterV2.ts",
+      "pattern": "\\.\\.\\.AcpProviderCapabilitiesV2"
+     }
+    },
+    "H6.F3": {
+     "class": "not_delivered",
+     "witness": {
+      "path": "apps/server/src/orchestration-v2/CheckpointRestoreSafety.ts",
+      "pattern": "File restore requires an isolated worktree"
+     }
+    },
+    "H6.F4": {
+     "class": "not_delivered",
+     "witness": {
+      "path": "apps/server/src/orchestration-v2/Adapters/AntigravityAdapterV2.ts",
+      "pattern": "\\.\\.\\.AcpProviderCapabilitiesV2"
+     }
+    }
+   },
+   "unsupported_critical_claims": 0,
+   "critical_violations": [],
+   "findings_delivered": {},
+   "findings_status": null,
+   "cost": {
+    "calls": 33,
+    "bytes": 2099003,
+    "seconds": 0.04,
+    "files": 32,
+    "limit_reached": "bytes"
+   }
+  },
+  {
+   "set": "t3",
+   "scenario": "T3-R-H6-rollback-capability",
+   "family": "rollback",
+   "condition": "rg",
+   "repeat": 1,
+   "sessions_task": false,
+   "supportability": 0.0,
+   "supportability_all": 0.0,
+   "supported": [],
+   "misses": {
+    "H6.F1": {
+     "class": "not_delivered",
+     "witness": {
+      "path": "apps/server/src/orchestration-v2/CommandPolicy.ts",
+      "pattern": "capabilities\\.checkpointing\\.providerCanRollbackConversation"
+     }
+    },
+    "H6.F2": {
+     "class": "not_delivered",
+     "witness": {
+      "path": "apps/server/src/orchestration-v2/Adapters/AntigravityAdapterV2.ts",
+      "pattern": "\\.\\.\\.AcpProviderCapabilitiesV2"
+     }
+    },
+    "H6.F3": {
+     "class": "not_delivered",
+     "witness": {
+      "path": "apps/server/src/orchestration-v2/CheckpointRestoreSafety.ts",
+      "pattern": "File restore requires an isolated worktree"
+     }
+    },
+    "H6.F4": {
+     "class": "not_delivered",
+     "witness": {
+      "path": "apps/server/src/orchestration-v2/Adapters/AntigravityAdapterV2.ts",
+      "pattern": "\\.\\.\\.AcpProviderCapabilitiesV2"
+     }
+    }
+   },
+   "unsupported_critical_claims": 0,
+   "critical_violations": [],
+   "findings_delivered": {},
+   "findings_status": null,
+   "cost": {
+    "calls": 33,
+    "bytes": 2099003,
+    "seconds": 0.043,
+    "files": 32,
+    "limit_reached": "bytes"
+   }
+  },
+  {
+   "set": "t3",
+   "scenario": "T3-R-H6-rollback-capability",
+   "family": "rollback",
+   "condition": "lexical",
+   "repeat": 0,
+   "sessions_task": false,
+   "supportability": 0.25,
+   "supportability_all": 0.25,
+   "supported": [
+    "H6.F3"
+   ],
+   "misses": {
+    "H6.F1": {
+     "class": "discovery",
+     "witness": {
+      "path": "apps/server/src/orchestration-v2/CommandPolicy.ts",
+      "pattern": "capabilities\\.checkpointing\\.providerCanRollbackConversation"
+     }
+    },
+    "H6.F2": {
+     "class": "discovery",
+     "witness": {
+      "path": "apps/server/src/orchestration-v2/Adapters/AntigravityAdapterV2.ts",
+      "pattern": "\\.\\.\\.AcpProviderCapabilitiesV2"
+     }
+    },
+    "H6.F4": {
+     "class": "discovery",
+     "witness": {
+      "path": "apps/server/src/orchestration-v2/Adapters/AntigravityAdapterV2.ts",
+      "pattern": "\\.\\.\\.AcpProviderCapabilitiesV2"
+     }
+    }
+   },
+   "unsupported_critical_claims": 0,
+   "critical_violations": [],
+   "findings_delivered": {},
+   "findings_status": "evaluated",
+   "cost": {
+    "calls": 253,
+    "bytes": 1796858,
+    "seconds": 180.393,
+    "files": 25,
+    "limit_reached": "seconds"
+   }
+  },
+  {
+   "set": "t3",
+   "scenario": "T3-R-H6-rollback-capability",
+   "family": "rollback",
+   "condition": "lexical",
+   "repeat": 1,
+   "sessions_task": false,
+   "supportability": 0.25,
+   "supportability_all": 0.25,
+   "supported": [
+    "H6.F3"
+   ],
+   "misses": {
+    "H6.F1": {
+     "class": "discovery",
+     "witness": {
+      "path": "apps/server/src/orchestration-v2/CommandPolicy.ts",
+      "pattern": "capabilities\\.checkpointing\\.providerCanRollbackConversation"
+     }
+    },
+    "H6.F2": {
+     "class": "discovery",
+     "witness": {
+      "path": "apps/server/src/orchestration-v2/Adapters/AntigravityAdapterV2.ts",
+      "pattern": "\\.\\.\\.AcpProviderCapabilitiesV2"
+     }
+    },
+    "H6.F4": {
+     "class": "discovery",
+     "witness": {
+      "path": "apps/server/src/orchestration-v2/Adapters/AntigravityAdapterV2.ts",
+      "pattern": "\\.\\.\\.AcpProviderCapabilitiesV2"
+     }
+    }
+   },
+   "unsupported_critical_claims": 0,
+   "critical_violations": [],
+   "findings_delivered": {},
+   "findings_status": "evaluated",
+   "cost": {
+    "calls": 253,
+    "bytes": 1796858,
+    "seconds": 180.013,
+    "files": 25,
+    "limit_reached": "seconds"
+   }
+  },
+  {
+   "set": "t3",
+   "scenario": "T3-R-H6-rollback-capability",
+   "family": "rollback",
+   "condition": "hybrid",
+   "repeat": 0,
+   "sessions_task": false,
+   "supportability": 0.25,
+   "supportability_all": 0.25,
+   "supported": [
+    "H6.F3"
+   ],
+   "misses": {
+    "H6.F1": {
+     "class": "discovery",
+     "witness": {
+      "path": "apps/server/src/orchestration-v2/CommandPolicy.ts",
+      "pattern": "capabilities\\.checkpointing\\.providerCanRollbackConversation"
+     }
+    },
+    "H6.F2": {
+     "class": "discovery",
+     "witness": {
+      "path": "apps/server/src/orchestration-v2/Adapters/AntigravityAdapterV2.ts",
+      "pattern": "\\.\\.\\.AcpProviderCapabilitiesV2"
+     }
+    },
+    "H6.F4": {
+     "class": "discovery",
+     "witness": {
+      "path": "apps/server/src/orchestration-v2/Adapters/AntigravityAdapterV2.ts",
+      "pattern": "\\.\\.\\.AcpProviderCapabilitiesV2"
+     }
+    }
+   },
+   "unsupported_critical_claims": 0,
+   "critical_violations": [],
+   "findings_delivered": {},
+   "findings_status": "evaluated",
+   "cost": {
+    "calls": 195,
+    "bytes": 1501406,
+    "seconds": 180.298,
+    "files": 11,
+    "limit_reached": "seconds"
+   }
+  },
+  {
+   "set": "t3",
+   "scenario": "T3-R-H6-rollback-capability",
+   "family": "rollback",
+   "condition": "hybrid",
+   "repeat": 1,
+   "sessions_task": false,
+   "supportability": 0.25,
+   "supportability_all": 0.25,
+   "supported": [
+    "H6.F3"
+   ],
+   "misses": {
+    "H6.F1": {
+     "class": "discovery",
+     "witness": {
+      "path": "apps/server/src/orchestration-v2/CommandPolicy.ts",
+      "pattern": "capabilities\\.checkpointing\\.providerCanRollbackConversation"
+     }
+    },
+    "H6.F2": {
+     "class": "discovery",
+     "witness": {
+      "path": "apps/server/src/orchestration-v2/Adapters/AntigravityAdapterV2.ts",
+      "pattern": "\\.\\.\\.AcpProviderCapabilitiesV2"
+     }
+    },
+    "H6.F4": {
+     "class": "discovery",
+     "witness": {
+      "path": "apps/server/src/orchestration-v2/Adapters/AntigravityAdapterV2.ts",
+      "pattern": "\\.\\.\\.AcpProviderCapabilitiesV2"
+     }
+    }
+   },
+   "unsupported_critical_claims": 0,
+   "critical_violations": [],
+   "findings_delivered": {},
+   "findings_status": "evaluated",
+   "cost": {
+    "calls": 195,
+    "bytes": 1501406,
+    "seconds": 180.29,
+    "files": 11,
+    "limit_reached": "seconds"
+   }
+  },
+  {
+   "set": "t3",
+   "scenario": "T3-R-H6-rollback-capability",
+   "family": "rollback",
+   "condition": "findings",
+   "repeat": 0,
+   "sessions_task": false,
+   "supportability": 0.25,
+   "supportability_all": 0.25,
+   "supported": [
+    "H6.F3"
+   ],
+   "misses": {
+    "H6.F1": {
+     "class": "discovery",
+     "witness": {
+      "path": "apps/server/src/orchestration-v2/CommandPolicy.ts",
+      "pattern": "capabilities\\.checkpointing\\.providerCanRollbackConversation"
+     }
+    },
+    "H6.F2": {
+     "class": "discovery",
+     "witness": {
+      "path": "apps/server/src/orchestration-v2/Adapters/AntigravityAdapterV2.ts",
+      "pattern": "\\.\\.\\.AcpProviderCapabilitiesV2"
+     }
+    },
+    "H6.F4": {
+     "class": "discovery",
+     "witness": {
+      "path": "apps/server/src/orchestration-v2/Adapters/AntigravityAdapterV2.ts",
+      "pattern": "\\.\\.\\.AcpProviderCapabilitiesV2"
+     }
+    }
+   },
+   "unsupported_critical_claims": 0,
+   "critical_violations": [],
+   "findings_delivered": {
+    "behavior_condition": 1
+   },
+   "findings_status": "evaluated",
+   "cost": {
+    "calls": 185,
+    "bytes": 1423719,
+    "seconds": 180.743,
+    "files": 11,
+    "limit_reached": "seconds"
+   }
+  },
+  {
+   "set": "t3",
+   "scenario": "T3-R-H6-rollback-capability",
+   "family": "rollback",
+   "condition": "findings",
+   "repeat": 1,
+   "sessions_task": false,
+   "supportability": 0.25,
+   "supportability_all": 0.25,
+   "supported": [
+    "H6.F3"
+   ],
+   "misses": {
+    "H6.F1": {
+     "class": "discovery",
+     "witness": {
+      "path": "apps/server/src/orchestration-v2/CommandPolicy.ts",
+      "pattern": "capabilities\\.checkpointing\\.providerCanRollbackConversation"
+     }
+    },
+    "H6.F2": {
+     "class": "discovery",
+     "witness": {
+      "path": "apps/server/src/orchestration-v2/Adapters/AntigravityAdapterV2.ts",
+      "pattern": "\\.\\.\\.AcpProviderCapabilitiesV2"
+     }
+    },
+    "H6.F4": {
+     "class": "discovery",
+     "witness": {
+      "path": "apps/server/src/orchestration-v2/Adapters/AntigravityAdapterV2.ts",
+      "pattern": "\\.\\.\\.AcpProviderCapabilitiesV2"
+     }
+    }
+   },
+   "unsupported_critical_claims": 0,
+   "critical_violations": [],
+   "findings_delivered": {
+    "behavior_condition": 1
+   },
+   "findings_status": "evaluated",
+   "cost": {
+    "calls": 185,
+    "bytes": 1423719,
+    "seconds": 180.75,
+    "files": 11,
+    "limit_reached": "seconds"
+   }
+  },
+  {
+   "set": "t3",
+   "scenario": "T3-R-H7-offline-webhook-retry",
+   "family": "delivery",
+   "condition": "rg",
+   "repeat": 0,
+   "sessions_task": false,
+   "supportability": 0.0,
+   "supportability_all": 0.0,
+   "supported": [],
+   "misses": {
+    "H7.F1": {
+     "class": "not_delivered",
+     "witness": {
+      "path": "infra/relay/src/hooks/HookForwarder.ts",
+      "pattern": "if \\(!endpoint\\.holdWhileOffline\\)"
+     }
+    },
+    "H7.F2": {
+     "class": "not_delivered",
+     "witness": {
+      "path": "apps/server/src/scheduledTasks/RelayDeliveryProof.ts",
+      "pattern": "A request\\s*\\n?\\s*\\*? ?without a valid proof is handled as a direct request"
+     }
+    },
+    "H7.F3": {
+     "class": "not_delivered",
+     "witness": {
+      "path": "apps/server/src/scheduledTasks/ScheduledTaskService.ts",
+      "pattern": "it runs once\\. Claimed in its own table"
+     }
+    }
+   },
+   "unsupported_critical_claims": 0,
+   "critical_violations": [],
+   "findings_delivered": {},
+   "findings_status": null,
+   "cost": {
+    "calls": 33,
+    "bytes": 2067365,
+    "seconds": 0.041,
+    "files": 32,
+    "limit_reached": "complete"
+   }
+  },
+  {
+   "set": "t3",
+   "scenario": "T3-R-H7-offline-webhook-retry",
+   "family": "delivery",
+   "condition": "rg",
+   "repeat": 1,
+   "sessions_task": false,
+   "supportability": 0.0,
+   "supportability_all": 0.0,
+   "supported": [],
+   "misses": {
+    "H7.F1": {
+     "class": "not_delivered",
+     "witness": {
+      "path": "infra/relay/src/hooks/HookForwarder.ts",
+      "pattern": "if \\(!endpoint\\.holdWhileOffline\\)"
+     }
+    },
+    "H7.F2": {
+     "class": "not_delivered",
+     "witness": {
+      "path": "apps/server/src/scheduledTasks/RelayDeliveryProof.ts",
+      "pattern": "A request\\s*\\n?\\s*\\*? ?without a valid proof is handled as a direct request"
+     }
+    },
+    "H7.F3": {
+     "class": "not_delivered",
+     "witness": {
+      "path": "apps/server/src/scheduledTasks/ScheduledTaskService.ts",
+      "pattern": "it runs once\\. Claimed in its own table"
+     }
+    }
+   },
+   "unsupported_critical_claims": 0,
+   "critical_violations": [],
+   "findings_delivered": {},
+   "findings_status": null,
+   "cost": {
+    "calls": 33,
+    "bytes": 2067365,
+    "seconds": 0.038,
+    "files": 32,
+    "limit_reached": "complete"
+   }
+  },
+  {
+   "set": "t3",
+   "scenario": "T3-R-H7-offline-webhook-retry",
+   "family": "delivery",
+   "condition": "lexical",
+   "repeat": 0,
+   "sessions_task": false,
+   "supportability": 0.333333,
+   "supportability_all": 0.333333,
+   "supported": [
+    "H7.F3"
+   ],
+   "misses": {
+    "H7.F1": {
+     "class": "discovery",
+     "witness": {
+      "path": "infra/relay/src/hooks/HookForwarder.ts",
+      "pattern": "if \\(!endpoint\\.holdWhileOffline\\)"
+     }
+    },
+    "H7.F2": {
+     "class": "discovery",
+     "witness": {
+      "path": "apps/server/src/scheduledTasks/RelayDeliveryProof.ts",
+      "pattern": "A request\\s*\\n?\\s*\\*? ?without a valid proof is handled as a direct request"
+     }
+    }
+   },
+   "unsupported_critical_claims": 0,
+   "critical_violations": [],
+   "findings_delivered": {},
+   "findings_status": "evaluated",
+   "cost": {
+    "calls": 243,
+    "bytes": 1715764,
+    "seconds": 180.305,
+    "files": 8,
+    "limit_reached": "seconds"
+   }
+  },
+  {
+   "set": "t3",
+   "scenario": "T3-R-H7-offline-webhook-retry",
+   "family": "delivery",
+   "condition": "lexical",
+   "repeat": 1,
+   "sessions_task": false,
+   "supportability": 0.333333,
+   "supportability_all": 0.333333,
+   "supported": [
+    "H7.F3"
+   ],
+   "misses": {
+    "H7.F1": {
+     "class": "discovery",
+     "witness": {
+      "path": "infra/relay/src/hooks/HookForwarder.ts",
+      "pattern": "if \\(!endpoint\\.holdWhileOffline\\)"
+     }
+    },
+    "H7.F2": {
+     "class": "discovery",
+     "witness": {
+      "path": "apps/server/src/scheduledTasks/RelayDeliveryProof.ts",
+      "pattern": "A request\\s*\\n?\\s*\\*? ?without a valid proof is handled as a direct request"
+     }
+    }
+   },
+   "unsupported_critical_claims": 0,
+   "critical_violations": [],
+   "findings_delivered": {},
+   "findings_status": "evaluated",
+   "cost": {
+    "calls": 244,
+    "bytes": 1722623,
+    "seconds": 180.221,
+    "files": 8,
+    "limit_reached": "seconds"
+   }
+  },
+  {
+   "set": "t3",
+   "scenario": "T3-R-H7-offline-webhook-retry",
+   "family": "delivery",
+   "condition": "hybrid",
+   "repeat": 0,
+   "sessions_task": false,
+   "supportability": 0.333333,
+   "supportability_all": 0.333333,
+   "supported": [
+    "H7.F3"
+   ],
+   "misses": {
+    "H7.F1": {
+     "class": "discovery",
+     "witness": {
+      "path": "infra/relay/src/hooks/HookForwarder.ts",
+      "pattern": "if \\(!endpoint\\.holdWhileOffline\\)"
+     }
+    },
+    "H7.F2": {
+     "class": "discovery",
+     "witness": {
+      "path": "apps/server/src/scheduledTasks/RelayDeliveryProof.ts",
+      "pattern": "A request\\s*\\n?\\s*\\*? ?without a valid proof is handled as a direct request"
+     }
+    }
+   },
+   "unsupported_critical_claims": 0,
+   "critical_violations": [],
+   "findings_delivered": {},
+   "findings_status": "evaluated",
+   "cost": {
+    "calls": 204,
+    "bytes": 1528629,
+    "seconds": 180.367,
+    "files": 11,
+    "limit_reached": "seconds"
+   }
+  },
+  {
+   "set": "t3",
+   "scenario": "T3-R-H7-offline-webhook-retry",
+   "family": "delivery",
+   "condition": "hybrid",
+   "repeat": 1,
+   "sessions_task": false,
+   "supportability": 0.333333,
+   "supportability_all": 0.333333,
+   "supported": [
+    "H7.F3"
+   ],
+   "misses": {
+    "H7.F1": {
+     "class": "discovery",
+     "witness": {
+      "path": "infra/relay/src/hooks/HookForwarder.ts",
+      "pattern": "if \\(!endpoint\\.holdWhileOffline\\)"
+     }
+    },
+    "H7.F2": {
+     "class": "discovery",
+     "witness": {
+      "path": "apps/server/src/scheduledTasks/RelayDeliveryProof.ts",
+      "pattern": "A request\\s*\\n?\\s*\\*? ?without a valid proof is handled as a direct request"
+     }
+    }
+   },
+   "unsupported_critical_claims": 0,
+   "critical_violations": [],
+   "findings_delivered": {},
+   "findings_status": "evaluated",
+   "cost": {
+    "calls": 204,
+    "bytes": 1528629,
+    "seconds": 180.402,
+    "files": 11,
+    "limit_reached": "seconds"
+   }
+  },
+  {
+   "set": "t3",
+   "scenario": "T3-R-H7-offline-webhook-retry",
+   "family": "delivery",
+   "condition": "findings",
+   "repeat": 0,
+   "sessions_task": false,
+   "supportability": 0.333333,
+   "supportability_all": 0.333333,
+   "supported": [
+    "H7.F3"
+   ],
+   "misses": {
+    "H7.F1": {
+     "class": "discovery",
+     "witness": {
+      "path": "infra/relay/src/hooks/HookForwarder.ts",
+      "pattern": "if \\(!endpoint\\.holdWhileOffline\\)"
+     }
+    },
+    "H7.F2": {
+     "class": "discovery",
+     "witness": {
+      "path": "apps/server/src/scheduledTasks/RelayDeliveryProof.ts",
+      "pattern": "A request\\s*\\n?\\s*\\*? ?without a valid proof is handled as a direct request"
+     }
+    }
+   },
+   "unsupported_critical_claims": 0,
+   "critical_violations": [],
+   "findings_delivered": {
+    "behavior_condition": 1
+   },
+   "findings_status": "evaluated",
+   "cost": {
+    "calls": 195,
+    "bytes": 1461962,
+    "seconds": 180.371,
+    "files": 10,
+    "limit_reached": "seconds"
+   }
+  },
+  {
+   "set": "t3",
+   "scenario": "T3-R-H7-offline-webhook-retry",
+   "family": "delivery",
+   "condition": "findings",
+   "repeat": 1,
+   "sessions_task": false,
+   "supportability": 0.333333,
+   "supportability_all": 0.333333,
+   "supported": [
+    "H7.F3"
+   ],
+   "misses": {
+    "H7.F1": {
+     "class": "discovery",
+     "witness": {
+      "path": "infra/relay/src/hooks/HookForwarder.ts",
+      "pattern": "if \\(!endpoint\\.holdWhileOffline\\)"
+     }
+    },
+    "H7.F2": {
+     "class": "discovery",
+     "witness": {
+      "path": "apps/server/src/scheduledTasks/RelayDeliveryProof.ts",
+      "pattern": "A request\\s*\\n?\\s*\\*? ?without a valid proof is handled as a direct request"
+     }
+    }
+   },
+   "unsupported_critical_claims": 0,
+   "critical_violations": [],
+   "findings_delivered": {
+    "behavior_condition": 1
+   },
+   "findings_status": "evaluated",
+   "cost": {
+    "calls": 195,
+    "bytes": 1461962,
+    "seconds": 180.448,
+    "files": 10,
+    "limit_reached": "seconds"
+   }
+  },
+  {
+   "set": "t3",
+   "scenario": "T3-R-H8-flapping-backoff",
+   "family": "connection",
+   "condition": "rg",
+   "repeat": 0,
+   "sessions_task": false,
+   "supportability": 0.666667,
+   "supportability_all": 0.666667,
+   "supported": [
+    "H8.F2",
+    "H8.F3"
+   ],
+   "misses": {
+    "H8.F1": {
+     "class": "not_delivered",
+     "witness": {
+      "path": "packages/client-runtime/src/connection/registry.ts",
+      "pattern": "import \\* as EnvironmentSupervisor from \"\\./supervisor\\.ts\""
+     }
+    }
+   },
+   "unsupported_critical_claims": 0,
+   "critical_violations": [],
+   "findings_delivered": {},
+   "findings_status": null,
+   "cost": {
+    "calls": 33,
+    "bytes": 1954371,
+    "seconds": 0.037,
+    "files": 32,
+    "limit_reached": "complete"
+   }
+  },
+  {
+   "set": "t3",
+   "scenario": "T3-R-H8-flapping-backoff",
+   "family": "connection",
+   "condition": "rg",
+   "repeat": 1,
+   "sessions_task": false,
+   "supportability": 0.666667,
+   "supportability_all": 0.666667,
+   "supported": [
+    "H8.F2",
+    "H8.F3"
+   ],
+   "misses": {
+    "H8.F1": {
+     "class": "not_delivered",
+     "witness": {
+      "path": "packages/client-runtime/src/connection/registry.ts",
+      "pattern": "import \\* as EnvironmentSupervisor from \"\\./supervisor\\.ts\""
+     }
+    }
+   },
+   "unsupported_critical_claims": 0,
+   "critical_violations": [],
+   "findings_delivered": {},
+   "findings_status": null,
+   "cost": {
+    "calls": 33,
+    "bytes": 1954371,
+    "seconds": 0.037,
+    "files": 32,
+    "limit_reached": "complete"
+   }
+  },
+  {
+   "set": "t3",
+   "scenario": "T3-R-H8-flapping-backoff",
+   "family": "connection",
+   "condition": "lexical",
+   "repeat": 0,
+   "sessions_task": false,
+   "supportability": 0.666667,
+   "supportability_all": 0.666667,
+   "supported": [
+    "H8.F2",
+    "H8.F3"
+   ],
+   "misses": {
+    "H8.F1": {
+     "class": "selection",
+     "witness": {
+      "path": "packages/client-runtime/src/connection/registry.ts",
+      "pattern": "import \\* as EnvironmentSupervisor from \"\\./supervisor\\.ts\""
+     }
+    }
+   },
+   "unsupported_critical_claims": 0,
+   "critical_violations": [],
+   "findings_delivered": {},
+   "findings_status": "evaluated",
+   "cost": {
+    "calls": 249,
+    "bytes": 1761240,
+    "seconds": 180.411,
+    "files": 19,
+    "limit_reached": "seconds"
+   }
+  },
+  {
+   "set": "t3",
+   "scenario": "T3-R-H8-flapping-backoff",
+   "family": "connection",
+   "condition": "lexical",
+   "repeat": 1,
+   "sessions_task": false,
+   "supportability": 0.666667,
+   "supportability_all": 0.666667,
+   "supported": [
+    "H8.F2",
+    "H8.F3"
+   ],
+   "misses": {
+    "H8.F1": {
+     "class": "selection",
+     "witness": {
+      "path": "packages/client-runtime/src/connection/registry.ts",
+      "pattern": "import \\* as EnvironmentSupervisor from \"\\./supervisor\\.ts\""
+     }
+    }
+   },
+   "unsupported_critical_claims": 0,
+   "critical_violations": [],
+   "findings_delivered": {},
+   "findings_status": "evaluated",
+   "cost": {
+    "calls": 249,
+    "bytes": 1761240,
+    "seconds": 180.237,
+    "files": 19,
+    "limit_reached": "seconds"
+   }
+  },
+  {
+   "set": "t3",
+   "scenario": "T3-R-H8-flapping-backoff",
+   "family": "connection",
+   "condition": "hybrid",
+   "repeat": 0,
+   "sessions_task": false,
+   "supportability": 1.0,
+   "supportability_all": 1.0,
+   "supported": [
+    "H8.F1",
+    "H8.F2",
+    "H8.F3"
+   ],
+   "misses": {},
+   "unsupported_critical_claims": 0,
+   "critical_violations": [],
+   "findings_delivered": {},
+   "findings_status": "evaluated",
+   "cost": {
+    "calls": 245,
+    "bytes": 1831403,
+    "seconds": 180.474,
+    "files": 30,
+    "limit_reached": "seconds"
+   }
+  },
+  {
+   "set": "t3",
+   "scenario": "T3-R-H8-flapping-backoff",
+   "family": "connection",
+   "condition": "hybrid",
+   "repeat": 1,
+   "sessions_task": false,
+   "supportability": 1.0,
+   "supportability_all": 1.0,
+   "supported": [
+    "H8.F1",
+    "H8.F2",
+    "H8.F3"
+   ],
+   "misses": {},
+   "unsupported_critical_claims": 0,
+   "critical_violations": [],
+   "findings_delivered": {},
+   "findings_status": "evaluated",
+   "cost": {
+    "calls": 244,
+    "bytes": 1823613,
+    "seconds": 180.655,
+    "files": 30,
+    "limit_reached": "seconds"
+   }
+  },
+  {
+   "set": "t3",
+   "scenario": "T3-R-H8-flapping-backoff",
+   "family": "connection",
+   "condition": "findings",
+   "repeat": 0,
+   "sessions_task": false,
+   "supportability": 1.0,
+   "supportability_all": 1.0,
+   "supported": [
+    "H8.F1",
+    "H8.F2",
+    "H8.F3"
+   ],
+   "misses": {},
+   "unsupported_critical_claims": 0,
+   "critical_violations": [],
+   "findings_delivered": {
+    "behavior_condition": 1
+   },
+   "findings_status": "evaluated",
+   "cost": {
+    "calls": 242,
+    "bytes": 1808433,
+    "seconds": 180.701,
+    "files": 29,
+    "limit_reached": "seconds"
+   }
+  },
+  {
+   "set": "t3",
+   "scenario": "T3-R-H8-flapping-backoff",
+   "family": "connection",
+   "condition": "findings",
+   "repeat": 1,
+   "sessions_task": false,
+   "supportability": 1.0,
+   "supportability_all": 1.0,
+   "supported": [
+    "H8.F1",
+    "H8.F2",
+    "H8.F3"
+   ],
+   "misses": {},
+   "unsupported_critical_claims": 0,
+   "critical_violations": [],
+   "findings_delivered": {
+    "behavior_condition": 1
+   },
+   "findings_status": "evaluated",
+   "cost": {
+    "calls": 241,
+    "bytes": 1801646,
+    "seconds": 180.12,
+    "files": 29,
+    "limit_reached": "seconds"
+   }
+  },
+  {
+   "set": "t3",
+   "scenario": "T3-R-H9-linux-portal-ordering",
+   "family": "desktop",
+   "condition": "rg",
+   "repeat": 0,
+   "sessions_task": false,
+   "supportability": 0.0,
+   "supportability_all": 0.0,
+   "supported": [],
+   "misses": {
+    "H9.F1": {
+     "class": "not_delivered",
+     "witness": {
+      "path": "apps/desktop/src/app/DesktopPreReadyPlatform.ts",
+      "pattern": "Chromium caches its portal registration during startup"
+     }
+    },
+    "H9.F2": {
+     "class": "not_delivered",
+     "witness": {
+      "path": "apps/desktop/src/app/DesktopPreReadyPlatform.ts",
+      "pattern": "execTarget: process\\.env\\.APPIMAGE"
+     }
+    },
+    "H9.F3": {
+     "class": "not_delivered",
+     "witness": {
+      "path": "apps/desktop/src/app/DesktopPreReadyPlatform.ts",
+      "pattern": "before any asynchronous work can initialize it"
+     }
+    }
+   },
+   "unsupported_critical_claims": 0,
+   "critical_violations": [],
+   "findings_delivered": {},
+   "findings_status": null,
+   "cost": {
+    "calls": 33,
+    "bytes": 2075611,
+    "seconds": 0.045,
+    "files": 32,
+    "limit_reached": "complete"
+   }
+  },
+  {
+   "set": "t3",
+   "scenario": "T3-R-H9-linux-portal-ordering",
+   "family": "desktop",
+   "condition": "rg",
+   "repeat": 1,
+   "sessions_task": false,
+   "supportability": 0.0,
+   "supportability_all": 0.0,
+   "supported": [],
+   "misses": {
+    "H9.F1": {
+     "class": "not_delivered",
+     "witness": {
+      "path": "apps/desktop/src/app/DesktopPreReadyPlatform.ts",
+      "pattern": "Chromium caches its portal registration during startup"
+     }
+    },
+    "H9.F2": {
+     "class": "not_delivered",
+     "witness": {
+      "path": "apps/desktop/src/app/DesktopPreReadyPlatform.ts",
+      "pattern": "execTarget: process\\.env\\.APPIMAGE"
+     }
+    },
+    "H9.F3": {
+     "class": "not_delivered",
+     "witness": {
+      "path": "apps/desktop/src/app/DesktopPreReadyPlatform.ts",
+      "pattern": "before any asynchronous work can initialize it"
+     }
+    }
+   },
+   "unsupported_critical_claims": 0,
+   "critical_violations": [],
+   "findings_delivered": {},
+   "findings_status": null,
+   "cost": {
+    "calls": 33,
+    "bytes": 2075611,
+    "seconds": 0.044,
+    "files": 32,
+    "limit_reached": "complete"
+   }
+  },
+  {
+   "set": "t3",
+   "scenario": "T3-R-H9-linux-portal-ordering",
+   "family": "desktop",
+   "condition": "lexical",
+   "repeat": 0,
+   "sessions_task": false,
+   "supportability": 1.0,
+   "supportability_all": 1.0,
+   "supported": [
+    "H9.F1",
+    "H9.F2",
+    "H9.F3"
+   ],
+   "misses": {},
+   "unsupported_critical_claims": 0,
+   "critical_violations": [],
+   "findings_delivered": {},
+   "findings_status": "evaluated",
+   "cost": {
+    "calls": 233,
+    "bytes": 1691333,
+    "seconds": 181.134,
+    "files": 41,
+    "limit_reached": "seconds"
+   }
+  },
+  {
+   "set": "t3",
+   "scenario": "T3-R-H9-linux-portal-ordering",
+   "family": "desktop",
+   "condition": "lexical",
+   "repeat": 1,
+   "sessions_task": false,
+   "supportability": 1.0,
+   "supportability_all": 1.0,
+   "supported": [
+    "H9.F1",
+    "H9.F2",
+    "H9.F3"
+   ],
+   "misses": {},
+   "unsupported_critical_claims": 0,
+   "critical_violations": [],
+   "findings_delivered": {},
+   "findings_status": "evaluated",
+   "cost": {
+    "calls": 232,
+    "bytes": 1687908,
+    "seconds": 180.015,
+    "files": 41,
+    "limit_reached": "seconds"
+   }
+  },
+  {
+   "set": "t3",
+   "scenario": "T3-R-H9-linux-portal-ordering",
+   "family": "desktop",
+   "condition": "hybrid",
+   "repeat": 0,
+   "sessions_task": false,
+   "supportability": 1.0,
+   "supportability_all": 1.0,
+   "supported": [
+    "H9.F1",
+    "H9.F2",
+    "H9.F3"
+   ],
+   "misses": {},
+   "unsupported_critical_claims": 0,
+   "critical_violations": [],
+   "findings_delivered": {},
+   "findings_status": "evaluated",
+   "cost": {
+    "calls": 240,
+    "bytes": 1775421,
+    "seconds": 180.465,
+    "files": 18,
+    "limit_reached": "seconds"
+   }
+  },
+  {
+   "set": "t3",
+   "scenario": "T3-R-H9-linux-portal-ordering",
+   "family": "desktop",
+   "condition": "hybrid",
+   "repeat": 1,
+   "sessions_task": false,
+   "supportability": 1.0,
+   "supportability_all": 1.0,
+   "supported": [
+    "H9.F1",
+    "H9.F2",
+    "H9.F3"
+   ],
+   "misses": {},
+   "unsupported_critical_claims": 0,
+   "critical_violations": [],
+   "findings_delivered": {},
+   "findings_status": "evaluated",
+   "cost": {
+    "calls": 240,
+    "bytes": 1775421,
+    "seconds": 180.487,
+    "files": 18,
+    "limit_reached": "seconds"
+   }
+  },
+  {
+   "set": "t3",
+   "scenario": "T3-R-H9-linux-portal-ordering",
+   "family": "desktop",
+   "condition": "findings",
+   "repeat": 0,
+   "sessions_task": false,
+   "supportability": 1.0,
+   "supportability_all": 1.0,
+   "supported": [
+    "H9.F1",
+    "H9.F2",
+    "H9.F3"
+   ],
+   "misses": {},
+   "unsupported_critical_claims": 0,
+   "critical_violations": [],
+   "findings_delivered": {
+    "behavior_condition": 1
+   },
+   "findings_status": "evaluated",
+   "cost": {
+    "calls": 238,
+    "bytes": 1761828,
+    "seconds": 180.236,
+    "files": 18,
+    "limit_reached": "seconds"
+   }
+  },
+  {
+   "set": "t3",
+   "scenario": "T3-R-H9-linux-portal-ordering",
+   "family": "desktop",
+   "condition": "findings",
+   "repeat": 1,
+   "sessions_task": false,
+   "supportability": 1.0,
+   "supportability_all": 1.0,
+   "supported": [
+    "H9.F1",
+    "H9.F2",
+    "H9.F3"
+   ],
+   "misses": {},
+   "unsupported_critical_claims": 0,
+   "critical_violations": [],
+   "findings_delivered": {
+    "behavior_condition": 1
+   },
+   "findings_status": "evaluated",
+   "cost": {
+    "calls": 237,
+    "bytes": 1754858,
+    "seconds": 180.522,
+    "files": 18,
+    "limit_reached": "seconds"
+   }
+  },
+  {
+   "set": "t3",
+   "scenario": "T3-R-H10-attachment-retry",
+   "family": "attachments",
+   "condition": "rg",
+   "repeat": 0,
+   "sessions_task": false,
+   "supportability": 0.0,
+   "supportability_all": 0.0,
+   "supported": [],
+   "misses": {
+    "H10.F1": {
+     "class": "not_delivered",
+     "witness": {
+      "path": "apps/server/src/orchestration-v2/AttachmentClaims.ts",
+      "pattern": "A copy, not a hard link"
+     }
+    },
+    "H10.F2": {
+     "class": "not_delivered",
+     "witness": {
+      "path": "apps/server/src/orchestration-v2/AttachmentClaims.ts",
+      "pattern": "must not mutate the retry source"
+     }
+    },
+    "H10.F3": {
+     "class": "not_delivered",
+     "witness": {
+      "path": "apps/server/src/orchestration-v2/AttachmentClaims.ts",
+      "pattern": "copy and its rollback registration stay in one"
+     }
+    }
+   },
+   "unsupported_critical_claims": 0,
+   "critical_violations": [],
+   "findings_delivered": {},
+   "findings_status": null,
+   "cost": {
+    "calls": 33,
+    "bytes": 2078279,
+    "seconds": 0.039,
+    "files": 32,
+    "limit_reached": "complete"
+   }
+  },
+  {
+   "set": "t3",
+   "scenario": "T3-R-H10-attachment-retry",
+   "family": "attachments",
+   "condition": "rg",
+   "repeat": 1,
+   "sessions_task": false,
+   "supportability": 0.0,
+   "supportability_all": 0.0,
+   "supported": [],
+   "misses": {
+    "H10.F1": {
+     "class": "not_delivered",
+     "witness": {
+      "path": "apps/server/src/orchestration-v2/AttachmentClaims.ts",
+      "pattern": "A copy, not a hard link"
+     }
+    },
+    "H10.F2": {
+     "class": "not_delivered",
+     "witness": {
+      "path": "apps/server/src/orchestration-v2/AttachmentClaims.ts",
+      "pattern": "must not mutate the retry source"
+     }
+    },
+    "H10.F3": {
+     "class": "not_delivered",
+     "witness": {
+      "path": "apps/server/src/orchestration-v2/AttachmentClaims.ts",
+      "pattern": "copy and its rollback registration stay in one"
+     }
+    }
+   },
+   "unsupported_critical_claims": 0,
+   "critical_violations": [],
+   "findings_delivered": {},
+   "findings_status": null,
+   "cost": {
+    "calls": 33,
+    "bytes": 2078279,
+    "seconds": 0.039,
+    "files": 32,
+    "limit_reached": "complete"
+   }
+  },
+  {
+   "set": "t3",
+   "scenario": "T3-R-H10-attachment-retry",
+   "family": "attachments",
+   "condition": "lexical",
+   "repeat": 0,
+   "sessions_task": false,
+   "supportability": 0.0,
+   "supportability_all": 0.0,
+   "supported": [],
+   "misses": {
+    "H10.F1": {
+     "class": "selection",
+     "witness": {
+      "path": "apps/server/src/orchestration-v2/AttachmentClaims.ts",
+      "pattern": "A copy, not a hard link"
+     }
+    },
+    "H10.F2": {
+     "class": "selection",
+     "witness": {
+      "path": "apps/server/src/orchestration-v2/AttachmentClaims.ts",
+      "pattern": "must not mutate the retry source"
+     }
+    },
+    "H10.F3": {
+     "class": "selection",
+     "witness": {
+      "path": "apps/server/src/orchestration-v2/AttachmentClaims.ts",
+      "pattern": "copy and its rollback registration stay in one"
+     }
+    }
+   },
+   "unsupported_critical_claims": 0,
+   "critical_violations": [],
+   "findings_delivered": {},
+   "findings_status": "evaluated",
+   "cost": {
+    "calls": 246,
+    "bytes": 1743931,
+    "seconds": 180.161,
+    "files": 16,
+    "limit_reached": "seconds"
+   }
+  },
+  {
+   "set": "t3",
+   "scenario": "T3-R-H10-attachment-retry",
+   "family": "attachments",
+   "condition": "lexical",
+   "repeat": 1,
+   "sessions_task": false,
+   "supportability": 0.0,
+   "supportability_all": 0.0,
+   "supported": [],
+   "misses": {
+    "H10.F1": {
+     "class": "selection",
+     "witness": {
+      "path": "apps/server/src/orchestration-v2/AttachmentClaims.ts",
+      "pattern": "A copy, not a hard link"
+     }
+    },
+    "H10.F2": {
+     "class": "selection",
+     "witness": {
+      "path": "apps/server/src/orchestration-v2/AttachmentClaims.ts",
+      "pattern": "must not mutate the retry source"
+     }
+    },
+    "H10.F3": {
+     "class": "selection",
+     "witness": {
+      "path": "apps/server/src/orchestration-v2/AttachmentClaims.ts",
+      "pattern": "copy and its rollback registration stay in one"
+     }
+    }
+   },
+   "unsupported_critical_claims": 0,
+   "critical_violations": [],
+   "findings_delivered": {},
+   "findings_status": "evaluated",
+   "cost": {
+    "calls": 246,
+    "bytes": 1743931,
+    "seconds": 180.21,
+    "files": 16,
+    "limit_reached": "seconds"
+   }
+  },
+  {
+   "set": "t3",
+   "scenario": "T3-R-H10-attachment-retry",
+   "family": "attachments",
+   "condition": "hybrid",
+   "repeat": 0,
+   "sessions_task": false,
+   "supportability": 0.0,
+   "supportability_all": 0.0,
+   "supported": [],
+   "misses": {
+    "H10.F1": {
+     "class": "discovery",
+     "witness": {
+      "path": "apps/server/src/orchestration-v2/AttachmentClaims.ts",
+      "pattern": "A copy, not a hard link"
+     }
+    },
+    "H10.F2": {
+     "class": "discovery",
+     "witness": {
+      "path": "apps/server/src/orchestration-v2/AttachmentClaims.ts",
+      "pattern": "must not mutate the retry source"
+     }
+    },
+    "H10.F3": {
+     "class": "discovery",
+     "witness": {
+      "path": "apps/server/src/orchestration-v2/AttachmentClaims.ts",
+      "pattern": "copy and its rollback registration stay in one"
+     }
+    }
+   },
+   "unsupported_critical_claims": 0,
+   "critical_violations": [],
+   "findings_delivered": {},
+   "findings_status": "evaluated",
+   "cost": {
+    "calls": 200,
+    "bytes": 1517963,
+    "seconds": 180.107,
+    "files": 12,
+    "limit_reached": "seconds"
+   }
+  },
+  {
+   "set": "t3",
+   "scenario": "T3-R-H10-attachment-retry",
+   "family": "attachments",
+   "condition": "hybrid",
+   "repeat": 1,
+   "sessions_task": false,
+   "supportability": 0.0,
+   "supportability_all": 0.0,
+   "supported": [],
+   "misses": {
+    "H10.F1": {
+     "class": "discovery",
+     "witness": {
+      "path": "apps/server/src/orchestration-v2/AttachmentClaims.ts",
+      "pattern": "A copy, not a hard link"
+     }
+    },
+    "H10.F2": {
+     "class": "discovery",
+     "witness": {
+      "path": "apps/server/src/orchestration-v2/AttachmentClaims.ts",
+      "pattern": "must not mutate the retry source"
+     }
+    },
+    "H10.F3": {
+     "class": "discovery",
+     "witness": {
+      "path": "apps/server/src/orchestration-v2/AttachmentClaims.ts",
+      "pattern": "copy and its rollback registration stay in one"
+     }
+    }
+   },
+   "unsupported_critical_claims": 0,
+   "critical_violations": [],
+   "findings_delivered": {},
+   "findings_status": "evaluated",
+   "cost": {
+    "calls": 200,
+    "bytes": 1517963,
+    "seconds": 180.091,
+    "files": 12,
+    "limit_reached": "seconds"
+   }
+  },
+  {
+   "set": "t3",
+   "scenario": "T3-R-H10-attachment-retry",
+   "family": "attachments",
+   "condition": "findings",
+   "repeat": 0,
+   "sessions_task": false,
+   "supportability": 0.0,
+   "supportability_all": 0.0,
+   "supported": [],
+   "misses": {
+    "H10.F1": {
+     "class": "discovery",
+     "witness": {
+      "path": "apps/server/src/orchestration-v2/AttachmentClaims.ts",
+      "pattern": "A copy, not a hard link"
+     }
+    },
+    "H10.F2": {
+     "class": "discovery",
+     "witness": {
+      "path": "apps/server/src/orchestration-v2/AttachmentClaims.ts",
+      "pattern": "must not mutate the retry source"
+     }
+    },
+    "H10.F3": {
+     "class": "discovery",
+     "witness": {
+      "path": "apps/server/src/orchestration-v2/AttachmentClaims.ts",
+      "pattern": "copy and its rollback registration stay in one"
+     }
+    }
+   },
+   "unsupported_critical_claims": 0,
+   "critical_violations": [],
+   "findings_delivered": {
+    "behavior_condition": 1
+   },
+   "findings_status": "evaluated",
+   "cost": {
+    "calls": 189,
+    "bytes": 1435195,
+    "seconds": 180.011,
+    "files": 12,
+    "limit_reached": "seconds"
+   }
+  },
+  {
+   "set": "t3",
+   "scenario": "T3-R-H10-attachment-retry",
+   "family": "attachments",
+   "condition": "findings",
+   "repeat": 1,
+   "sessions_task": false,
+   "supportability": 0.0,
+   "supportability_all": 0.0,
+   "supported": [],
+   "misses": {
+    "H10.F1": {
+     "class": "discovery",
+     "witness": {
+      "path": "apps/server/src/orchestration-v2/AttachmentClaims.ts",
+      "pattern": "A copy, not a hard link"
+     }
+    },
+    "H10.F2": {
+     "class": "discovery",
+     "witness": {
+      "path": "apps/server/src/orchestration-v2/AttachmentClaims.ts",
+      "pattern": "must not mutate the retry source"
+     }
+    },
+    "H10.F3": {
+     "class": "discovery",
+     "witness": {
+      "path": "apps/server/src/orchestration-v2/AttachmentClaims.ts",
+      "pattern": "copy and its rollback registration stay in one"
+     }
+    }
+   },
+   "unsupported_critical_claims": 0,
+   "critical_violations": [],
+   "findings_delivered": {
+    "behavior_condition": 1
+   },
+   "findings_status": "evaluated",
+   "cost": {
+    "calls": 190,
+    "bytes": 1442737,
+    "seconds": 180.598,
+    "files": 12,
+    "limit_reached": "seconds"
+   }
+  },
+  {
+   "set": "t3",
+   "scenario": "T3-R-H11-monitor-sequence",
+   "family": "telemetry",
+   "condition": "rg",
+   "repeat": 0,
+   "sessions_task": false,
+   "supportability": 0.0,
+   "supportability_all": 0.0,
+   "supported": [],
+   "misses": {
+    "H11.F1": {
+     "class": "not_delivered",
+     "witness": {
+      "path": "native/resource-monitor/src/main.rs",
+      "pattern": "self\\.sequence = self\\.sequence\\.saturating_add\\(1\\)"
+     }
+    },
+    "H11.F2": {
+     "class": "not_delivered",
+     "witness": {
+      "path": "apps/server/src/resourceTelemetry/ResourceTelemetry.ts",
+      "pattern": "incomingNativeSnapshot\\.generation === current\\.lastNativeGeneration &&"
+     }
+    }
+   },
+   "unsupported_critical_claims": 0,
+   "critical_violations": [],
+   "findings_delivered": {},
+   "findings_status": null,
+   "cost": {
+    "calls": 33,
+    "bytes": 2076509,
+    "seconds": 0.04,
+    "files": 32,
+    "limit_reached": "complete"
+   }
+  },
+  {
+   "set": "t3",
+   "scenario": "T3-R-H11-monitor-sequence",
+   "family": "telemetry",
+   "condition": "rg",
+   "repeat": 1,
+   "sessions_task": false,
+   "supportability": 0.0,
+   "supportability_all": 0.0,
+   "supported": [],
+   "misses": {
+    "H11.F1": {
+     "class": "not_delivered",
+     "witness": {
+      "path": "native/resource-monitor/src/main.rs",
+      "pattern": "self\\.sequence = self\\.sequence\\.saturating_add\\(1\\)"
+     }
+    },
+    "H11.F2": {
+     "class": "not_delivered",
+     "witness": {
+      "path": "apps/server/src/resourceTelemetry/ResourceTelemetry.ts",
+      "pattern": "incomingNativeSnapshot\\.generation === current\\.lastNativeGeneration &&"
+     }
+    }
+   },
+   "unsupported_critical_claims": 0,
+   "critical_violations": [],
+   "findings_delivered": {},
+   "findings_status": null,
+   "cost": {
+    "calls": 33,
+    "bytes": 2076509,
+    "seconds": 0.04,
+    "files": 32,
+    "limit_reached": "complete"
+   }
+  },
+  {
+   "set": "t3",
+   "scenario": "T3-R-H11-monitor-sequence",
+   "family": "telemetry",
+   "condition": "lexical",
+   "repeat": 0,
+   "sessions_task": false,
+   "supportability": 0.5,
+   "supportability_all": 0.5,
+   "supported": [
+    "H11.F1"
+   ],
+   "misses": {
+    "H11.F2": {
+     "class": "discovery",
+     "witness": {
+      "path": "apps/server/src/resourceTelemetry/ResourceTelemetry.ts",
+      "pattern": "incomingNativeSnapshot\\.generation === current\\.lastNativeGeneration &&"
+     }
+    }
+   },
+   "unsupported_critical_claims": 0,
+   "critical_violations": [],
+   "findings_delivered": {},
+   "findings_status": "evaluated",
+   "cost": {
+    "calls": 253,
+    "bytes": 1803583,
+    "seconds": 180.448,
+    "files": 14,
+    "limit_reached": "seconds"
+   }
+  },
+  {
+   "set": "t3",
+   "scenario": "T3-R-H11-monitor-sequence",
+   "family": "telemetry",
+   "condition": "lexical",
+   "repeat": 1,
+   "sessions_task": false,
+   "supportability": 0.5,
+   "supportability_all": 0.5,
+   "supported": [
+    "H11.F1"
+   ],
+   "misses": {
+    "H11.F2": {
+     "class": "discovery",
+     "witness": {
+      "path": "apps/server/src/resourceTelemetry/ResourceTelemetry.ts",
+      "pattern": "incomingNativeSnapshot\\.generation === current\\.lastNativeGeneration &&"
+     }
+    }
+   },
+   "unsupported_critical_claims": 0,
+   "critical_violations": [],
+   "findings_delivered": {},
+   "findings_status": "evaluated",
+   "cost": {
+    "calls": 253,
+    "bytes": 1803583,
+    "seconds": 180.142,
+    "files": 14,
+    "limit_reached": "seconds"
+   }
+  },
+  {
+   "set": "t3",
+   "scenario": "T3-R-H11-monitor-sequence",
+   "family": "telemetry",
+   "condition": "hybrid",
+   "repeat": 0,
+   "sessions_task": false,
+   "supportability": 1.0,
+   "supportability_all": 1.0,
+   "supported": [
+    "H11.F1",
+    "H11.F2"
+   ],
+   "misses": {},
+   "unsupported_critical_claims": 0,
+   "critical_violations": [],
+   "findings_delivered": {},
+   "findings_status": "evaluated",
+   "cost": {
+    "calls": 212,
+    "bytes": 1560041,
+    "seconds": 180.219,
+    "files": 27,
+    "limit_reached": "seconds"
+   }
+  },
+  {
+   "set": "t3",
+   "scenario": "T3-R-H11-monitor-sequence",
+   "family": "telemetry",
+   "condition": "hybrid",
+   "repeat": 1,
+   "sessions_task": false,
+   "supportability": 1.0,
+   "supportability_all": 1.0,
+   "supported": [
+    "H11.F1",
+    "H11.F2"
+   ],
+   "misses": {},
+   "unsupported_critical_claims": 0,
+   "critical_violations": [],
+   "findings_delivered": {},
+   "findings_status": "evaluated",
+   "cost": {
+    "calls": 212,
+    "bytes": 1560041,
+    "seconds": 180.022,
+    "files": 27,
+    "limit_reached": "seconds"
+   }
+  },
+  {
+   "set": "t3",
+   "scenario": "T3-R-H11-monitor-sequence",
+   "family": "telemetry",
+   "condition": "findings",
+   "repeat": 0,
+   "sessions_task": false,
+   "supportability": 1.0,
+   "supportability_all": 1.0,
+   "supported": [
+    "H11.F1",
+    "H11.F2"
+   ],
+   "misses": {},
+   "unsupported_critical_claims": 0,
+   "critical_violations": [],
+   "findings_delivered": {
+    "behavior_condition": 1
+   },
+   "findings_status": "evaluated",
+   "cost": {
+    "calls": 204,
+    "bytes": 1504195,
+    "seconds": 180.609,
+    "files": 27,
+    "limit_reached": "seconds"
+   }
+  },
+  {
+   "set": "t3",
+   "scenario": "T3-R-H11-monitor-sequence",
+   "family": "telemetry",
+   "condition": "findings",
+   "repeat": 1,
+   "sessions_task": false,
+   "supportability": 1.0,
+   "supportability_all": 1.0,
+   "supported": [
+    "H11.F1",
+    "H11.F2"
+   ],
+   "misses": {},
+   "unsupported_critical_claims": 0,
+   "critical_violations": [],
+   "findings_delivered": {
+    "behavior_condition": 1
+   },
+   "findings_status": "evaluated",
+   "cost": {
+    "calls": 203,
+    "bytes": 1497167,
+    "seconds": 180.016,
+    "files": 27,
+    "limit_reached": "seconds"
+   }
+  },
+  {
+   "set": "t3",
+   "scenario": "T3-R-H12-mobile-reveal-patch",
+   "family": "mobile",
+   "condition": "rg",
+   "repeat": 0,
+   "sessions_task": false,
+   "supportability": 0.0,
+   "supportability_all": 0.0,
+   "supported": [],
+   "misses": {
+    "H12.F1": {
+     "class": "consumption",
+     "witness": {
+      "path": "apps/mobile/src/features/threads/ThreadFeed.tsx",
+      "pattern": "which is blind to UIKit's adjustedContentInset"
+     }
+    },
+    "H12.F2": {
+     "class": "not_delivered",
+     "witness": {
+      "path": "scripts/legend-list-initial-reveal.test.ts",
+      "pattern": "describe\\.each\\(\\[\"react-native\\.js\", \"react-native\\.mjs\"\\]\\)"
+     }
+    },
+    "H12.F3": {
+     "class": "not_delivered",
+     "witness": {
+      "path": "pnpm-workspace.yaml",
+      "pattern": "\"@legendapp/list@3\\.3\\.5\": patches/@legendapp__list@3\\.3\\.5\\.patch"
+     }
+    }
+   },
+   "unsupported_critical_claims": 0,
+   "critical_violations": [],
+   "findings_delivered": {},
+   "findings_status": null,
+   "cost": {
+    "calls": 33,
+    "bytes": 2079162,
+    "seconds": 0.04,
+    "files": 32,
+    "limit_reached": "complete"
+   }
+  },
+  {
+   "set": "t3",
+   "scenario": "T3-R-H12-mobile-reveal-patch",
+   "family": "mobile",
+   "condition": "rg",
+   "repeat": 1,
+   "sessions_task": false,
+   "supportability": 0.0,
+   "supportability_all": 0.0,
+   "supported": [],
+   "misses": {
+    "H12.F1": {
+     "class": "consumption",
+     "witness": {
+      "path": "apps/mobile/src/features/threads/ThreadFeed.tsx",
+      "pattern": "which is blind to UIKit's adjustedContentInset"
+     }
+    },
+    "H12.F2": {
+     "class": "not_delivered",
+     "witness": {
+      "path": "scripts/legend-list-initial-reveal.test.ts",
+      "pattern": "describe\\.each\\(\\[\"react-native\\.js\", \"react-native\\.mjs\"\\]\\)"
+     }
+    },
+    "H12.F3": {
+     "class": "not_delivered",
+     "witness": {
+      "path": "pnpm-workspace.yaml",
+      "pattern": "\"@legendapp/list@3\\.3\\.5\": patches/@legendapp__list@3\\.3\\.5\\.patch"
+     }
+    }
+   },
+   "unsupported_critical_claims": 0,
+   "critical_violations": [],
+   "findings_delivered": {},
+   "findings_status": null,
+   "cost": {
+    "calls": 33,
+    "bytes": 2079162,
+    "seconds": 0.041,
+    "files": 32,
+    "limit_reached": "complete"
+   }
+  },
+  {
+   "set": "t3",
+   "scenario": "T3-R-H12-mobile-reveal-patch",
+   "family": "mobile",
+   "condition": "lexical",
+   "repeat": 0,
+   "sessions_task": false,
+   "supportability": 0.666667,
+   "supportability_all": 0.666667,
+   "supported": [
+    "H12.F1",
+    "H12.F2"
+   ],
+   "misses": {
+    "H12.F3": {
+     "class": "discovery",
+     "witness": {
+      "path": "pnpm-workspace.yaml",
+      "pattern": "\"@legendapp/list@3\\.3\\.5\": patches/@legendapp__list@3\\.3\\.5\\.patch"
+     }
+    }
+   },
+   "unsupported_critical_claims": 0,
+   "critical_violations": [],
+   "findings_delivered": {},
+   "findings_status": "evaluated",
+   "cost": {
+    "calls": 253,
+    "bytes": 1780982,
+    "seconds": 180.375,
+    "files": 21,
+    "limit_reached": "seconds"
+   }
+  },
+  {
+   "set": "t3",
+   "scenario": "T3-R-H12-mobile-reveal-patch",
+   "family": "mobile",
+   "condition": "lexical",
+   "repeat": 1,
+   "sessions_task": false,
+   "supportability": 0.666667,
+   "supportability_all": 0.666667,
+   "supported": [
+    "H12.F1",
+    "H12.F2"
+   ],
+   "misses": {
+    "H12.F3": {
+     "class": "discovery",
+     "witness": {
+      "path": "pnpm-workspace.yaml",
+      "pattern": "\"@legendapp/list@3\\.3\\.5\": patches/@legendapp__list@3\\.3\\.5\\.patch"
+     }
+    }
+   },
+   "unsupported_critical_claims": 0,
+   "critical_violations": [],
+   "findings_delivered": {},
+   "findings_status": "evaluated",
+   "cost": {
+    "calls": 253,
+    "bytes": 1780982,
+    "seconds": 180.185,
+    "files": 21,
+    "limit_reached": "seconds"
+   }
+  },
+  {
+   "set": "t3",
+   "scenario": "T3-R-H12-mobile-reveal-patch",
+   "family": "mobile",
+   "condition": "hybrid",
+   "repeat": 0,
+   "sessions_task": false,
+   "supportability": 0.666667,
+   "supportability_all": 0.666667,
+   "supported": [
+    "H12.F1",
+    "H12.F2"
+   ],
+   "misses": {
+    "H12.F3": {
+     "class": "discovery",
+     "witness": {
+      "path": "pnpm-workspace.yaml",
+      "pattern": "\"@legendapp/list@3\\.3\\.5\": patches/@legendapp__list@3\\.3\\.5\\.patch"
+     }
+    }
+   },
+   "unsupported_critical_claims": 0,
+   "critical_violations": [],
+   "findings_delivered": {},
+   "findings_status": "evaluated",
+   "cost": {
+    "calls": 209,
+    "bytes": 1595729,
+    "seconds": 180.328,
+    "files": 14,
+    "limit_reached": "seconds"
+   }
+  },
+  {
+   "set": "t3",
+   "scenario": "T3-R-H12-mobile-reveal-patch",
+   "family": "mobile",
+   "condition": "hybrid",
+   "repeat": 1,
+   "sessions_task": false,
+   "supportability": 0.666667,
+   "supportability_all": 0.666667,
+   "supported": [
+    "H12.F1",
+    "H12.F2"
+   ],
+   "misses": {
+    "H12.F3": {
+     "class": "discovery",
+     "witness": {
+      "path": "pnpm-workspace.yaml",
+      "pattern": "\"@legendapp/list@3\\.3\\.5\": patches/@legendapp__list@3\\.3\\.5\\.patch"
+     }
+    }
+   },
+   "unsupported_critical_claims": 0,
+   "critical_violations": [],
+   "findings_delivered": {},
+   "findings_status": "evaluated",
+   "cost": {
+    "calls": 210,
+    "bytes": 1600226,
+    "seconds": 180.684,
+    "files": 15,
+    "limit_reached": "seconds"
+   }
+  },
+  {
+   "set": "t3",
+   "scenario": "T3-R-H12-mobile-reveal-patch",
+   "family": "mobile",
+   "condition": "findings",
+   "repeat": 0,
+   "sessions_task": false,
+   "supportability": 0.666667,
+   "supportability_all": 0.666667,
+   "supported": [
+    "H12.F1",
+    "H12.F2"
+   ],
+   "misses": {
+    "H12.F3": {
+     "class": "discovery",
+     "witness": {
+      "path": "pnpm-workspace.yaml",
+      "pattern": "\"@legendapp/list@3\\.3\\.5\": patches/@legendapp__list@3\\.3\\.5\\.patch"
+     }
+    }
+   },
+   "unsupported_critical_claims": 0,
+   "critical_violations": [],
+   "findings_delivered": {
+    "behavior_condition": 1
+   },
+   "findings_status": "evaluated",
+   "cost": {
+    "calls": 199,
+    "bytes": 1526749,
+    "seconds": 180.333,
+    "files": 13,
+    "limit_reached": "seconds"
+   }
+  },
+  {
+   "set": "t3",
+   "scenario": "T3-R-H12-mobile-reveal-patch",
+   "family": "mobile",
+   "condition": "findings",
+   "repeat": 1,
+   "sessions_task": false,
+   "supportability": 0.666667,
+   "supportability_all": 0.666667,
+   "supported": [
+    "H12.F1",
+    "H12.F2"
+   ],
+   "misses": {
+    "H12.F3": {
+     "class": "discovery",
+     "witness": {
+      "path": "pnpm-workspace.yaml",
+      "pattern": "\"@legendapp/list@3\\.3\\.5\": patches/@legendapp__list@3\\.3\\.5\\.patch"
+     }
+    }
+   },
+   "unsupported_critical_claims": 0,
+   "critical_violations": [],
+   "findings_delivered": {
+    "behavior_condition": 1
+   },
+   "findings_status": "evaluated",
+   "cost": {
+    "calls": 200,
+    "bytes": 1534082,
+    "seconds": 180.674,
+    "files": 13,
+    "limit_reached": "seconds"
+   }
+  }
+ ],
+ "post_hoc_rerun": {
+  "label": "secondary, post hoc: same p4-r1 protocol, T3 hybrid vs findings only, rebuilt binary with the view_capture_states memo (applies to both arms); does not replace the predeclared result",
+  "summary": {
+   "protocol": "p4-r1",
+   "statistics": "paired percentile bootstrap over scenarios, 10000 resamples, seed 20261018, 95% interval",
+   "sets": [
+    "t3"
+   ],
+   "by_condition": {
+    "hybrid": {
+     "mean_supportability": 0.6131,
+     "unsupported_critical_claims": 0,
+     "mean_calls": 280.79,
+     "mean_bytes": 2088311.36,
+     "mean_seconds": 115.49,
+     "mean_files": 27.43
+    },
+    "findings": {
+     "mean_supportability": 0.6131,
+     "unsupported_critical_claims": 0,
+     "mean_calls": 280.07,
+     "mean_bytes": 2084232.64,
+     "mean_seconds": 122.53,
+     "mean_files": 27.36
+    }
+   },
+   "by_condition_all_claims": {},
+   "contrasts": {
+    "primary": {
+     "treatment": "findings",
+     "control": "hybrid",
+     "metric": "supportability",
+     "scenarios": [
+      "T3-R-H1-rpc-permission",
+      "T3-R-H10-attachment-retry",
+      "T3-R-H11-monitor-sequence",
+      "T3-R-H12-mobile-reveal-patch",
+      "T3-R-H2-checkpoint-finalization",
+      "T3-R-H3-huge-history-item",
+      "T3-R-H4-stale-pr-display",
+      "T3-R-H5-redacted-settings-save",
+      "T3-R-H6-rollback-capability",
+      "T3-R-H7-offline-webhook-retry",
+      "T3-R-H8-flapping-backoff",
+      "T3-R-H9-linux-portal-ordering",
+      "T3-R-S1-terminal-bounds",
+      "T3-R-S2-keybinding-owners"
+     ],
+     "n": 14,
+     "mean": 0.0,
+     "interval": [
+      0.0,
+      0.0
+     ],
+     "unsupported_critical_claims": {
+      "findings": 0,
+      "hybrid": 0
+     }
+    },
+    "secondary": [
+     {
+      "treatment": "findings",
+      "control": "rg",
+      "metric": "supportability",
+      "scenarios": [],
+      "n": 0,
+      "mean": null,
+      "interval": [
+       null,
+       null
+      ],
+      "unsupported_critical_claims": {
+       "findings": 0,
+       "rg": 0
+      }
+     },
+     {
+      "treatment": "findings",
+      "control": "lexical",
+      "metric": "supportability",
+      "scenarios": [],
+      "n": 0,
+      "mean": null,
+      "interval": [
+       null,
+       null
+      ],
+      "unsupported_critical_claims": {
+       "findings": 0,
+       "lexical": 0
+      }
+     },
+     {
+      "treatment": "findings+sessions",
+      "control": "rg+sessions",
+      "metric": "supportability_all",
+      "scenarios": [],
+      "n": 0,
+      "mean": null,
+      "interval": [
+       null,
+       null
+      ],
+      "unsupported_critical_claims": {
+       "findings+sessions": 0,
+       "rg+sessions": 0
+      }
+     },
+     {
+      "treatment": "findings+sessions",
+      "control": "findings",
+      "metric": "supportability_all",
+      "scenarios": [],
+      "n": 0,
+      "mean": null,
+      "interval": [
+       null,
+       null
+      ],
+      "unsupported_critical_claims": {
+       "findings+sessions": 0,
+       "findings": 0
+      }
+     },
+     {
+      "treatment": "findings",
+      "control": "hybrid",
+      "metric": "validated_repair",
+      "status": "not_run",
+      "reason": "agent tier requires an authorized --agent-command"
+     },
+     {
+      "treatment": "findings",
+      "control": "hybrid",
+      "metric": "justified_decision",
+      "status": "not_run",
+      "reason": "agent tier requires an authorized --agent-command"
+     }
+    ]
+   },
+   "gate": {
+    "status": "not_met",
+    "reason": "mean paired gain 0.0 is below the minimum useful effect 0.1"
+   },
+   "gate_scope": "deterministic tier only; agent tier not run",
+   "miss_classes": {
+    "hybrid": {
+     "discovery": 15,
+     "selection": 3
+    },
+    "findings": {
+     "discovery": 15,
+     "selection": 3
+    }
+   },
+   "miss_detail": {
+    "hybrid": {
+     "discovery": [
+      "T3-R-H1-rpc-permission:H1.F1",
+      "T3-R-H1-rpc-permission:H1.F3",
+      "T3-R-H2-checkpoint-finalization:H2.F2",
+      "T3-R-H2-checkpoint-finalization:H2.F3",
+      "T3-R-H4-stale-pr-display:H4.F2",
+      "T3-R-H4-stale-pr-display:H4.F4",
+      "T3-R-H6-rollback-capability:H6.F1",
+      "T3-R-H6-rollback-capability:H6.F2",
+      "T3-R-H6-rollback-capability:H6.F4",
+      "T3-R-H7-offline-webhook-retry:H7.F1",
+      "T3-R-H7-offline-webhook-retry:H7.F2",
+      "T3-R-H10-attachment-retry:H10.F1",
+      "T3-R-H10-attachment-retry:H10.F2",
+      "T3-R-H10-attachment-retry:H10.F3",
+      "T3-R-H12-mobile-reveal-patch:H12.F3"
+     ],
+     "selection": [
+      "T3-R-H3-huge-history-item:H3.F1",
+      "T3-R-H3-huge-history-item:H3.F2",
+      "T3-R-H3-huge-history-item:H3.F3"
+     ]
+    },
+    "findings": {
+     "discovery": [
+      "T3-R-H1-rpc-permission:H1.F1",
+      "T3-R-H1-rpc-permission:H1.F3",
+      "T3-R-H2-checkpoint-finalization:H2.F2",
+      "T3-R-H2-checkpoint-finalization:H2.F3",
+      "T3-R-H4-stale-pr-display:H4.F2",
+      "T3-R-H4-stale-pr-display:H4.F4",
+      "T3-R-H6-rollback-capability:H6.F1",
+      "T3-R-H6-rollback-capability:H6.F2",
+      "T3-R-H6-rollback-capability:H6.F4",
+      "T3-R-H7-offline-webhook-retry:H7.F1",
+      "T3-R-H7-offline-webhook-retry:H7.F2",
+      "T3-R-H10-attachment-retry:H10.F1",
+      "T3-R-H10-attachment-retry:H10.F2",
+      "T3-R-H10-attachment-retry:H10.F3",
+      "T3-R-H12-mobile-reveal-patch:H12.F3"
+     ],
+     "selection": [
+      "T3-R-H3-huge-history-item:H3.F1",
+      "T3-R-H3-huge-history-item:H3.F2",
+      "T3-R-H3-huge-history-item:H3.F3"
+     ]
+    }
+   },
+   "nondeterministic": []
+  },
+  "rows": [
+   {
+    "set": "t3",
+    "scenario": "T3-R-S1-terminal-bounds",
+    "family": "terminal",
+    "condition": "hybrid",
+    "repeat": 0,
+    "supportability": 1.0,
+    "supported": [
+     "S1.F1",
+     "S1.F2",
+     "S1.F3"
+    ],
+    "misses": {},
+    "unsupported_critical_claims": 0,
+    "findings_delivered": {},
+    "findings_status": "evaluated",
+    "cost": {
+     "calls": 292,
+     "bytes": 2098634,
+     "seconds": 75.782,
+     "files": 28,
+     "limit_reached": "bytes"
+    }
+   },
+   {
+    "set": "t3",
+    "scenario": "T3-R-S1-terminal-bounds",
+    "family": "terminal",
+    "condition": "hybrid",
+    "repeat": 1,
+    "supportability": 1.0,
+    "supported": [
+     "S1.F1",
+     "S1.F2",
+     "S1.F3"
+    ],
+    "misses": {},
+    "unsupported_critical_claims": 0,
+    "findings_delivered": {},
+    "findings_status": "evaluated",
+    "cost": {
+     "calls": 292,
+     "bytes": 2098634,
+     "seconds": 75.878,
+     "files": 28,
+     "limit_reached": "bytes"
+    }
+   },
+   {
+    "set": "t3",
+    "scenario": "T3-R-S1-terminal-bounds",
+    "family": "terminal",
+    "condition": "findings",
+    "repeat": 0,
+    "supportability": 1.0,
+    "supported": [
+     "S1.F1",
+     "S1.F2",
+     "S1.F3"
+    ],
+    "misses": {},
+    "unsupported_critical_claims": 0,
+    "findings_delivered": {
+     "behavior_condition": 1
+    },
+    "findings_status": "evaluated",
+    "cost": {
+     "calls": 292,
+     "bytes": 2099030,
+     "seconds": 77.237,
+     "files": 28,
+     "limit_reached": "bytes"
+    }
+   },
+   {
+    "set": "t3",
+    "scenario": "T3-R-S1-terminal-bounds",
+    "family": "terminal",
+    "condition": "findings",
+    "repeat": 1,
+    "supportability": 1.0,
+    "supported": [
+     "S1.F1",
+     "S1.F2",
+     "S1.F3"
+    ],
+    "misses": {},
+    "unsupported_critical_claims": 0,
+    "findings_delivered": {
+     "behavior_condition": 1
+    },
+    "findings_status": "evaluated",
+    "cost": {
+     "calls": 292,
+     "bytes": 2099030,
+     "seconds": 77.41,
+     "files": 28,
+     "limit_reached": "bytes"
+    }
+   },
+   {
+    "set": "t3",
+    "scenario": "T3-R-S2-keybinding-owners",
+    "family": "settings",
+    "condition": "hybrid",
+    "repeat": 0,
+    "supportability": 1.0,
+    "supported": [
+     "S2.F1",
+     "S2.F2",
+     "S2.F3"
+    ],
+    "misses": {},
+    "unsupported_critical_claims": 0,
+    "findings_delivered": {},
+    "findings_status": "evaluated",
+    "cost": {
+     "calls": 293,
+     "bytes": 2103231,
+     "seconds": 175.239,
+     "files": 51,
+     "limit_reached": "bytes"
+    }
+   },
+   {
+    "set": "t3",
+    "scenario": "T3-R-S2-keybinding-owners",
+    "family": "settings",
+    "condition": "hybrid",
+    "repeat": 1,
+    "supportability": 1.0,
+    "supported": [
+     "S2.F1",
+     "S2.F2",
+     "S2.F3"
+    ],
+    "misses": {},
+    "unsupported_critical_claims": 0,
+    "findings_delivered": {},
+    "findings_status": "evaluated",
+    "cost": {
+     "calls": 293,
+     "bytes": 2103231,
+     "seconds": 174.524,
+     "files": 51,
+     "limit_reached": "bytes"
+    }
+   },
+   {
+    "set": "t3",
+    "scenario": "T3-R-S2-keybinding-owners",
+    "family": "settings",
+    "condition": "findings",
+    "repeat": 0,
+    "supportability": 1.0,
+    "supported": [
+     "S2.F1",
+     "S2.F2",
+     "S2.F3"
+    ],
+    "misses": {},
+    "unsupported_critical_claims": 0,
+    "findings_delivered": {
+     "behavior_condition": 1
+    },
+    "findings_status": "evaluated",
+    "cost": {
+     "calls": 293,
+     "bytes": 2103655,
+     "seconds": 180.913,
+     "files": 51,
+     "limit_reached": "bytes"
+    }
+   },
+   {
+    "set": "t3",
+    "scenario": "T3-R-S2-keybinding-owners",
+    "family": "settings",
+    "condition": "findings",
+    "repeat": 1,
+    "supportability": 1.0,
+    "supported": [
+     "S2.F1",
+     "S2.F2",
+     "S2.F3"
+    ],
+    "misses": {},
+    "unsupported_critical_claims": 0,
+    "findings_delivered": {
+     "behavior_condition": 1
+    },
+    "findings_status": "evaluated",
+    "cost": {
+     "calls": 293,
+     "bytes": 2103655,
+     "seconds": 180.832,
+     "files": 51,
+     "limit_reached": "bytes"
+    }
+   },
+   {
+    "set": "t3",
+    "scenario": "T3-R-H1-rpc-permission",
+    "family": "permissions",
+    "condition": "hybrid",
+    "repeat": 0,
+    "supportability": 0.5,
+    "supported": [
+     "H1.F2",
+     "H1.F4"
+    ],
+    "misses": {
+     "H1.F1": {
+      "class": "discovery",
+      "witness": {
+       "path": "packages/contracts/src/clientRpcPermissions.ts",
+       "pattern": "serverRunStorageCleanup\\]: AuthSettingsWriteScope"
+      }
+     },
+     "H1.F3": {
+      "class": "discovery",
+      "witness": {
+       "path": "packages/contracts/src/clientRpcPermissions.ts",
+       "pattern": "the server still authorizes every request"
+      }
+     }
+    },
+    "unsupported_critical_claims": 0,
+    "findings_delivered": {},
+    "findings_status": "evaluated",
+    "cost": {
+     "calls": 279,
+     "bytes": 2099828,
+     "seconds": 130.909,
+     "files": 40,
+     "limit_reached": "bytes"
+    }
+   },
+   {
+    "set": "t3",
+    "scenario": "T3-R-H1-rpc-permission",
+    "family": "permissions",
+    "condition": "hybrid",
+    "repeat": 1,
+    "supportability": 0.5,
+    "supported": [
+     "H1.F2",
+     "H1.F4"
+    ],
+    "misses": {
+     "H1.F1": {
+      "class": "discovery",
+      "witness": {
+       "path": "packages/contracts/src/clientRpcPermissions.ts",
+       "pattern": "serverRunStorageCleanup\\]: AuthSettingsWriteScope"
+      }
+     },
+     "H1.F3": {
+      "class": "discovery",
+      "witness": {
+       "path": "packages/contracts/src/clientRpcPermissions.ts",
+       "pattern": "the server still authorizes every request"
+      }
+     }
+    },
+    "unsupported_critical_claims": 0,
+    "findings_delivered": {},
+    "findings_status": "evaluated",
+    "cost": {
+     "calls": 279,
+     "bytes": 2099828,
+     "seconds": 130.983,
+     "files": 40,
+     "limit_reached": "bytes"
+    }
+   },
+   {
+    "set": "t3",
+    "scenario": "T3-R-H1-rpc-permission",
+    "family": "permissions",
+    "condition": "findings",
+    "repeat": 0,
+    "supportability": 0.5,
+    "supported": [
+     "H1.F2",
+     "H1.F4"
+    ],
+    "misses": {
+     "H1.F1": {
+      "class": "discovery",
+      "witness": {
+       "path": "packages/contracts/src/clientRpcPermissions.ts",
+       "pattern": "serverRunStorageCleanup\\]: AuthSettingsWriteScope"
+      }
+     },
+     "H1.F3": {
+      "class": "discovery",
+      "witness": {
+       "path": "packages/contracts/src/clientRpcPermissions.ts",
+       "pattern": "the server still authorizes every request"
+      }
+     }
+    },
+    "unsupported_critical_claims": 0,
+    "findings_delivered": {
+     "behavior_condition": 1
+    },
+    "findings_status": "evaluated",
+    "cost": {
+     "calls": 279,
+     "bytes": 2100229,
+     "seconds": 142.002,
+     "files": 40,
+     "limit_reached": "bytes"
+    }
+   },
+   {
+    "set": "t3",
+    "scenario": "T3-R-H1-rpc-permission",
+    "family": "permissions",
+    "condition": "findings",
+    "repeat": 1,
+    "supportability": 0.5,
+    "supported": [
+     "H1.F2",
+     "H1.F4"
+    ],
+    "misses": {
+     "H1.F1": {
+      "class": "discovery",
+      "witness": {
+       "path": "packages/contracts/src/clientRpcPermissions.ts",
+       "pattern": "serverRunStorageCleanup\\]: AuthSettingsWriteScope"
+      }
+     },
+     "H1.F3": {
+      "class": "discovery",
+      "witness": {
+       "path": "packages/contracts/src/clientRpcPermissions.ts",
+       "pattern": "the server still authorizes every request"
+      }
+     }
+    },
+    "unsupported_critical_claims": 0,
+    "findings_delivered": {
+     "behavior_condition": 1
+    },
+    "findings_status": "evaluated",
+    "cost": {
+     "calls": 279,
+     "bytes": 2100229,
+     "seconds": 141.969,
+     "files": 40,
+     "limit_reached": "bytes"
+    }
+   },
+   {
+    "set": "t3",
+    "scenario": "T3-R-H2-checkpoint-finalization",
+    "family": "orchestration",
+    "condition": "hybrid",
+    "repeat": 0,
+    "supportability": 0.333333,
+    "supported": [
+     "H2.F1"
+    ],
+    "misses": {
+     "H2.F2": {
+      "class": "discovery",
+      "witness": {
+       "path": "apps/server/src/orchestration-v2/EffectWorker.ts",
+       "pattern": "Post-commit notifications are the low-latency path"
+      }
+     },
+     "H2.F3": {
+      "class": "discovery",
+      "witness": {
+       "path": "apps/server/src/orchestration-v2/RunFinalizationService.ts",
+       "pattern": "operation: \"capture-checkpoint\""
+      }
+     }
+    },
+    "unsupported_critical_claims": 0,
+    "findings_delivered": {},
+    "findings_status": "evaluated",
+    "cost": {
+     "calls": 292,
+     "bytes": 2098587,
+     "seconds": 89.699,
+     "files": 10,
+     "limit_reached": "bytes"
+    }
+   },
+   {
+    "set": "t3",
+    "scenario": "T3-R-H2-checkpoint-finalization",
+    "family": "orchestration",
+    "condition": "hybrid",
+    "repeat": 1,
+    "supportability": 0.333333,
+    "supported": [
+     "H2.F1"
+    ],
+    "misses": {
+     "H2.F2": {
+      "class": "discovery",
+      "witness": {
+       "path": "apps/server/src/orchestration-v2/EffectWorker.ts",
+       "pattern": "Post-commit notifications are the low-latency path"
+      }
+     },
+     "H2.F3": {
+      "class": "discovery",
+      "witness": {
+       "path": "apps/server/src/orchestration-v2/RunFinalizationService.ts",
+       "pattern": "operation: \"capture-checkpoint\""
+      }
+     }
+    },
+    "unsupported_critical_claims": 0,
+    "findings_delivered": {},
+    "findings_status": "evaluated",
+    "cost": {
+     "calls": 292,
+     "bytes": 2098587,
+     "seconds": 89.609,
+     "files": 10,
+     "limit_reached": "bytes"
+    }
+   },
+   {
+    "set": "t3",
+    "scenario": "T3-R-H2-checkpoint-finalization",
+    "family": "orchestration",
+    "condition": "findings",
+    "repeat": 0,
+    "supportability": 0.333333,
+    "supported": [
+     "H2.F1"
+    ],
+    "misses": {
+     "H2.F2": {
+      "class": "discovery",
+      "witness": {
+       "path": "apps/server/src/orchestration-v2/EffectWorker.ts",
+       "pattern": "Post-commit notifications are the low-latency path"
+      }
+     },
+     "H2.F3": {
+      "class": "discovery",
+      "witness": {
+       "path": "apps/server/src/orchestration-v2/RunFinalizationService.ts",
+       "pattern": "operation: \"capture-checkpoint\""
+      }
+     }
+    },
+    "unsupported_critical_claims": 0,
+    "findings_delivered": {
+     "behavior_condition": 1
+    },
+    "findings_status": "evaluated",
+    "cost": {
+     "calls": 292,
+     "bytes": 2099010,
+     "seconds": 92.997,
+     "files": 10,
+     "limit_reached": "bytes"
+    }
+   },
+   {
+    "set": "t3",
+    "scenario": "T3-R-H2-checkpoint-finalization",
+    "family": "orchestration",
+    "condition": "findings",
+    "repeat": 1,
+    "supportability": 0.333333,
+    "supported": [
+     "H2.F1"
+    ],
+    "misses": {
+     "H2.F2": {
+      "class": "discovery",
+      "witness": {
+       "path": "apps/server/src/orchestration-v2/EffectWorker.ts",
+       "pattern": "Post-commit notifications are the low-latency path"
+      }
+     },
+     "H2.F3": {
+      "class": "discovery",
+      "witness": {
+       "path": "apps/server/src/orchestration-v2/RunFinalizationService.ts",
+       "pattern": "operation: \"capture-checkpoint\""
+      }
+     }
+    },
+    "unsupported_critical_claims": 0,
+    "findings_delivered": {
+     "behavior_condition": 1
+    },
+    "findings_status": "evaluated",
+    "cost": {
+     "calls": 292,
+     "bytes": 2099010,
+     "seconds": 92.84,
+     "files": 10,
+     "limit_reached": "bytes"
+    }
+   },
+   {
+    "set": "t3",
+    "scenario": "T3-R-H3-huge-history-item",
+    "family": "orchestration",
+    "condition": "hybrid",
+    "repeat": 0,
+    "supportability": 0.0,
+    "supported": [],
+    "misses": {
+     "H3.F1": {
+      "class": "selection",
+      "witness": {
+       "path": "apps/server/src/orchestration-v2/threadHistoryPaging.ts",
+       "pattern": "always admit at least one row so oversized items cannot deadlock paging"
+      }
+     },
+     "H3.F2": {
+      "class": "selection",
+      "witness": {
+       "path": "apps/server/src/orchestration-v2/threadHistoryPaging.ts",
+       "pattern": "Item/byte budgets only apply to histories"
+      }
+     },
+     "H3.F3": {
+      "class": "selection",
+      "witness": {
+       "path": "apps/server/src/orchestration-v2/threadHistoryPaging.ts",
+       "pattern": "readonly payloadBudgetExceeded: boolean"
+      }
+     }
+    },
+    "unsupported_critical_claims": 0,
+    "findings_delivered": {},
+    "findings_status": "evaluated",
+    "cost": {
+     "calls": 288,
+     "bytes": 2103162,
+     "seconds": 81.941,
+     "files": 18,
+     "limit_reached": "bytes"
+    }
+   },
+   {
+    "set": "t3",
+    "scenario": "T3-R-H3-huge-history-item",
+    "family": "orchestration",
+    "condition": "hybrid",
+    "repeat": 1,
+    "supportability": 0.0,
+    "supported": [],
+    "misses": {
+     "H3.F1": {
+      "class": "selection",
+      "witness": {
+       "path": "apps/server/src/orchestration-v2/threadHistoryPaging.ts",
+       "pattern": "always admit at least one row so oversized items cannot deadlock paging"
+      }
+     },
+     "H3.F2": {
+      "class": "selection",
+      "witness": {
+       "path": "apps/server/src/orchestration-v2/threadHistoryPaging.ts",
+       "pattern": "Item/byte budgets only apply to histories"
+      }
+     },
+     "H3.F3": {
+      "class": "selection",
+      "witness": {
+       "path": "apps/server/src/orchestration-v2/threadHistoryPaging.ts",
+       "pattern": "readonly payloadBudgetExceeded: boolean"
+      }
+     }
+    },
+    "unsupported_critical_claims": 0,
+    "findings_delivered": {},
+    "findings_status": "evaluated",
+    "cost": {
+     "calls": 288,
+     "bytes": 2103162,
+     "seconds": 81.789,
+     "files": 18,
+     "limit_reached": "bytes"
+    }
+   },
+   {
+    "set": "t3",
+    "scenario": "T3-R-H3-huge-history-item",
+    "family": "orchestration",
+    "condition": "findings",
+    "repeat": 0,
+    "supportability": 0.0,
+    "supported": [],
+    "misses": {
+     "H3.F1": {
+      "class": "selection",
+      "witness": {
+       "path": "apps/server/src/orchestration-v2/threadHistoryPaging.ts",
+       "pattern": "always admit at least one row so oversized items cannot deadlock paging"
+      }
+     },
+     "H3.F2": {
+      "class": "selection",
+      "witness": {
+       "path": "apps/server/src/orchestration-v2/threadHistoryPaging.ts",
+       "pattern": "Item/byte budgets only apply to histories"
+      }
+     },
+     "H3.F3": {
+      "class": "selection",
+      "witness": {
+       "path": "apps/server/src/orchestration-v2/threadHistoryPaging.ts",
+       "pattern": "readonly payloadBudgetExceeded: boolean"
+      }
+     }
+    },
+    "unsupported_critical_claims": 0,
+    "findings_delivered": {
+     "behavior_condition": 1
+    },
+    "findings_status": "evaluated",
+    "cost": {
+     "calls": 288,
+     "bytes": 2103574,
+     "seconds": 84.088,
+     "files": 18,
+     "limit_reached": "bytes"
+    }
+   },
+   {
+    "set": "t3",
+    "scenario": "T3-R-H3-huge-history-item",
+    "family": "orchestration",
+    "condition": "findings",
+    "repeat": 1,
+    "supportability": 0.0,
+    "supported": [],
+    "misses": {
+     "H3.F1": {
+      "class": "selection",
+      "witness": {
+       "path": "apps/server/src/orchestration-v2/threadHistoryPaging.ts",
+       "pattern": "always admit at least one row so oversized items cannot deadlock paging"
+      }
+     },
+     "H3.F2": {
+      "class": "selection",
+      "witness": {
+       "path": "apps/server/src/orchestration-v2/threadHistoryPaging.ts",
+       "pattern": "Item/byte budgets only apply to histories"
+      }
+     },
+     "H3.F3": {
+      "class": "selection",
+      "witness": {
+       "path": "apps/server/src/orchestration-v2/threadHistoryPaging.ts",
+       "pattern": "readonly payloadBudgetExceeded: boolean"
+      }
+     }
+    },
+    "unsupported_critical_claims": 0,
+    "findings_delivered": {
+     "behavior_condition": 1
+    },
+    "findings_status": "evaluated",
+    "cost": {
+     "calls": 288,
+     "bytes": 2103574,
+     "seconds": 84.162,
+     "files": 18,
+     "limit_reached": "bytes"
+    }
+   },
+   {
+    "set": "t3",
+    "scenario": "T3-R-H4-stale-pr-display",
+    "family": "compatibility",
+    "condition": "hybrid",
+    "repeat": 0,
+    "supportability": 0.5,
+    "supported": [
+     "H4.F1",
+     "H4.F3"
+    ],
+    "misses": {
+     "H4.F2": {
+      "class": "discovery",
+      "witness": {
+       "path": "apps/mobile/src/state/thread-pr-presentation.ts",
+       "pattern": "Only the array capability replaces legacy references with persisted snapshots"
+      }
+     },
+     "H4.F4": {
+      "class": "discovery",
+      "witness": {
+       "path": "apps/mobile/src/state/use-thread-pr.test.ts",
+       "pattern": "does not revive a removed modern link from the compatibility reference"
+      }
+     }
+    },
+    "unsupported_critical_claims": 0,
+    "findings_delivered": {},
+    "findings_status": "evaluated",
+    "cost": {
+     "calls": 255,
+     "bytes": 1928644,
+     "seconds": 180.212,
+     "files": 56,
+     "limit_reached": "seconds"
+    }
+   },
+   {
+    "set": "t3",
+    "scenario": "T3-R-H4-stale-pr-display",
+    "family": "compatibility",
+    "condition": "hybrid",
+    "repeat": 1,
+    "supportability": 0.5,
+    "supported": [
+     "H4.F1",
+     "H4.F3"
+    ],
+    "misses": {
+     "H4.F2": {
+      "class": "discovery",
+      "witness": {
+       "path": "apps/mobile/src/state/thread-pr-presentation.ts",
+       "pattern": "Only the array capability replaces legacy references with persisted snapshots"
+      }
+     },
+     "H4.F4": {
+      "class": "discovery",
+      "witness": {
+       "path": "apps/mobile/src/state/use-thread-pr.test.ts",
+       "pattern": "does not revive a removed modern link from the compatibility reference"
+      }
+     }
+    },
+    "unsupported_critical_claims": 0,
+    "findings_delivered": {},
+    "findings_status": "evaluated",
+    "cost": {
+     "calls": 255,
+     "bytes": 1928644,
+     "seconds": 180.639,
+     "files": 56,
+     "limit_reached": "seconds"
+    }
+   },
+   {
+    "set": "t3",
+    "scenario": "T3-R-H4-stale-pr-display",
+    "family": "compatibility",
+    "condition": "findings",
+    "repeat": 0,
+    "supportability": 0.5,
+    "supported": [
+     "H4.F1",
+     "H4.F3"
+    ],
+    "misses": {
+     "H4.F2": {
+      "class": "discovery",
+      "witness": {
+       "path": "apps/mobile/src/state/thread-pr-presentation.ts",
+       "pattern": "Only the array capability replaces legacy references with persisted snapshots"
+      }
+     },
+     "H4.F4": {
+      "class": "discovery",
+      "witness": {
+       "path": "apps/mobile/src/state/use-thread-pr.test.ts",
+       "pattern": "does not revive a removed modern link from the compatibility reference"
+      }
+     }
+    },
+    "unsupported_critical_claims": 0,
+    "findings_delivered": {
+     "behavior_condition": 1
+    },
+    "findings_status": "evaluated",
+    "cost": {
+     "calls": 245,
+     "bytes": 1866221,
+     "seconds": 180.471,
+     "files": 55,
+     "limit_reached": "seconds"
+    }
+   },
+   {
+    "set": "t3",
+    "scenario": "T3-R-H4-stale-pr-display",
+    "family": "compatibility",
+    "condition": "findings",
+    "repeat": 1,
+    "supportability": 0.5,
+    "supported": [
+     "H4.F1",
+     "H4.F3"
+    ],
+    "misses": {
+     "H4.F2": {
+      "class": "discovery",
+      "witness": {
+       "path": "apps/mobile/src/state/thread-pr-presentation.ts",
+       "pattern": "Only the array capability replaces legacy references with persisted snapshots"
+      }
+     },
+     "H4.F4": {
+      "class": "discovery",
+      "witness": {
+       "path": "apps/mobile/src/state/use-thread-pr.test.ts",
+       "pattern": "does not revive a removed modern link from the compatibility reference"
+      }
+     }
+    },
+    "unsupported_critical_claims": 0,
+    "findings_delivered": {
+     "behavior_condition": 1
+    },
+    "findings_status": "evaluated",
+    "cost": {
+     "calls": 245,
+     "bytes": 1866221,
+     "seconds": 180.274,
+     "files": 55,
+     "limit_reached": "seconds"
+    }
+   },
+   {
+    "set": "t3",
+    "scenario": "T3-R-H5-redacted-settings-save",
+    "family": "settings",
+    "condition": "hybrid",
+    "repeat": 0,
+    "supportability": 1.0,
+    "supported": [
+     "H5.F1",
+     "H5.F2",
+     "H5.F3"
+    ],
+    "misses": {},
+    "unsupported_critical_claims": 0,
+    "findings_delivered": {},
+    "findings_status": "evaluated",
+    "cost": {
+     "calls": 276,
+     "bytes": 2101948,
+     "seconds": 122.985,
+     "files": 18,
+     "limit_reached": "bytes"
+    }
+   },
+   {
+    "set": "t3",
+    "scenario": "T3-R-H5-redacted-settings-save",
+    "family": "settings",
+    "condition": "hybrid",
+    "repeat": 1,
+    "supportability": 1.0,
+    "supported": [
+     "H5.F1",
+     "H5.F2",
+     "H5.F3"
+    ],
+    "misses": {},
+    "unsupported_critical_claims": 0,
+    "findings_delivered": {},
+    "findings_status": "evaluated",
+    "cost": {
+     "calls": 276,
+     "bytes": 2101948,
+     "seconds": 122.844,
+     "files": 18,
+     "limit_reached": "bytes"
+    }
+   },
+   {
+    "set": "t3",
+    "scenario": "T3-R-H5-redacted-settings-save",
+    "family": "settings",
+    "condition": "findings",
+    "repeat": 0,
+    "supportability": 1.0,
+    "supported": [
+     "H5.F1",
+     "H5.F2",
+     "H5.F3"
+    ],
+    "misses": {},
+    "unsupported_critical_claims": 0,
+    "findings_delivered": {
+     "behavior_condition": 1
+    },
+    "findings_status": "evaluated",
+    "cost": {
+     "calls": 276,
+     "bytes": 2102344,
+     "seconds": 135.463,
+     "files": 18,
+     "limit_reached": "bytes"
+    }
+   },
+   {
+    "set": "t3",
+    "scenario": "T3-R-H5-redacted-settings-save",
+    "family": "settings",
+    "condition": "findings",
+    "repeat": 1,
+    "supportability": 1.0,
+    "supported": [
+     "H5.F1",
+     "H5.F2",
+     "H5.F3"
+    ],
+    "misses": {},
+    "unsupported_critical_claims": 0,
+    "findings_delivered": {
+     "behavior_condition": 1
+    },
+    "findings_status": "evaluated",
+    "cost": {
+     "calls": 276,
+     "bytes": 2102344,
+     "seconds": 135.338,
+     "files": 18,
+     "limit_reached": "bytes"
+    }
+   },
+   {
+    "set": "t3",
+    "scenario": "T3-R-H6-rollback-capability",
+    "family": "rollback",
+    "condition": "hybrid",
+    "repeat": 0,
+    "supportability": 0.25,
+    "supported": [
+     "H6.F3"
+    ],
+    "misses": {
+     "H6.F1": {
+      "class": "discovery",
+      "witness": {
+       "path": "apps/server/src/orchestration-v2/CommandPolicy.ts",
+       "pattern": "capabilities\\.checkpointing\\.providerCanRollbackConversation"
+      }
+     },
+     "H6.F2": {
+      "class": "discovery",
+      "witness": {
+       "path": "apps/server/src/orchestration-v2/Adapters/AntigravityAdapterV2.ts",
+       "pattern": "\\.\\.\\.AcpProviderCapabilitiesV2"
+      }
+     },
+     "H6.F4": {
+      "class": "discovery",
+      "witness": {
+       "path": "apps/server/src/orchestration-v2/Adapters/AntigravityAdapterV2.ts",
+       "pattern": "\\.\\.\\.AcpProviderCapabilitiesV2"
+      }
+     }
+    },
+    "unsupported_critical_claims": 0,
+    "findings_delivered": {},
+    "findings_status": "evaluated",
+    "cost": {
+     "calls": 275,
+     "bytes": 2099161,
+     "seconds": 128.021,
+     "files": 18,
+     "limit_reached": "bytes"
+    }
+   },
+   {
+    "set": "t3",
+    "scenario": "T3-R-H6-rollback-capability",
+    "family": "rollback",
+    "condition": "hybrid",
+    "repeat": 1,
+    "supportability": 0.25,
+    "supported": [
+     "H6.F3"
+    ],
+    "misses": {
+     "H6.F1": {
+      "class": "discovery",
+      "witness": {
+       "path": "apps/server/src/orchestration-v2/CommandPolicy.ts",
+       "pattern": "capabilities\\.checkpointing\\.providerCanRollbackConversation"
+      }
+     },
+     "H6.F2": {
+      "class": "discovery",
+      "witness": {
+       "path": "apps/server/src/orchestration-v2/Adapters/AntigravityAdapterV2.ts",
+       "pattern": "\\.\\.\\.AcpProviderCapabilitiesV2"
+      }
+     },
+     "H6.F4": {
+      "class": "discovery",
+      "witness": {
+       "path": "apps/server/src/orchestration-v2/Adapters/AntigravityAdapterV2.ts",
+       "pattern": "\\.\\.\\.AcpProviderCapabilitiesV2"
+      }
+     }
+    },
+    "unsupported_critical_claims": 0,
+    "findings_delivered": {},
+    "findings_status": "evaluated",
+    "cost": {
+     "calls": 275,
+     "bytes": 2099161,
+     "seconds": 128.019,
+     "files": 18,
+     "limit_reached": "bytes"
+    }
+   },
+   {
+    "set": "t3",
+    "scenario": "T3-R-H6-rollback-capability",
+    "family": "rollback",
+    "condition": "findings",
+    "repeat": 0,
+    "supportability": 0.25,
+    "supported": [
+     "H6.F3"
+    ],
+    "misses": {
+     "H6.F1": {
+      "class": "discovery",
+      "witness": {
+       "path": "apps/server/src/orchestration-v2/CommandPolicy.ts",
+       "pattern": "capabilities\\.checkpointing\\.providerCanRollbackConversation"
+      }
+     },
+     "H6.F2": {
+      "class": "discovery",
+      "witness": {
+       "path": "apps/server/src/orchestration-v2/Adapters/AntigravityAdapterV2.ts",
+       "pattern": "\\.\\.\\.AcpProviderCapabilitiesV2"
+      }
+     },
+     "H6.F4": {
+      "class": "discovery",
+      "witness": {
+       "path": "apps/server/src/orchestration-v2/Adapters/AntigravityAdapterV2.ts",
+       "pattern": "\\.\\.\\.AcpProviderCapabilitiesV2"
+      }
+     }
+    },
+    "unsupported_critical_claims": 0,
+    "findings_delivered": {
+     "behavior_condition": 1
+    },
+    "findings_status": "evaluated",
+    "cost": {
+     "calls": 275,
+     "bytes": 2099575,
+     "seconds": 141.097,
+     "files": 18,
+     "limit_reached": "bytes"
+    }
+   },
+   {
+    "set": "t3",
+    "scenario": "T3-R-H6-rollback-capability",
+    "family": "rollback",
+    "condition": "findings",
+    "repeat": 1,
+    "supportability": 0.25,
+    "supported": [
+     "H6.F3"
+    ],
+    "misses": {
+     "H6.F1": {
+      "class": "discovery",
+      "witness": {
+       "path": "apps/server/src/orchestration-v2/CommandPolicy.ts",
+       "pattern": "capabilities\\.checkpointing\\.providerCanRollbackConversation"
+      }
+     },
+     "H6.F2": {
+      "class": "discovery",
+      "witness": {
+       "path": "apps/server/src/orchestration-v2/Adapters/AntigravityAdapterV2.ts",
+       "pattern": "\\.\\.\\.AcpProviderCapabilitiesV2"
+      }
+     },
+     "H6.F4": {
+      "class": "discovery",
+      "witness": {
+       "path": "apps/server/src/orchestration-v2/Adapters/AntigravityAdapterV2.ts",
+       "pattern": "\\.\\.\\.AcpProviderCapabilitiesV2"
+      }
+     }
+    },
+    "unsupported_critical_claims": 0,
+    "findings_delivered": {
+     "behavior_condition": 1
+    },
+    "findings_status": "evaluated",
+    "cost": {
+     "calls": 275,
+     "bytes": 2099575,
+     "seconds": 140.916,
+     "files": 18,
+     "limit_reached": "bytes"
+    }
+   },
+   {
+    "set": "t3",
+    "scenario": "T3-R-H7-offline-webhook-retry",
+    "family": "delivery",
+    "condition": "hybrid",
+    "repeat": 0,
+    "supportability": 0.333333,
+    "supported": [
+     "H7.F3"
+    ],
+    "misses": {
+     "H7.F1": {
+      "class": "discovery",
+      "witness": {
+       "path": "infra/relay/src/hooks/HookForwarder.ts",
+       "pattern": "if \\(!endpoint\\.holdWhileOffline\\)"
+      }
+     },
+     "H7.F2": {
+      "class": "discovery",
+      "witness": {
+       "path": "apps/server/src/scheduledTasks/RelayDeliveryProof.ts",
+       "pattern": "A request\\s*\\n?\\s*\\*? ?without a valid proof is handled as a direct request"
+      }
+     }
+    },
+    "unsupported_critical_claims": 0,
+    "findings_delivered": {},
+    "findings_status": "evaluated",
+    "cost": {
+     "calls": 282,
+     "bytes": 2102783,
+     "seconds": 120.808,
+     "files": 20,
+     "limit_reached": "bytes"
+    }
+   },
+   {
+    "set": "t3",
+    "scenario": "T3-R-H7-offline-webhook-retry",
+    "family": "delivery",
+    "condition": "hybrid",
+    "repeat": 1,
+    "supportability": 0.333333,
+    "supported": [
+     "H7.F3"
+    ],
+    "misses": {
+     "H7.F1": {
+      "class": "discovery",
+      "witness": {
+       "path": "infra/relay/src/hooks/HookForwarder.ts",
+       "pattern": "if \\(!endpoint\\.holdWhileOffline\\)"
+      }
+     },
+     "H7.F2": {
+      "class": "discovery",
+      "witness": {
+       "path": "apps/server/src/scheduledTasks/RelayDeliveryProof.ts",
+       "pattern": "A request\\s*\\n?\\s*\\*? ?without a valid proof is handled as a direct request"
+      }
+     }
+    },
+    "unsupported_critical_claims": 0,
+    "findings_delivered": {},
+    "findings_status": "evaluated",
+    "cost": {
+     "calls": 282,
+     "bytes": 2102783,
+     "seconds": 120.512,
+     "files": 20,
+     "limit_reached": "bytes"
+    }
+   },
+   {
+    "set": "t3",
+    "scenario": "T3-R-H7-offline-webhook-retry",
+    "family": "delivery",
+    "condition": "findings",
+    "repeat": 0,
+    "supportability": 0.333333,
+    "supported": [
+     "H7.F3"
+    ],
+    "misses": {
+     "H7.F1": {
+      "class": "discovery",
+      "witness": {
+       "path": "infra/relay/src/hooks/HookForwarder.ts",
+       "pattern": "if \\(!endpoint\\.holdWhileOffline\\)"
+      }
+     },
+     "H7.F2": {
+      "class": "discovery",
+      "witness": {
+       "path": "apps/server/src/scheduledTasks/RelayDeliveryProof.ts",
+       "pattern": "A request\\s*\\n?\\s*\\*? ?without a valid proof is handled as a direct request"
+      }
+     }
+    },
+    "unsupported_critical_claims": 0,
+    "findings_delivered": {
+     "behavior_condition": 1
+    },
+    "findings_status": "evaluated",
+    "cost": {
+     "calls": 282,
+     "bytes": 2103209,
+     "seconds": 130.722,
+     "files": 20,
+     "limit_reached": "bytes"
+    }
+   },
+   {
+    "set": "t3",
+    "scenario": "T3-R-H7-offline-webhook-retry",
+    "family": "delivery",
+    "condition": "findings",
+    "repeat": 1,
+    "supportability": 0.333333,
+    "supported": [
+     "H7.F3"
+    ],
+    "misses": {
+     "H7.F1": {
+      "class": "discovery",
+      "witness": {
+       "path": "infra/relay/src/hooks/HookForwarder.ts",
+       "pattern": "if \\(!endpoint\\.holdWhileOffline\\)"
+      }
+     },
+     "H7.F2": {
+      "class": "discovery",
+      "witness": {
+       "path": "apps/server/src/scheduledTasks/RelayDeliveryProof.ts",
+       "pattern": "A request\\s*\\n?\\s*\\*? ?without a valid proof is handled as a direct request"
+      }
+     }
+    },
+    "unsupported_critical_claims": 0,
+    "findings_delivered": {
+     "behavior_condition": 1
+    },
+    "findings_status": "evaluated",
+    "cost": {
+     "calls": 282,
+     "bytes": 2103209,
+     "seconds": 131.613,
+     "files": 20,
+     "limit_reached": "bytes"
+    }
+   },
+   {
+    "set": "t3",
+    "scenario": "T3-R-H8-flapping-backoff",
+    "family": "connection",
+    "condition": "hybrid",
+    "repeat": 0,
+    "supportability": 1.0,
+    "supported": [
+     "H8.F1",
+     "H8.F2",
+     "H8.F3"
+    ],
+    "misses": {},
+    "unsupported_critical_claims": 0,
+    "findings_delivered": {},
+    "findings_status": "evaluated",
+    "cost": {
+     "calls": 270,
+     "bytes": 2097295,
+     "seconds": 76.451,
+     "files": 32,
+     "limit_reached": "bytes"
+    }
+   },
+   {
+    "set": "t3",
+    "scenario": "T3-R-H8-flapping-backoff",
+    "family": "connection",
+    "condition": "hybrid",
+    "repeat": 1,
+    "supportability": 1.0,
+    "supported": [
+     "H8.F1",
+     "H8.F2",
+     "H8.F3"
+    ],
+    "misses": {},
+    "unsupported_critical_claims": 0,
+    "findings_delivered": {},
+    "findings_status": "evaluated",
+    "cost": {
+     "calls": 270,
+     "bytes": 2097295,
+     "seconds": 76.714,
+     "files": 32,
+     "limit_reached": "bytes"
+    }
+   },
+   {
+    "set": "t3",
+    "scenario": "T3-R-H8-flapping-backoff",
+    "family": "connection",
+    "condition": "findings",
+    "repeat": 0,
+    "supportability": 1.0,
+    "supported": [
+     "H8.F1",
+     "H8.F2",
+     "H8.F3"
+    ],
+    "misses": {},
+    "unsupported_critical_claims": 0,
+    "findings_delivered": {
+     "behavior_condition": 1
+    },
+    "findings_status": "evaluated",
+    "cost": {
+     "calls": 270,
+     "bytes": 2097684,
+     "seconds": 78.861,
+     "files": 32,
+     "limit_reached": "bytes"
+    }
+   },
+   {
+    "set": "t3",
+    "scenario": "T3-R-H8-flapping-backoff",
+    "family": "connection",
+    "condition": "findings",
+    "repeat": 1,
+    "supportability": 1.0,
+    "supported": [
+     "H8.F1",
+     "H8.F2",
+     "H8.F3"
+    ],
+    "misses": {},
+    "unsupported_critical_claims": 0,
+    "findings_delivered": {
+     "behavior_condition": 1
+    },
+    "findings_status": "evaluated",
+    "cost": {
+     "calls": 270,
+     "bytes": 2097684,
+     "seconds": 79.014,
+     "files": 32,
+     "limit_reached": "bytes"
+    }
+   },
+   {
+    "set": "t3",
+    "scenario": "T3-R-H9-linux-portal-ordering",
+    "family": "desktop",
+    "condition": "hybrid",
+    "repeat": 0,
+    "supportability": 1.0,
+    "supported": [
+     "H9.F1",
+     "H9.F2",
+     "H9.F3"
+    ],
+    "misses": {},
+    "unsupported_critical_claims": 0,
+    "findings_delivered": {},
+    "findings_status": "evaluated",
+    "cost": {
+     "calls": 284,
+     "bytes": 2098047,
+     "seconds": 83.948,
+     "files": 22,
+     "limit_reached": "bytes"
+    }
+   },
+   {
+    "set": "t3",
+    "scenario": "T3-R-H9-linux-portal-ordering",
+    "family": "desktop",
+    "condition": "hybrid",
+    "repeat": 1,
+    "supportability": 1.0,
+    "supported": [
+     "H9.F1",
+     "H9.F2",
+     "H9.F3"
+    ],
+    "misses": {},
+    "unsupported_critical_claims": 0,
+    "findings_delivered": {},
+    "findings_status": "evaluated",
+    "cost": {
+     "calls": 284,
+     "bytes": 2098047,
+     "seconds": 84.162,
+     "files": 22,
+     "limit_reached": "bytes"
+    }
+   },
+   {
+    "set": "t3",
+    "scenario": "T3-R-H9-linux-portal-ordering",
+    "family": "desktop",
+    "condition": "findings",
+    "repeat": 0,
+    "supportability": 1.0,
+    "supported": [
+     "H9.F1",
+     "H9.F2",
+     "H9.F3"
+    ],
+    "misses": {},
+    "unsupported_critical_claims": 0,
+    "findings_delivered": {
+     "behavior_condition": 1
+    },
+    "findings_status": "evaluated",
+    "cost": {
+     "calls": 284,
+     "bytes": 2098448,
+     "seconds": 87.983,
+     "files": 22,
+     "limit_reached": "bytes"
+    }
+   },
+   {
+    "set": "t3",
+    "scenario": "T3-R-H9-linux-portal-ordering",
+    "family": "desktop",
+    "condition": "findings",
+    "repeat": 1,
+    "supportability": 1.0,
+    "supported": [
+     "H9.F1",
+     "H9.F2",
+     "H9.F3"
+    ],
+    "misses": {},
+    "unsupported_critical_claims": 0,
+    "findings_delivered": {
+     "behavior_condition": 1
+    },
+    "findings_status": "evaluated",
+    "cost": {
+     "calls": 284,
+     "bytes": 2098448,
+     "seconds": 88.115,
+     "files": 22,
+     "limit_reached": "bytes"
+    }
+   },
+   {
+    "set": "t3",
+    "scenario": "T3-R-H10-attachment-retry",
+    "family": "attachments",
+    "condition": "hybrid",
+    "repeat": 0,
+    "supportability": 0.0,
+    "supported": [],
+    "misses": {
+     "H10.F1": {
+      "class": "discovery",
+      "witness": {
+       "path": "apps/server/src/orchestration-v2/AttachmentClaims.ts",
+       "pattern": "A copy, not a hard link"
+      }
+     },
+     "H10.F2": {
+      "class": "discovery",
+      "witness": {
+       "path": "apps/server/src/orchestration-v2/AttachmentClaims.ts",
+       "pattern": "must not mutate the retry source"
+      }
+     },
+     "H10.F3": {
+      "class": "discovery",
+      "witness": {
+       "path": "apps/server/src/orchestration-v2/AttachmentClaims.ts",
+       "pattern": "copy and its rollback registration stay in one"
+      }
+     }
+    },
+    "unsupported_critical_claims": 0,
+    "findings_delivered": {},
+    "findings_status": "evaluated",
+    "cost": {
+     "calls": 277,
+     "bytes": 2099238,
+     "seconds": 123.312,
+     "files": 16,
+     "limit_reached": "bytes"
+    }
+   },
+   {
+    "set": "t3",
+    "scenario": "T3-R-H10-attachment-retry",
+    "family": "attachments",
+    "condition": "hybrid",
+    "repeat": 1,
+    "supportability": 0.0,
+    "supported": [],
+    "misses": {
+     "H10.F1": {
+      "class": "discovery",
+      "witness": {
+       "path": "apps/server/src/orchestration-v2/AttachmentClaims.ts",
+       "pattern": "A copy, not a hard link"
+      }
+     },
+     "H10.F2": {
+      "class": "discovery",
+      "witness": {
+       "path": "apps/server/src/orchestration-v2/AttachmentClaims.ts",
+       "pattern": "must not mutate the retry source"
+      }
+     },
+     "H10.F3": {
+      "class": "discovery",
+      "witness": {
+       "path": "apps/server/src/orchestration-v2/AttachmentClaims.ts",
+       "pattern": "copy and its rollback registration stay in one"
+      }
+     }
+    },
+    "unsupported_critical_claims": 0,
+    "findings_delivered": {},
+    "findings_status": "evaluated",
+    "cost": {
+     "calls": 277,
+     "bytes": 2099238,
+     "seconds": 123.419,
+     "files": 16,
+     "limit_reached": "bytes"
+    }
+   },
+   {
+    "set": "t3",
+    "scenario": "T3-R-H10-attachment-retry",
+    "family": "attachments",
+    "condition": "findings",
+    "repeat": 0,
+    "supportability": 0.0,
+    "supported": [],
+    "misses": {
+     "H10.F1": {
+      "class": "discovery",
+      "witness": {
+       "path": "apps/server/src/orchestration-v2/AttachmentClaims.ts",
+       "pattern": "A copy, not a hard link"
+      }
+     },
+     "H10.F2": {
+      "class": "discovery",
+      "witness": {
+       "path": "apps/server/src/orchestration-v2/AttachmentClaims.ts",
+       "pattern": "must not mutate the retry source"
+      }
+     },
+     "H10.F3": {
+      "class": "discovery",
+      "witness": {
+       "path": "apps/server/src/orchestration-v2/AttachmentClaims.ts",
+       "pattern": "copy and its rollback registration stay in one"
+      }
+     }
+    },
+    "unsupported_critical_claims": 0,
+    "findings_delivered": {
+     "behavior_condition": 1
+    },
+    "findings_status": "evaluated",
+    "cost": {
+     "calls": 277,
+     "bytes": 2099624,
+     "seconds": 135.401,
+     "files": 16,
+     "limit_reached": "bytes"
+    }
+   },
+   {
+    "set": "t3",
+    "scenario": "T3-R-H10-attachment-retry",
+    "family": "attachments",
+    "condition": "findings",
+    "repeat": 1,
+    "supportability": 0.0,
+    "supported": [],
+    "misses": {
+     "H10.F1": {
+      "class": "discovery",
+      "witness": {
+       "path": "apps/server/src/orchestration-v2/AttachmentClaims.ts",
+       "pattern": "A copy, not a hard link"
+      }
+     },
+     "H10.F2": {
+      "class": "discovery",
+      "witness": {
+       "path": "apps/server/src/orchestration-v2/AttachmentClaims.ts",
+       "pattern": "must not mutate the retry source"
+      }
+     },
+     "H10.F3": {
+      "class": "discovery",
+      "witness": {
+       "path": "apps/server/src/orchestration-v2/AttachmentClaims.ts",
+       "pattern": "copy and its rollback registration stay in one"
+      }
+     }
+    },
+    "unsupported_critical_claims": 0,
+    "findings_delivered": {
+     "behavior_condition": 1
+    },
+    "findings_status": "evaluated",
+    "cost": {
+     "calls": 277,
+     "bytes": 2099624,
+     "seconds": 135.106,
+     "files": 16,
+     "limit_reached": "bytes"
+    }
+   },
+   {
+    "set": "t3",
+    "scenario": "T3-R-H11-monitor-sequence",
+    "family": "telemetry",
+    "condition": "hybrid",
+    "repeat": 0,
+    "supportability": 1.0,
+    "supported": [
+     "H11.F1",
+     "H11.F2"
+    ],
+    "misses": {},
+    "unsupported_critical_claims": 0,
+    "findings_delivered": {},
+    "findings_status": "evaluated",
+    "cost": {
+     "calls": 287,
+     "bytes": 2102931,
+     "seconds": 112.9,
+     "files": 29,
+     "limit_reached": "bytes"
+    }
+   },
+   {
+    "set": "t3",
+    "scenario": "T3-R-H11-monitor-sequence",
+    "family": "telemetry",
+    "condition": "hybrid",
+    "repeat": 1,
+    "supportability": 1.0,
+    "supported": [
+     "H11.F1",
+     "H11.F2"
+    ],
+    "misses": {},
+    "unsupported_critical_claims": 0,
+    "findings_delivered": {},
+    "findings_status": "evaluated",
+    "cost": {
+     "calls": 287,
+     "bytes": 2102931,
+     "seconds": 112.735,
+     "files": 29,
+     "limit_reached": "bytes"
+    }
+   },
+   {
+    "set": "t3",
+    "scenario": "T3-R-H11-monitor-sequence",
+    "family": "telemetry",
+    "condition": "findings",
+    "repeat": 0,
+    "supportability": 1.0,
+    "supported": [
+     "H11.F1",
+     "H11.F2"
+    ],
+    "misses": {},
+    "unsupported_critical_claims": 0,
+    "findings_delivered": {
+     "behavior_condition": 1
+    },
+    "findings_status": "evaluated",
+    "cost": {
+     "calls": 287,
+     "bytes": 2103364,
+     "seconds": 122.564,
+     "files": 29,
+     "limit_reached": "bytes"
+    }
+   },
+   {
+    "set": "t3",
+    "scenario": "T3-R-H11-monitor-sequence",
+    "family": "telemetry",
+    "condition": "findings",
+    "repeat": 1,
+    "supportability": 1.0,
+    "supported": [
+     "H11.F1",
+     "H11.F2"
+    ],
+    "misses": {},
+    "unsupported_critical_claims": 0,
+    "findings_delivered": {
+     "behavior_condition": 1
+    },
+    "findings_status": "evaluated",
+    "cost": {
+     "calls": 287,
+     "bytes": 2103364,
+     "seconds": 122.656,
+     "files": 29,
+     "limit_reached": "bytes"
+    }
+   },
+   {
+    "set": "t3",
+    "scenario": "T3-R-H12-mobile-reveal-patch",
+    "family": "mobile",
+    "condition": "hybrid",
+    "repeat": 0,
+    "supportability": 0.666667,
+    "supported": [
+     "H12.F1",
+     "H12.F2"
+    ],
+    "misses": {
+     "H12.F3": {
+      "class": "discovery",
+      "witness": {
+       "path": "pnpm-workspace.yaml",
+       "pattern": "\"@legendapp/list@3\\.3\\.5\": patches/@legendapp__list@3\\.3\\.5\\.patch"
+      }
+     }
+    },
+    "unsupported_critical_claims": 0,
+    "findings_delivered": {},
+    "findings_status": "evaluated",
+    "cost": {
+     "calls": 281,
+     "bytes": 2102870,
+     "seconds": 114.775,
+     "files": 26,
+     "limit_reached": "bytes"
+    }
+   },
+   {
+    "set": "t3",
+    "scenario": "T3-R-H12-mobile-reveal-patch",
+    "family": "mobile",
+    "condition": "hybrid",
+    "repeat": 1,
+    "supportability": 0.666667,
+    "supported": [
+     "H12.F1",
+     "H12.F2"
+    ],
+    "misses": {
+     "H12.F3": {
+      "class": "discovery",
+      "witness": {
+       "path": "pnpm-workspace.yaml",
+       "pattern": "\"@legendapp/list@3\\.3\\.5\": patches/@legendapp__list@3\\.3\\.5\\.patch"
+      }
+     }
+    },
+    "unsupported_critical_claims": 0,
+    "findings_delivered": {},
+    "findings_status": "evaluated",
+    "cost": {
+     "calls": 281,
+     "bytes": 2102870,
+     "seconds": 114.843,
+     "files": 26,
+     "limit_reached": "bytes"
+    }
+   },
+   {
+    "set": "t3",
+    "scenario": "T3-R-H12-mobile-reveal-patch",
+    "family": "mobile",
+    "condition": "findings",
+    "repeat": 0,
+    "supportability": 0.666667,
+    "supported": [
+     "H12.F1",
+     "H12.F2"
+    ],
+    "misses": {
+     "H12.F3": {
+      "class": "discovery",
+      "witness": {
+       "path": "pnpm-workspace.yaml",
+       "pattern": "\"@legendapp/list@3\\.3\\.5\": patches/@legendapp__list@3\\.3\\.5\\.patch"
+      }
+     }
+    },
+    "unsupported_critical_claims": 0,
+    "findings_delivered": {
+     "behavior_condition": 1
+    },
+    "findings_status": "evaluated",
+    "cost": {
+     "calls": 281,
+     "bytes": 2103290,
+     "seconds": 125.423,
+     "files": 26,
+     "limit_reached": "bytes"
+    }
+   },
+   {
+    "set": "t3",
+    "scenario": "T3-R-H12-mobile-reveal-patch",
+    "family": "mobile",
+    "condition": "findings",
+    "repeat": 1,
+    "supportability": 0.666667,
+    "supported": [
+     "H12.F1",
+     "H12.F2"
+    ],
+    "misses": {
+     "H12.F3": {
+      "class": "discovery",
+      "witness": {
+       "path": "pnpm-workspace.yaml",
+       "pattern": "\"@legendapp/list@3\\.3\\.5\": patches/@legendapp__list@3\\.3\\.5\\.patch"
+      }
+     }
+    },
+    "unsupported_critical_claims": 0,
+    "findings_delivered": {
+     "behavior_condition": 1
+    },
+    "findings_status": "evaluated",
+    "cost": {
+     "calls": 281,
+     "bytes": 2103290,
+     "seconds": 125.459,
+     "files": 26,
+     "limit_reached": "bytes"
+    }
+   }
+  ]
+ }
+}

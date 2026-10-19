@@ -14,6 +14,27 @@ def key(value):
     return digest(json.dumps(value, sort_keys=True, separators=(",", ":")).encode())
 
 
+MODES = ("manifest_first", "exhaustive")
+
+
+def normalize_mode(mode):
+    value = (mode or "manifest-first").replace("-", "_")
+    if value not in MODES:
+        raise ValueError(f"Unknown investigation mode: {mode!r} (expected manifest-first or exhaustive)")
+    return value
+
+
+def manifest_source_ref(manifest, row):
+    """Resolve one manifest row's pinned source ref (v2 shared or v1 per-row)."""
+    if isinstance(row.get("fetch"), dict):
+        ref = row["fetch"].get("arguments", {}).get("ref")
+        if isinstance(ref, str):
+            return ref
+    if isinstance(row.get("ref"), str):
+        return row["ref"]
+    return None
+
+
 class Investigation:
     def __init__(self, call, directory, state=None):
         self.call, self.directory = call, Path(directory)
@@ -55,12 +76,13 @@ class Investigation:
         self.state["sources"][path] = {"report_id": report, "ref": reference, "ranges": [], "state": "queued"}
         self.enqueue("explain", {"report_id": report, "ref": reference, "source_offset": 0}, "source", path)
 
-    def start(self, arguments, budget=8000, binding=None):
+    def start(self, arguments, budget=8000, binding=None, mode=None):
         if self.state:
             raise ValueError("Start requires a new investigation directory")
+        mode = normalize_mode(mode)
         self.state = {"schema_version": "1.0", "kind": "task_investigation", "request": dict(arguments),
                       "budget": budget, "events": [], "queue": [], "scheduled": [], "sources": {},
-                      "requirements": {}, "gaps": [], "status": "open", "binding": binding}
+                      "requirements": {}, "gaps": [], "status": "open", "binding": binding, "mode": mode}
         manifest, _ = self.event("agent_context", {**arguments, "max_bytes": budget})
         for field, prefix in (("case_id", "task-case:"), ("view_id", "view:"), ("index_id", "task-index:")):
             if not isinstance(manifest.get(field), str) or not manifest[field].startswith(prefix):
@@ -73,6 +95,19 @@ class Investigation:
                                   ("gaps", "Resolve or justify task-local remaining evidence boundaries")):
             self.state["requirements"][name] = {"status": "open", "reason": description, "evidence": []}
         report = self.state["case_id"]
+        anchor = manifest.get("anchor") or {}
+        rows = ([anchor] if anchor.get("path") else []) + list(manifest.get("files") or [])
+        self.state["manifest"] = {"anchor_path": anchor.get("path"),
+                                   "paths": [row["path"] for row in rows if isinstance(row, dict) and row.get("path")]}
+        if mode == "manifest_first":
+            # Selected evidence first: anchor, then supplemental files in
+            # manifest order. Candidate/gap traversal is enqueued after.
+            for row in rows:
+                if not isinstance(row, dict) or not row.get("path"):
+                    continue
+                ref = manifest_source_ref(manifest, row)
+                if ref is not None:
+                    self.source(row["path"], report, ref)
         for ref, kind in (("/coverage/artifact_roles", "roles"), ("/coverage/required_roles", "required_roles")):
             self.enqueue("explain", {"report_id": report, "ref": ref}, kind)
         self.enqueue("page", {"report_id": report, "section": "/not_covered", "offset": 0, "limit": 20}, "gaps")
@@ -86,7 +121,10 @@ class Investigation:
         return self.state
 
     def check_current(self):
-        status, _ = self.event("status", {"summary": True, "max_bytes": self.state["budget"]})
+        # Control-plane reads must fit their pin fields even when the
+        # consumer/manifest budget is the 8 KB routing budget.
+        control_bytes = max(self.state["budget"], 65536)
+        status, _ = self.event("status", {"summary": True, "max_bytes": control_bytes})
         # A budget notice that omits the pin fields leaves freshness unknown, not changed.
         if not isinstance(status.get("current_view"), str) or not isinstance(status.get("pending_or_interrupted"), bool):
             raise ValueError("Status omitted current_view/pending state; increase --max-bytes and resume")
@@ -100,17 +138,21 @@ class Investigation:
             return False
         self.state["retracted_count"] = status.get("retracted_count")
         current, event_id = self.event("worktree", {"case_id": self.state["case_id"], "limit": 1,
-                                                   "max_bytes": self.state["budget"]})
+                                                   "max_bytes": control_bytes})
         self.state["worktree"] = {k: current.get(k) for k in ("report_id", "tree_digest", "alignment", "head_alignment", "changed_paths", "outside_initial_slice")}
-        match = current.get("alignment") == "matches" and bool(current.get("tree_digest"))
         previous = self.state.get("tree_digest")
-        if not match or previous not in (None, current.get("tree_digest")):
+        if current.get("alignment") == "changed" or not current.get("tree_digest") or previous not in (None, current.get("tree_digest")):
             self.state["status"] = "invalidated"
             self.state["blocker"] = "Live source differs or its coverage is unknown. Inspect the worktree report, sync current source, and rebind."
             self.state["requirements"]["scope"] = {"status": "blocked", "reason": self.state["blocker"], "evidence": [event_id]}
             return False
         self.state["tree_digest"] = current["tree_digest"]
-        self.state["requirements"]["scope"] = {"status": "supported", "reason": "All capturable source bytes match the pinned view", "evidence": [event_id]}
+        if current.get("alignment") == "matches":
+            self.state["requirements"]["scope"] = {"status": "supported", "reason": "All capturable source bytes match the pinned view", "evidence": [event_id]}
+        else:
+            # Unknown alignment (e.g. no Git in a frozen export) is not a
+            # change: traversal may continue, but scope stays unproven.
+            self.state["requirements"]["scope"] = {"status": "open", "reason": f"Worktree alignment is {current.get('alignment')}; live-tree equality is not established", "evidence": [event_id]}
         return True
 
     def validate_pin(self, result):
@@ -132,6 +174,10 @@ class Investigation:
         args = {**action["arguments"], "max_bytes": self.state["budget"]}
         if action["kind"] == "source":
             args["source_bytes"] = min(4000, max(4, self.state["budget"] // 2))
+        else:
+            # Inventory pages must fit at least one row; the manifest budget
+            # alone can stall T3-scale gap/candidate pages at zero rows.
+            args["max_bytes"] = max(self.state["budget"], 65536)
         result, event_id = self.event(action["operation"], args)
         self.validate_pin(result)
         if args.get("report_id") and result.get("report_id") != args["report_id"]:
@@ -277,3 +323,52 @@ class Investigation:
         atomic_json(self.directory / "revisions" / (revision.removeprefix("sha256:") + ".json"), state)
         atomic_json(self.directory / "state.json", state)
         return revision
+
+
+def run_bounded_investigation(call, directory, scenario, *, mode="manifest-first",
+                              max_calls=300, max_bytes=2 * 1024 * 1024, max_seconds=180, budget=8000):
+    """Run one investigation under aggregate call/byte/time stopping limits.
+
+    ``limit_reached`` names the first exhausted budget, or ``complete`` when
+    the queue drained. Offline source-integrity verification is not part of
+    this cost; it is measured separately by the evaluator.
+    """
+    import time as _time
+    stats = {"calls": 0, "bytes": 0}
+
+    def counted(operation, arguments):
+        result = call(operation, arguments)
+        stats["calls"] += 1
+        stats["bytes"] += len((json.dumps(result, ensure_ascii=False) + "\n").encode("utf-8"))
+        return result
+
+    started = _time.monotonic()
+    flow = Investigation(counted, directory)
+    request = {"task": scenario["task"]}
+    for name in ("target", "duty", "view"):
+        if name in scenario:
+            request[name] = scenario[name]
+    flow.start(request, budget, mode=mode)
+    limit = "complete"
+    while flow.state["queue"]:
+        if stats["calls"] >= max_calls:
+            limit = "calls"; break
+        if stats["bytes"] >= max_bytes:
+            limit = "bytes"; break
+        if _time.monotonic() - started >= max_seconds:
+            limit = "seconds"; break
+        flow.step()
+    else:
+        limit = "complete"
+    if limit == "complete" and flow.state["queue"]:
+        limit = "calls" if stats["calls"] >= max_calls else "bytes" if stats["bytes"] >= max_bytes else "seconds"
+    inspected = {path for path, src in flow.state.get("sources", {}).items() if src.get("ranges")}
+    expected = set(scenario.get("required_paths", []))
+    manifest_paths = set(flow.state.get("manifest", {}).get("paths", []))
+    return {"mode": normalize_mode(mode), "limit_reached": limit, "calls": stats["calls"],
+            "bytes": stats["bytes"], "elapsed_seconds": round(_time.monotonic() - started, 3),
+            "inspected_files": len(inspected),
+            "manifest_required_paths": sorted(expected & manifest_paths),
+            "recovered_required_paths": sorted(expected & inspected),
+            "missing_required_paths": sorted(expected - inspected),
+            "recovered_beyond_manifest": sorted((expected & inspected) - manifest_paths)}

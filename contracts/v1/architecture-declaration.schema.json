@@ -32,6 +32,14 @@
         "$ref": "#/$defs/Rule"
       }
     },
+    "convention_exceptions": {
+      "description": "Approved exceptions to observed conventions: module may deviate from depending on target. Consulted before any convergence candidate is reported.",
+      "type": "array",
+      "maxItems": 1024,
+      "items": {
+        "$ref": "#/$defs/ConventionException"
+      }
+    },
     "application": {
       "$ref": "#/$defs/Application"
     },
@@ -133,6 +141,34 @@
         "mode",
         "from",
         "to"
+      ],
+      "additionalProperties": false
+    },
+    "ConventionException": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "module": {
+          "type": "string",
+          "minLength": 1
+        },
+        "target": {
+          "type": "string",
+          "minLength": 1
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "id",
+        "module",
+        "target",
+        "reason"
       ],
       "additionalProperties": false
     },

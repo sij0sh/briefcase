@@ -1,0 +1,11 @@
+{
+  "schema_version": "1.0",
+  "authority": "platform-architecture",
+  "revision": "2026-09",
+  "assignments": {},
+  "rules": [],
+  "convention_exceptions": [
+    {"id": "health-skips-audit", "module": "handlers/health.py", "target": "lib/audit.py",
+     "reason": "Readiness probes must answer while the audit store is down; probes are not auditable user actions."}
+  ]
+}

@@ -1,0 +1,9 @@
+--- a/handlers/health.py
++++ n/handlers/health.py
+@@ -1,2 +1,6 @@
++from lib import audit
++
++
+ def handle_health(event):
++    audit.record({"handler": "health", **event})
+     return {"ok": True, "handler": "health"}

@@ -32,7 +32,10 @@
   ],
   "properties": {
     "schema_version": {
-      "const": "1.0"
+      "enum": [
+        "1.0",
+        "1.1"
+      ]
     },
     "kind": {
       "const": "brief"
@@ -282,6 +285,18 @@
       "items": {
         "type": "object"
       }
+    },
+    "findings": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/Finding"
+      }
+    },
+    "findings_status": {
+      "enum": [
+        "evaluated",
+        "not_evaluated"
+      ]
     }
   },
   "additionalProperties": false,
@@ -373,6 +388,354 @@
         "candidate_rank": {
           "type": "integer",
           "minimum": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "Finding": {
+      "type": "object",
+      "required": [
+        "kind",
+        "comparison_key",
+        "content_id",
+        "claim",
+        "subjects",
+        "applicability",
+        "basis",
+        "counterevidence",
+        "payload",
+        "limitations",
+        "lifecycle"
+      ],
+      "properties": {
+        "kind": {
+          "enum": [
+            "behavior_condition",
+            "session_failure_recovery",
+            "session_review_requirement",
+            "session_environment_observation",
+            "architectural_convergence"
+          ]
+        },
+        "comparison_key": {
+          "type": "string"
+        },
+        "content_id": {
+          "type": "string"
+        },
+        "claim": {
+          "type": "string"
+        },
+        "relevance": {
+          "type": "string"
+        },
+        "subjects": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "applicability": {
+          "type": "object"
+        },
+        "basis": {
+          "type": "object"
+        },
+        "counterevidence": {
+          "type": "array"
+        },
+        "payload": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/BehaviorPayload"
+            },
+            {
+              "$ref": "#/$defs/SessionPayload"
+            },
+            {
+              "$ref": "#/$defs/ConvergencePayload"
+            }
+          ]
+        },
+        "limitations": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "lifecycle": {
+          "type": "object"
+        }
+      },
+      "additionalProperties": false
+    },
+    "BehaviorPayload": {
+      "type": "object",
+      "required": [
+        "type",
+        "conditions",
+        "verification"
+      ],
+      "properties": {
+        "type": {
+          "const": "behavior_condition"
+        },
+        "conditions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Condition"
+          }
+        },
+        "verification": {
+          "type": "array"
+        },
+        "impact_candidates": {
+          "type": "array"
+        }
+      },
+      "additionalProperties": false
+    },
+    "SessionPayload": {
+      "type": "object",
+      "required": [
+        "type",
+        "rule",
+        "episode",
+        "guidance",
+        "joined_subjects",
+        "verification"
+      ],
+      "properties": {
+        "type": {
+          "const": "session_experience"
+        },
+        "rule": {
+          "enum": [
+            "session-failure-recovery",
+            "session-review-requirement",
+            "session-environment-observation"
+          ]
+        },
+        "episode": {
+          "type": "object"
+        },
+        "guidance": {
+          "type": "string"
+        },
+        "joined_subjects": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "verification": {
+          "type": "array"
+        },
+        "independence": {
+          "type": "object"
+        }
+      },
+      "additionalProperties": true
+    },
+    "ConvergencePayload": {
+      "type": "object",
+      "required": [
+        "type",
+        "rule",
+        "status",
+        "convention",
+        "cohort",
+        "subject_status",
+        "exceptions",
+        "unresolved_members",
+        "decision",
+        "verification"
+      ],
+      "properties": {
+        "type": {
+          "const": "cohort_convergence"
+        },
+        "rule": {
+          "const": "dependency-peer-convergence-v1"
+        },
+        "status": {
+          "enum": [
+            "candidate",
+            "permitted_exception",
+            "contradicted_by_declaration"
+          ]
+        },
+        "convention": {
+          "type": "object",
+          "required": [
+            "relation",
+            "target"
+          ],
+          "properties": {
+            "relation": {
+              "const": "IMPORTS"
+            },
+            "target": {
+              "type": "string"
+            },
+            "target_files": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "co_occurring_targets": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "additionalProperties": false
+        },
+        "cohort": {
+          "type": "object",
+          "required": [
+            "scope",
+            "selection_rule",
+            "eligible",
+            "analyzed",
+            "conforming",
+            "deviating",
+            "permitted_exceptions",
+            "unresolved",
+            "excluded_by_declaration",
+            "denominator"
+          ],
+          "properties": {
+            "scope": {
+              "type": "string"
+            },
+            "selection_rule": {
+              "type": "object"
+            },
+            "eligible": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "analyzed": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "conforming": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "deviating": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "permitted_exceptions": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "unresolved": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "excluded_by_declaration": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "denominator": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        },
+        "subject_status": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        },
+        "exceptions": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        },
+        "unresolved_members": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        },
+        "excluded_members": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "decision": {
+          "type": "object",
+          "required": [
+            "candidate",
+            "automatic_change"
+          ],
+          "properties": {
+            "candidate": {
+              "type": "string"
+            },
+            "automatic_change": {
+              "const": false
+            },
+            "adr": {
+              "const": "not produced"
+            }
+          },
+          "additionalProperties": false
+        },
+        "verification": {
+          "type": "array"
+        }
+      },
+      "additionalProperties": false
+    },
+    "Condition": {
+      "type": "object",
+      "required": [
+        "subject",
+        "operation",
+        "description",
+        "consequence",
+        "relationship_assessment",
+        "runtime_satisfaction",
+        "evidence"
+      ],
+      "properties": {
+        "subject": {
+          "type": "string"
+        },
+        "operation": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "consequence": {
+          "type": "string"
+        },
+        "relationship_assessment": {
+          "enum": [
+            "established",
+            "unknown",
+            "contradicted"
+          ]
+        },
+        "runtime_satisfaction": {
+          "enum": [
+            "unknown",
+            "not_applicable"
+          ]
+        },
+        "evidence": {
+          "type": "array"
         }
       },
       "additionalProperties": false

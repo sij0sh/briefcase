@@ -254,6 +254,30 @@ mod tests {
         .unwrap()
     }
     #[test]
+    fn freshness_capture_state_is_memoized_without_reparsing_the_bundle() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut l = Ledger::open(&dir.path().join("m.db")).unwrap();
+        let g = l.begin("memo-test", None).unwrap();
+        let view = l.commit(g, &prepared(g)).unwrap();
+        let memo = |l: &Ledger| -> Option<Option<String>> {
+            l.db.query_row("SELECT capture_state FROM view_capture_states WHERE view_id=?", [&view], |r| r.get(0)).optional().unwrap()
+        };
+        assert_eq!(memo(&l), Some(Some("complete".into())));
+        assert_eq!(l.view_freshness(&view).unwrap()["capture_state"], "complete");
+        // A view published before the memo existed is extracted once and then memoized.
+        l.db.execute("DELETE FROM view_capture_states", []).unwrap();
+        assert_eq!(l.view_freshness(&view).unwrap()["capture_state"], "complete");
+        assert_eq!(memo(&l), Some(Some("complete".into())));
+        // The memo, not the bundle, answers later reads.
+        l.db.execute("UPDATE view_capture_states SET capture_state='partial'", []).unwrap();
+        assert_eq!(l.view_freshness(&view).unwrap()["capture_state"], "partial");
+        // A read-only reader of a database without the memo table still answers from the bundle.
+        l.db.execute_batch("DROP TABLE view_capture_states").unwrap();
+        drop(l);
+        let reader = Ledger::read_only(&dir.path().join("m.db")).unwrap();
+        assert_eq!(reader.view_freshness(&view).unwrap()["capture_state"], "complete");
+    }
+    #[test]
     fn crash_worker() {
         let Some(db) = std::env::var_os("BRIEFCASE_CRASH_DB") else {
             return;

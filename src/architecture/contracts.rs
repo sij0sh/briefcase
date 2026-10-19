@@ -178,13 +178,51 @@ pub fn empty_bundle() -> Value {
 pub fn rows<'a>(b: &'a Value, table: &str) -> &'a [Value] {
     b[table].as_array().map(Vec::as_slice).unwrap_or(&[])
 }
+/// Below this size a linear id scan is cheaper than maintaining an index.
+const ADD_INDEX_MIN: usize = 256;
+thread_local! {
+    /// Id index for large tables, keyed by table name and validated against the
+    /// array's buffer, length and last id so any outside mutation forces a rebuild.
+    static ADD_INDEX: std::cell::RefCell<std::collections::HashMap<String, (usize, usize, Value, std::collections::HashSet<String>)>> = Default::default();
+}
 pub fn add(b: &mut Value, table: &str, row: Value) {
-    if !rows(b, table).iter().any(|r| r["id"] == row["id"]) {
-        b[table]
-            .as_array_mut()
-            .expect("owned bundle table")
-            .push(row);
+    let existing = rows(b, table);
+    if existing.len() < ADD_INDEX_MIN {
+        if !existing.iter().any(|r| r["id"] == row["id"]) {
+            b[table]
+                .as_array_mut()
+                .expect("owned bundle table")
+                .push(row);
+        }
+        return;
     }
+    let Some(id) = row["id"].as_str().map(str::to_owned) else {
+        if !existing.iter().any(|r| r["id"] == row["id"]) {
+            b[table]
+                .as_array_mut()
+                .expect("owned bundle table")
+                .push(row);
+        }
+        return;
+    };
+    ADD_INDEX.with(|cache| {
+        let mut cache = cache.borrow_mut();
+        let rows_ = b[table].as_array_mut().expect("owned bundle table");
+        let key = (rows_.as_ptr() as usize, rows_.len(), rows_.last().map(|r| r["id"].clone()).unwrap_or(Value::Null));
+        let fresh = matches!(cache.get(table), Some((p, n, last, _)) if (*p, *n, last) == (key.0, key.1, &key.2));
+        if !fresh {
+            let ids = rows_.iter().filter_map(|r| r["id"].as_str().map(str::to_owned)).collect();
+            cache.insert(table.to_owned(), (key.0, key.1, key.2, ids));
+        }
+        let entry = cache.get_mut(table).unwrap();
+        if !entry.3.contains(&id) {
+            rows_.push(row);
+            entry.3.insert(id);
+        }
+        entry.0 = rows_.as_ptr() as usize;
+        entry.1 = rows_.len();
+        entry.2 = rows_.last().map(|r| r["id"].clone()).unwrap_or(Value::Null);
+    });
 }
 pub fn text(v: &Value, key: &str) -> String {
     v[key].as_str().unwrap_or("").to_owned()

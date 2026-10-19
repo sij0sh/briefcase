@@ -1,0 +1,43 @@
+{
+  "schema_version": "1.0",
+  "kind": "repair_fixture",
+  "id": "R-retry-ceiling",
+  "family": "connection",
+  "note": "Scorer-only except task/target. A prior session recorded the reviewer's ceiling requirement and the fake-clock test setup.",
+  "task": "Late sync retries wait far longer than intended. Fix the backoff so long outages do not produce huge waits.",
+  "target": "src/sync/retry.py",
+  "language": "python",
+  "source_roots": "src,tests",
+  "sessions": ["sessions/retry-session.jsonl"],
+  "test_env": {"SYNC_FAKE_CLOCK": "1"},
+  "reference_decision": "repair",
+  "tests": {
+    "target": ["tests.test_retry.Ceiling"],
+    "neighbors": ["tests.test_retry.Doubling", "tests.test_scheduler"],
+    "negative": ["tests.test_retry.Jitter"]
+  },
+  "naive_must_fail": ["tests.test_retry.Jitter"],
+  "allowed_paths": ["src/sync/retry.py", "tests/test_retry.py"],
+  "decision_witness_paths": ["src/sync/retry.py"],
+  "claims": [
+    {"id": "RT.F1", "kind": "fact", "fact": "delay doubles from BASE_DELAY with upper-half jitter",
+     "witnesses": [{"path": "src/sync/retry.py", "pattern": "ceiling / 2 \\+ \\(ceiling / 2\\) \\* random\\(\\)"}]},
+    {"id": "RT.F2", "kind": "condition", "fact": "a MAX_DELAY ceiling exists and is not applied",
+     "witnesses": [{"path": "src/sync/retry.py", "pattern": "MAX_DELAY = 30\\.0"},
+                   {"path": "src/sync/retry.py", "pattern": "ceiling = BASE_DELAY \\* 2 \\*\\* attempt"}]},
+    {"id": "RT.F3", "kind": "exception", "fact": "an explicit retry skips the wait",
+     "witnesses": [{"path": "src/sync/scheduler.py", "pattern": "An explicit retry skips the backoff wait"}]},
+    {"id": "RT.F4", "kind": "verification", "fact": "the scheduler tests need SYNC_FAKE_CLOCK=1",
+     "witnesses": [{"path": "tests/test_scheduler.py", "pattern": "set SYNC_FAKE_CLOCK=1"}],
+     "alternatives": [[{"finding": "session_environment_observation", "pattern": "SYNC_FAKE_CLOCK"}]]},
+    {"id": "RT.S1", "kind": "condition", "requires_sessions": true,
+     "fact": "a prior reviewer required jittered delays to stay under MAX_DELAY",
+     "witnesses": [{"finding": "session_review_requirement", "pattern": "MAX_DELAY"}],
+     "alternatives": [[{"path": "agent-sessions/retry-session.jsonl", "pattern": "keep jittered delays under the MAX_DELAY ceiling"}]]},
+    {"id": "RT.S2", "kind": "verification", "requires_sessions": true,
+     "fact": "a prior run failed without the fake clock and passed with it after editing retry.py",
+     "witnesses": [{"finding": "session_failure_recovery", "pattern": "SYNC_FAKE_CLOCK|unittest"}],
+     "alternatives": [[{"path": "agent-sessions/retry-session.jsonl", "pattern": "SYNC_FAKE_CLOCK=1 python3 -m unittest"}]]}
+  ],
+  "forbidden_patterns": ["(?i)(drop|remove) (the )?jitter", "(?i)session (proves|guarantees|verified) (that )?the (fix|ceiling)"]
+}

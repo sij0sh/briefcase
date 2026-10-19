@@ -1,0 +1,34 @@
+{
+  "schema_version": "1.0",
+  "kind": "repair_fixture",
+  "id": "R-export-redaction",
+  "family": "settings",
+  "note": "Scorer-only except task/target. A name-based redaction is the tempting over-broad fix.",
+  "task": "Exported settings leak provider API keys to clients. Fix the export so provider secrets are not sent.",
+  "target": "src/settings/export.py",
+  "language": "python",
+  "source_roots": "src,tests",
+  "sessions": [],
+  "reference_decision": "repair",
+  "tests": {
+    "target": ["tests.test_export.ProviderSecrets"],
+    "neighbors": ["tests.test_export.TopLevelSecrets", "tests.test_store"],
+    "negative": ["tests.test_export.PublicFields"]
+  },
+  "naive_must_fail": ["tests.test_export.PublicFields"],
+  "allowed_paths": ["src/settings/export.py", "src/settings/schema.py", "tests/test_export.py"],
+  "decision_witness_paths": ["src/settings/schema.py"],
+  "claims": [
+    {"id": "RX.F1", "kind": "fact", "fact": "secret fields are declared in the schema, not inferred from names",
+     "witnesses": [{"path": "src/settings/schema.py", "pattern": "SECRET_FIELDS = \\{\"api_token\"\\}"}]},
+    {"id": "RX.F2", "kind": "condition", "fact": "provider secrets are declared separately and export ignores them",
+     "witnesses": [{"path": "src/settings/schema.py", "pattern": "PROVIDER_SECRET_FIELDS = \\{\"api_key\"\\}"},
+                   {"path": "src/settings/export.py", "pattern": "for field in schema\\.SECRET_FIELDS"}]},
+    {"id": "RX.F3", "kind": "exception", "fact": "public keys must stay exported",
+     "witnesses": [{"path": "tests/test_export.py", "pattern": "test_public_keys_stay_exported"}]},
+    {"id": "RX.F4", "kind": "condition", "fact": "saving a redacted value keeps the stored secret",
+     "witnesses": [{"path": "src/settings/store.py", "pattern": "elif value == REDACTED:"},
+                   {"path": "tests/test_store.py", "pattern": "test_redacted_save_keeps_stored_provider_secret"}]}
+  ],
+  "forbidden_patterns": ["(?i)redact (every|any|all) (field|key)s? (ending|named|whose name)", "(?i)an? (empty|redacted) value clears the (stored )?secret"]
+}

@@ -1,0 +1,36 @@
+{
+  "schema_version": "1.0",
+  "kind": "repair_fixture",
+  "id": "R-refund-cap",
+  "family": "payments",
+  "note": "Scorer-only except task/target. A shared helper tempts an over-broad fix that breaks invoices.",
+  "task": "Refunds on partially captured orders can exceed the amount that was actually captured. Fix the refund limit.",
+  "target": "src/payments/refund.py",
+  "language": "python",
+  "source_roots": "src,tests",
+  "sessions": [],
+  "reference_decision": "repair",
+  "tests": {
+    "target": ["tests.test_refund.RefundBalance"],
+    "neighbors": ["tests.test_refund.RefundInvariants", "tests.test_invoice"],
+    "negative": ["tests.test_refund.RefundGuards"]
+  },
+  "naive_must_fail": ["tests.test_invoice"],
+  "allowed_paths": ["src/payments/refund.py", "tests/test_refund.py"],
+  "decision_witness_paths": ["src/payments/orders.py", "src/payments/invoice.py"],
+  "claims": [
+    {"id": "RC.F1", "kind": "fact", "fact": "the refund cap uses the shared invoiced-total helper",
+     "witnesses": [{"path": "src/payments/refund.py", "pattern": "orders\\.amount_due_basis\\(order\\) - order\\.refunded"},
+                   {"path": "src/payments/orders.py", "pattern": "return order\\.total"}]},
+    {"id": "RC.F2", "kind": "exception", "fact": "the helper is shared with invoices, which must keep stating the order total",
+     "witnesses": [{"path": "src/payments/invoice.py", "pattern": "orders\\.amount_due_basis\\(order\\)"},
+                   {"path": "src/payments/orders.py", "pattern": "Invoices state the order total"}]},
+    {"id": "RC.F3", "kind": "condition", "fact": "refunds stay gated by REFUNDS_ENABLED and settlement",
+     "witnesses": [{"path": "src/payments/config.py", "pattern": "REFUNDS_ENABLED"},
+                   {"path": "src/payments/ledger.py", "pattern": "Only a settled capture can be refunded"}]},
+    {"id": "RC.F4", "kind": "verification", "fact": "tests pin the invoice basis and the guards",
+     "witnesses": [{"path": "tests/test_invoice.py", "pattern": "test_invoice_states_order_total_before_full_capture"},
+                   {"path": "tests/test_refund.py", "pattern": "test_disabled_refunds_are_rejected"}]}
+  ],
+  "forbidden_patterns": ["(?i)amount_due_basis\\W+(should|must|to) return (order\\.)?captured", "(?i)remove (the )?settle(ment|d) (check|guard)"]
+}

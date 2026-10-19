@@ -1,0 +1,20 @@
+{
+  "schema_version": "1.0",
+  "kind": "findings_rubric",
+  "note": "Scorer-only. Keep out of prompts, retrieval indexes and tool-visible task text. Paths under evaluation/ are excluded from normal source lexical indexing.",
+  "fixture": "tests/briefcase_findings.rs (rollback adapter)",
+  "expected_claims": [
+    {"id": "F1", "claim": "src/adapter.rs reads configuration key env:ROLLBACK_TOKEN", "basis": "READS_CONFIG link plus DECLARES_CONFIG_KEY for config/app.env", "assessment": "established", "runtime_satisfaction": "unknown"},
+    {"id": "F2", "claim": "A statically visible guard checks restore_is_safe() before rollback proceeds", "basis": "witnessed source passage in src/adapter.rs", "assessment": "unknown", "runtime_satisfaction": "unknown"},
+    {"id": "F3", "claim": "No executed test result is established by retained evidence", "basis": "TESTS associations are static only", "assessment": "unknown"}
+  ],
+  "forbidden_claims": [
+    "The adapter is unconditionally capable of rollback.",
+    "The restore-safety guard passes at runtime.",
+    "A test has verified rollback behavior (from an import or path-reference chain alone).",
+    "ROLLBACK_TOKEN has a particular runtime value or effect."
+  ],
+  "holdout": "evaluation/heldout-scenarios.json scenarios are not used for tuning findings rules; findings changes are judged on the fixture above plus the negative unit fixtures in src/architecture/task/findings.rs.",
+  "budgets": {"manifest_bytes": 8000, "max_files": 32, "investigation": {"max_calls": 300, "max_bytes": 2097152, "max_seconds": 180}},
+  "failure_classes": ["selection", "discovery", "producer", "consumption"]
+}

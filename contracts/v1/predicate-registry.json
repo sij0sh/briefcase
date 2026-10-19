@@ -325,6 +325,24 @@
       ],
       "literal": false
     },
+    "EXEMPT_FROM_CONVENTION": {
+      "status": "active",
+      "subject_kinds": [
+        "module",
+        "domain"
+      ],
+      "object_kinds": [
+        "module",
+        "domain"
+      ],
+      "classes": [
+        "declaration"
+      ],
+      "contexts": [
+        "source"
+      ],
+      "literal": false
+    },
     "RECORDED_STATEMENT": {
       "status": "active",
       "subject_kinds": [

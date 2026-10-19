@@ -28,6 +28,19 @@ FRAMING = {
 ROLES = ("impl", "test", "config", "script", "build", "install", "doc",
          "adr", "plan", "fixture", "generated")
 
+FACETS = ("structure", "dependency", "tests", "domain", "execution", "data", "runtime", "history", "sessions", "convergence", "behavior", "lexical")
+
+
+def lexical_only_exclusions():
+    """Every non-lexical facet disabled together: a true lexical-only control."""
+    return tuple(facet for facet in FACETS if facet != "lexical")
+
+
+def resolve_exclusions(name):
+    if name == "lexical-only":
+        return lexical_only_exclusions()
+    return (name,)
+
 
 def execute(binary, root, operation, arguments, timeout, *, db=None, evidence=None):
     database = ["--db", str(db)] if db is not None else []
@@ -187,7 +200,8 @@ def verify_retained_sources(call, case, selected, references, manifest, max_byte
 
 
 def evaluate_scenario(scenario, call, *, manifest_bytes=None, exclude_facets=(), harness="pi", diagnostics=False,
-                      verify_sources=False, budget_sweep=(), verify_candidates=False, source_budget=1048576):
+                      verify_sources=False, budget_sweep=(), verify_candidates=False, source_budget=1048576,
+                      cold=False, selection_variant=None):
     expected = set(scenario.get("required_paths", scenario.get("followup_paths", [])))
     if not expected:
         raise ValueError("Each scenario needs labelled required_paths or followup_paths")
@@ -197,6 +211,9 @@ def evaluate_scenario(scenario, call, *, manifest_bytes=None, exclude_facets=(),
             arguments[name] = scenario[name]
     if exclude_facets:
         arguments["exclude_facets"] = list(exclude_facets)
+    if selection_variant:
+        arguments["selection_variant"] = selection_variant
+    manifest_timing = {}
     started = time.monotonic()
     packet = call("brief", arguments)
     outcome = packet.get("outcome")
@@ -240,7 +257,11 @@ def evaluate_scenario(scenario, call, *, manifest_bytes=None, exclude_facets=(),
         if manifest_limit < 256:
             raise ValueError("Harness budget is too small for framing and a manifest")
         manifest_args = {**arguments, "max_bytes": manifest_limit}
+        manifest_started = time.monotonic()
         manifest = call("agent_context", manifest_args)
+        if "ms" not in manifest_timing:
+            manifest_timing["ms"] = (time.monotonic() - manifest_started) * 1000
+            manifest_timing["at_ms"] = (time.monotonic() - started) * 1000
         if manifest.get("kind") != "agent_context" or manifest.get("case_id") != (packet.get("case_id") or packet.get("id")):
             raise ValueError("Harness manifest is missing or belongs to another retained case")
         size = encoded_bytes(manifest)
@@ -344,6 +365,13 @@ def evaluate_scenario(scenario, call, *, manifest_bytes=None, exclude_facets=(),
     missing = sorted(expected - found)
     forbidden = sorted(found.intersection(scenario.get("forbidden_paths", [])))
     missing_gaps = sorted(set(scenario.get("required_gap_areas", [])) - gaps)
+    manifest_paths_set = manifest_paths if manifest_bytes is not None else set()
+    first_relevant = None
+    if expected & manifest_paths_set and "at_ms" in manifest_timing:
+        first_relevant = round(manifest_timing["at_ms"], 3)
+    integrity_ms = round(metrics.get("source_fetch", {}).get("elapsed_ms", 0), 3) if verify_sources else 0
+    if verify_candidates:
+        integrity_ms = round(integrity_ms + metrics.get("candidate_source_fetch", {}).get("elapsed_ms", 0), 3)
     return {"id": scenario["id"], "status": "pass" if not (missing or forbidden or missing_gaps) else "miss",
             "report_id": packet.get("report_id") or packet.get("id"),
             "case_id": packet.get("case_id"), "view_id": packet.get("view_id"), "index_id": packet.get("index_id"),
@@ -353,6 +381,13 @@ def evaluate_scenario(scenario, call, *, manifest_bytes=None, exclude_facets=(),
             "required_path_recall": len(expected & found) / len(expected),
             "missing_paths": missing, "forbidden_paths_returned": forbidden,
             "missing_gap_areas": missing_gaps, "first_packet_ms": round(first_ms, 3),
+            "brief_ms": round(first_ms, 3),
+            "manifest_latency_ms": round(manifest_timing["ms"], 3) if "ms" in manifest_timing else None,
+            "first_relevant_passage_ms": first_relevant,
+            "investigation_latency_ms": round(delivery_ms, 3),
+            "integrity_verification_ms": integrity_ms,
+            "timing_phase": "cold" if cold else "warm",
+            "selection_variant": selection_variant or "baseline",
             "full_delivery_ms": round(delivery_ms, 3)}
 
 
@@ -431,7 +466,14 @@ def main():
     parser.add_argument("--manifest-bytes", type=int, default=8000)
     parser.add_argument("--harness", choices=tuple(FRAMING), default="pi", help="Match automatic framing/budget accounting")
     parser.add_argument("--skip-manifest", action="store_true", help="Legacy binary compatibility; no harness delivery claim")
-    parser.add_argument("--ablations", default="", help="Comma-separated facets, or all, to disable one at a time")
+    parser.add_argument("--ablations", default="", help="Comma-separated facets, or all, to disable one at a time; lexical-only disables every non-lexical facet together")
+    parser.add_argument("--lexical-only", action="store_true", help="Also run a true lexical-only control (all non-lexical facets disabled together)")
+    parser.add_argument("--selection-variants", default="", help="Comma-separated selection variants to compare against baseline at fixed manifest/max-files budgets")
+    parser.add_argument("--investigation-modes", default="", help="Comma-separated Arm B modes: manifest-first,exhaustive")
+    parser.add_argument("--investigation-max-calls", type=int, default=300)
+    parser.add_argument("--investigation-max-bytes", type=int, default=2097152)
+    parser.add_argument("--investigation-max-seconds", type=float, default=180)
+    parser.add_argument("--rg-baseline", action="store_true", help="Also run the predeclared rg/read baseline on --root")
     args = parser.parse_args()
     try:
         budgets = tuple(int(value) for value in args.budget_sweep.split(",") if value)
@@ -468,17 +510,18 @@ def main():
     except (OSError, ValueError, RuntimeError, subprocess.TimeoutExpired) as error:
         parser.error(f"Cannot pin evaluation inputs: {error}")
     results = []
-    for scenario in scenarios:
+    for index, scenario in enumerate(scenarios):
         try:
             results.append(evaluate_scenario(scenario, call, manifest_bytes=None if args.skip_manifest else args.manifest_bytes,
                                              harness=args.harness, diagnostics=args.diagnostics,
                                              verify_sources=args.verify_sources, budget_sweep=budgets,
-                                             verify_candidates=args.verify_candidates, source_budget=args.source_budget))
+                                             verify_candidates=args.verify_candidates, source_budget=args.source_budget,
+                                             cold=index == 0))
         except (OSError, ValueError, RuntimeError, subprocess.TimeoutExpired) as error:
             results.append({"id": scenario.get("id"), "status": "error", "error": str(error)})
-    facets = ("structure", "dependency", "tests", "domain", "execution", "data", "runtime", "history", "sessions", "lexical")
+    facets = FACETS
     disabled = facets if args.ablations == "all" else tuple(filter(None, args.ablations.split(",")))
-    if any(facet not in facets for facet in disabled):
+    if any(facet not in facets and facet != "lexical-only" for facet in disabled):
         parser.error("Unknown ablation facet")
     ablations = {}
     for facet in disabled:
@@ -486,10 +529,56 @@ def main():
         for scenario in scenarios:
             try:
                 scored.append(evaluate_scenario(scenario, call, manifest_bytes=None if args.skip_manifest else args.manifest_bytes,
-                                               exclude_facets=(facet,), harness=args.harness, diagnostics=args.diagnostics))
+                                               exclude_facets=resolve_exclusions(facet), harness=args.harness, diagnostics=args.diagnostics))
             except (OSError, ValueError, RuntimeError, subprocess.TimeoutExpired) as error:
                 scored.append({"id": scenario.get("id"), "status": "error", "error": str(error)})
         ablations[facet] = scored
+    controls = {}
+    if args.lexical_only:
+        scored = []
+        for scenario in scenarios:
+            try:
+                scored.append(evaluate_scenario(scenario, call, manifest_bytes=None if args.skip_manifest else args.manifest_bytes,
+                                                exclude_facets=lexical_only_exclusions(), harness=args.harness, diagnostics=args.diagnostics))
+            except (OSError, ValueError, RuntimeError, subprocess.TimeoutExpired) as error:
+                scored.append({"id": scenario.get("id"), "status": "error", "error": str(error)})
+        controls["lexical_only"] = scored
+    selection_variants = {}
+    for variant in filter(None, args.selection_variants.split(",")):
+        scored = []
+        for scenario in scenarios:
+            try:
+                scored.append(evaluate_scenario(scenario, call, manifest_bytes=None if args.skip_manifest else args.manifest_bytes,
+                                                harness=args.harness, diagnostics=args.diagnostics, selection_variant=variant))
+            except (OSError, ValueError, RuntimeError, subprocess.TimeoutExpired) as error:
+                scored.append({"id": scenario.get("id"), "status": "error", "error": str(error)})
+        selection_variants[variant] = scored
+    investigations = {}
+    for mode in filter(None, args.investigation_modes.split(",")):
+        from task_investigation import run_bounded_investigation
+        import tempfile
+        rows = []
+        for scenario in scenarios:
+            try:
+                with tempfile.TemporaryDirectory() as directory:
+                    rows.append({"id": scenario.get("id"), **run_bounded_investigation(
+                        call, Path(directory) / "inv", scenario, mode=mode,
+                        max_calls=args.investigation_max_calls, max_bytes=args.investigation_max_bytes,
+                        max_seconds=args.investigation_max_seconds, budget=args.manifest_bytes)})
+            except (OSError, ValueError, RuntimeError, subprocess.TimeoutExpired) as error:
+                rows.append({"id": scenario.get("id"), "status": "error", "error": str(error)})
+        investigations[mode] = rows
+    rg_baseline = None
+    if args.rg_baseline:
+        from task_baseline import rg_read_baseline
+        rg_baseline = []
+        for scenario in scenarios:
+            try:
+                rg_baseline.append({"id": scenario.get("id"), **rg_read_baseline(
+                    scenario, root, max_calls=args.investigation_max_calls,
+                    max_bytes=args.investigation_max_bytes, max_seconds=args.investigation_max_seconds)})
+            except (OSError, ValueError, RuntimeError, subprocess.TimeoutExpired) as error:
+                rg_baseline.append({"id": scenario.get("id"), "status": "error", "error": str(error)})
     timings = [r["first_packet_ms"] for r in results if "first_packet_ms" in r]
     input_error = None
     try:
@@ -505,7 +594,22 @@ def main():
             raise ValueError("Executable changed during evaluation")
     except (OSError, ValueError, RuntimeError, subprocess.TimeoutExpired) as error:
         input_error = str(error)
-    report = {"method": "ranked-task-context-v4", "scenarios": results, "facet_ablations": ablations,
+    def timing_summary(rows):
+        summary = {}
+        for phase in ("cold", "warm"):
+            subset = [r for r in rows if r.get("timing_phase") == phase]
+            for field, key in (("brief_ms", "median_brief_ms"), ("manifest_latency_ms", "median_manifest_latency_ms"),
+                               ("first_relevant_passage_ms", "median_first_relevant_passage_ms")):
+                values = [r[field] for r in subset if r.get(field) is not None]
+                summary.setdefault(phase, {})[key] = statistics.median(values) if values else None
+        return summary
+    report = {"method": "ranked-task-context-v5", "scenarios": results, "facet_ablations": ablations,
+              "controls": controls, "selection_variants": selection_variants,
+              "selection_variant_deltas": {variant: ablation_deltas(results, rows) for variant, rows in selection_variants.items()},
+              "investigations": investigations, "rg_baseline": rg_baseline,
+              "timing_summary": timing_summary(results),
+              "investigation_limits": {"max_calls": args.investigation_max_calls, "max_bytes": args.investigation_max_bytes,
+                                       "max_seconds": args.investigation_max_seconds},
               "facet_ablation_deltas": {facet: ablation_deltas(results, rows) for facet, rows in ablations.items()},
               "inputs": {"root": str(root), "database": str(database) if database else "environment/default",
                          "provenance": build_inputs, "raw_rpc_directory": str(args.trace_dir.resolve()) if args.trace_dir else None,

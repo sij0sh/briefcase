@@ -56,6 +56,7 @@ impl Ledger {
           CREATE TABLE IF NOT EXISTS batches (id TEXT PRIMARY KEY, digest TEXT NOT NULL, bundle_digest TEXT NOT NULL, watermark INTEGER NOT NULL REFERENCES events(watermark));
           CREATE TABLE IF NOT EXISTS occurrences (watermark INTEGER NOT NULL REFERENCES events(watermark), assertion_id TEXT NOT NULL REFERENCES records(id), PRIMARY KEY(watermark,assertion_id));
           CREATE TABLE IF NOT EXISTS views (id TEXT PRIMARY KEY, generation INTEGER NOT NULL REFERENCES scans(generation), watermark INTEGER NOT NULL, bundle TEXT NOT NULL, diagnostics TEXT NOT NULL, projection_generation INTEGER NOT NULL DEFAULT 0);
+          CREATE TABLE IF NOT EXISTS view_capture_states (view_id TEXT PRIMARY KEY REFERENCES views(id), capture_state TEXT);
           CREATE TABLE IF NOT EXISTS projections (id TEXT PRIMARY KEY, view_id TEXT NOT NULL REFERENCES views(id), generation INTEGER NOT NULL, kind TEXT NOT NULL, watermark INTEGER NOT NULL, body TEXT NOT NULL, UNIQUE(view_id,generation,kind));
           CREATE TABLE IF NOT EXISTS graph (projection_id TEXT NOT NULL REFERENCES projections(id), assertion_id TEXT NOT NULL REFERENCES records(id), PRIMARY KEY(projection_id,assertion_id));
           CREATE VIRTUAL TABLE IF NOT EXISTS search USING fts5(projection_id UNINDEXED, assertion_id UNINDEXED, terms);
@@ -253,6 +254,13 @@ impl Ledger {
                 String::from_utf8(bytes)?,
                 p.diagnostics.to_string()
             ],
+        )?;
+        // Freshness reads this per call; extracting it from a large bundle costs a full JSON parse.
+        let capture_state = rows(&p.bundle, "snapshots").first().and_then(|s| s["capture_state"].as_str())
+            .or_else(|| p.diagnostics["capture_state"].as_str());
+        tx.execute(
+            "INSERT INTO view_capture_states(view_id,capture_state) VALUES(?,?)",
+            params![view_id, capture_state],
         )?;
         tx.execute(
             "UPDATE scans SET status='committed',view_id=?,diagnostics=? WHERE generation=?",

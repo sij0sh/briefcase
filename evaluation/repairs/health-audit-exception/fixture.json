@@ -1,0 +1,36 @@
+{
+  "schema_version": "1.0",
+  "kind": "repair_fixture",
+  "id": "R-health-audit-exception",
+  "family": "conventions",
+  "note": "Scorer-only except task/target. The deviation is a declared approved exception; the supported decision is no change.",
+  "task": "handlers/health.py is the only handler that skips audit recording. Make it consistent with the other handlers.",
+  "target": "handlers/health.py",
+  "language": "python",
+  "policy": "architecture.json",
+  "sessions": [],
+  "reference_decision": "no_change",
+  "tests": {
+    "target": [],
+    "neighbors": ["tests.test_handlers.AuditedHandlers"],
+    "negative": ["tests.test_handlers.HealthProbe"]
+  },
+  "naive_must_fail": ["tests.test_handlers.HealthProbe"],
+  "allowed_paths": [],
+  "decision_witness_paths": ["architecture.json", "lib/audit.py", "tests/test_handlers.py"],
+  "claims": [
+    {"id": "EX.F1", "kind": "fact", "fact": "the other handlers record audit events through lib/audit.py",
+     "witnesses": [{"path": "handlers/orders.py", "pattern": "from lib import audit"},
+                   {"path": "handlers/refunds.py", "pattern": "from lib import audit"}],
+     "alternatives": [[{"finding": "architectural_convergence", "pattern": "lib/audit\\.py"}]]},
+    {"id": "EX.F2", "kind": "exception", "fact": "health skipping audit is a declared approved exception with a reason",
+     "witnesses": [{"path": "architecture.json", "pattern": "health-skips-audit"},
+                   {"path": "architecture.json", "pattern": "Readiness probes must answer while the audit store is down"}],
+     "alternatives": [[{"finding": "architectural_convergence", "pattern": "permitted_exception"}]]},
+    {"id": "EX.F3", "kind": "condition", "fact": "the audit store raises when unavailable during probes",
+     "witnesses": [{"path": "lib/audit.py", "pattern": "raise RuntimeError\\(\"audit store unavailable\"\\)"}]},
+    {"id": "EX.F4", "kind": "verification", "fact": "a test requires health to answer while the audit store is down",
+     "witnesses": [{"path": "tests/test_handlers.py", "pattern": "test_health_answers_while_audit_store_is_down"}]}
+  ],
+  "forbidden_patterns": ["(?i)add (an )?audit\\.record (call )?to (handlers/)?health", "(?i)the exception (is|looks) (stale|obsolete|accidental)"]
+}

@@ -1,0 +1,8 @@
+--- a/src/sync/retry.py
++++ n/src/sync/retry.py
+@@ -7,4 +7,4 @@
+ def delay(attempt, random=_random.random):
+     """Doubling backoff with jitter drawn from the upper half of the ceiling."""
+     ceiling = BASE_DELAY * 2 ** attempt
+-    return ceiling / 2 + (ceiling / 2) * random()
++    return min(MAX_DELAY, ceiling * random())

@@ -35,6 +35,8 @@ def main():
     parser.add_argument("--assessment", type=Path, help="JSON requirements with status, reason and delivered evidence event IDs")
     parser.add_argument("--read-event", help="Deliver one retained response by event ID")
     parser.add_argument("--rebind", action="store_true", help="Rebuild the task at latest after explicit source sync")
+    parser.add_argument("--mode", choices=("manifest-first", "exhaustive"), default="manifest-first",
+                        help="manifest-first reads anchor/selected files before candidate traversal; exhaustive keeps candidate-first traversal")
     args = parser.parse_args()
     if args.steps < 0 or not 2048 <= args.max_bytes <= 1048576 or (args.initial_files is not None and not 1 <= args.initial_files <= 1000):
         parser.error("steps must be nonnegative; max-bytes must be 2048..1048576")
@@ -85,7 +87,7 @@ def main():
         if state is None:
             if not request.get("task"):
                 raise ValueError("A new investigation requires --task")
-            workflow.start(request, args.max_bytes, binding)
+            workflow.start(request, args.max_bytes, binding, mode=args.mode)
             if parent:
                 workflow.state["previous_revision"] = parent
         else:

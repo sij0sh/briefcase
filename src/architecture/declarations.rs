@@ -163,6 +163,14 @@ pub fn validate(policy: &Value) -> Result<()> {
             )?;
         }
     }
+    let mut exceptions = BTreeSet::new();
+    for e in rows(policy, "convention_exceptions") {
+        require(
+            exceptions.insert(text(e, "id")),
+            "POLICY",
+            "Duplicate convention exception ID",
+        )?;
+    }
     let mut implementations = BTreeSet::new();
     for i in policy["feature_implementations"]
         .as_array()
@@ -253,6 +261,17 @@ pub(crate) fn apply(
             declare(b, subject, "FORBIDS_DEPENDENCY", target(object))?;
         } else {
             limitations.push(format!("unresolved rule {}: {from} -> {to}", rule["id"]));
+        }
+    }
+    // Approved exceptions to observed conventions stay declarations; the
+    // reason remains in the retained declaration artifact.
+    for exception in rows(&policy, "convention_exceptions") {
+        let module = text(exception, "module");
+        let to = text(exception, "target");
+        if let (Some(subject), Some(object)) = (modules.get(&module), modules.get(&to)) {
+            declare(b, subject, "EXEMPT_FROM_CONVENTION", target(object))?;
+        } else {
+            limitations.push(format!("unresolved convention exception {}: {module} -> {to}", exception["id"]));
         }
     }
     let binder = Binder {

@@ -1,7 +1,4 @@
 mod native_language_support;
-use native_language_support::assert_retained_retrieval;
-use serde_json::{json, Value};
-use std::{collections::BTreeSet, path::Path};
 use briefcase::architecture::{
     capture::Capture,
     contracts::{self, rows, strings, text},
@@ -12,6 +9,9 @@ use briefcase::architecture::{
     retrieval,
     typescript::{self, ScanOptions},
 };
+use native_language_support::assert_retained_retrieval;
+use serde_json::{json, Value};
+use std::{collections::BTreeSet, path::Path};
 
 fn options(view: &str) -> Options {
     Options {
@@ -624,4 +624,100 @@ fn cli_tsjs_policy_claim_routing_rebuild_and_retraction_share_authority() {
             .any(|s| s["currently_retracted"] == true)
     );
     assert!(typescript::analyze(&mut l, &options("base"), &ScanOptions::default()).is_err());
+}
+
+#[test]
+fn workspace_partitions_resolve_manifests_barrels_and_classify_calls() {
+    let temp = tempfile::tempdir().unwrap();
+    let root = temp.path().join("source");
+    let files: &[(&str, &str)] = &[
+        ("tsconfig.base.json", r#"{"compilerOptions":{"module":"NodeNext","moduleResolution":"NodeNext","allowImportingTsExtensions":true,"strict":true}}"#),
+        ("packages/core/package.json", r#"{"name":"@w/core","exports":{".":{"types":"./src/index.ts"},"./util":{"types":"./src/util.ts"}}}"#),
+        ("packages/core/tsconfig.json", r#"{"extends":"../../tsconfig.base.json","include":["src"]}"#),
+        ("packages/core/src/index.ts", "export * from \"./settings.ts\";\nexport { helper as aliased } from \"./util.ts\";\n"),
+        ("packages/core/src/settings.ts", "export const Settings = { a: 1 };\nexport function loadSettings() { return Settings; }\n"),
+        ("packages/core/src/util.ts", "export function helper() { return 1; }\n"),
+        ("apps/server/package.json", r#"{"name":"server"}"#),
+        ("apps/server/tsconfig.json", r#"{"extends":"external-preset/tsconfig.json","include":["src"]}"#),
+        ("apps/server/src/server.ts", "import { loadSettings } from \"@w/core\";\nimport { helper } from \"@w/core/util\";\nimport { Effect } from \"effect\";\nimport icon from \"./icon.png\";\nimport { missing } from \"./nothere.ts\";\nexport const run = () => Effect.succeed(loadSettings()).pipe(Effect.map(helper));\nnew Map(); helper();\n"),
+        ("apps/server/src/server.test.ts", "import { run } from \"./server.ts\";\nrun();\n"),
+        ("packages/broken/tsconfig.json", "{ broken"),
+        ("scripts/tool.ts", "export const x = 1;\n"),
+    ];
+    std::fs::create_dir_all(&root).unwrap();
+    for (name, code) in files {
+        let p = root.join(name);
+        std::fs::create_dir_all(p.parent().unwrap()).unwrap();
+        std::fs::write(p, code).unwrap();
+    }
+    let mut l = Ledger::open(&temp.path().join("knowledge.db")).unwrap();
+    let generation = l.begin("typescript-tests", Some("workspace")).unwrap();
+    let prepared = typescript::produce(
+        Capture::read(&root, None).unwrap(),
+        "typescript-tests",
+        generation,
+        &ScanOptions {
+            project: "workspace".into(),
+            calls: true,
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    contracts::validate(&prepared.bundle, &prepared.payloads).unwrap();
+    let imports = pairs(&prepared.bundle, "IMPORTS");
+    for (from, to) in [
+        (
+            "apps/server/src/server.test.ts",
+            "apps/server/src/server.ts",
+        ),
+        ("apps/server/src/server.ts", "packages/core/src/index.ts"),
+        ("apps/server/src/server.ts", "packages/core/src/util.ts"),
+        // The named import through `export *` reaches the declaring module.
+        ("apps/server/src/server.ts", "packages/core/src/settings.ts"),
+        (
+            "packages/core/src/index.ts",
+            "packages/core/src/settings.ts",
+        ),
+    ] {
+        assert!(
+            imports.contains(&(from.into(), to.into())),
+            "{from} -> {to}: {imports:?}"
+        );
+    }
+    assert!(pairs(&prepared.bundle, "CALLS_STATIC").is_empty());
+    let unresolved = rows(&prepared.bundle, "unresolved_references");
+    assert_eq!(
+        unresolved.len(),
+        1,
+        "only the missing relative module: {unresolved:?}"
+    );
+    let d = &prepared.diagnostics;
+    assert!(d["call_coverage"].is_null());
+    let w = &d["workspace"];
+    let status = |config: &str| {
+        rows(w, "partitions")
+            .into_iter()
+            .find(|p| p["config"] == config)
+            .unwrap()
+    };
+    assert_eq!(status("packages/broken/tsconfig.json")["status"], "failed");
+    assert_eq!(
+        status("apps/server/tsconfig.json")["degraded"],
+        "external_extends_unavailable"
+    );
+    let resolution = &w["import_resolution"];
+    assert_eq!(resolution["external_packages"]["effect"], 1);
+    assert_eq!(resolution["by_status"]["non_code_unretained"], 1);
+    assert_eq!(resolution["by_method"]["workspace_manifest"], 2);
+    assert_eq!(w["call_constructs"]["constructor"]["count"], 1);
+    assert!(
+        w["call_constructs"]["effect_namespace_call"]["count"]
+            .as_u64()
+            .unwrap()
+            >= 2
+    );
+    assert_eq!(d["omitted_source_files"], json!(["scripts/tool.ts"]));
+    assert!(strings(&d["limitations"])
+        .iter()
+        .any(|l| l.contains("1 file(s) under scripts")));
 }

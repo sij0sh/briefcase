@@ -1,0 +1,23 @@
+--- a/src/settings/export.py
++++ n/src/settings/export.py
+@@ -1,13 +1,13 @@
+ import copy
+ 
+-from settings import schema
+-
+ REDACTED = "<redacted>"
+ 
+ 
++def _redact(value):
++    if isinstance(value, dict):
++        return {k: REDACTED if k.endswith(("key", "token")) and v else _redact(v) for k, v in value.items()}
++    return value
++
++
+ def redact(settings):
+-    exported = copy.deepcopy(settings)
+-    for field in schema.SECRET_FIELDS:
+-        if exported.get(field):
+-            exported[field] = REDACTED
+-    return exported
++    return _redact(copy.deepcopy(settings))

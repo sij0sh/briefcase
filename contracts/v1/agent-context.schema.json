@@ -147,6 +147,18 @@
         }
       },
       "additionalProperties": false
+    },
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "findings_status": {
+      "enum": [
+        "evaluated",
+        "not_evaluated"
+      ]
     }
   },
   "additionalProperties": false,

@@ -1,0 +1,8 @@
+--- a/src/payments/orders.py
++++ n/src/payments/orders.py
+@@ -12,4 +12,4 @@
+ 
+ def amount_due_basis(order):
+     """Invoices state the order total, whatever has been captured so far."""
+-    return order.total
++    return order.captured

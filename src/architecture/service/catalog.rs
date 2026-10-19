@@ -4,10 +4,31 @@ use serde_json::{json, Value};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Kind {
-    Describe, Brief, AgentContext, Search, Occurrences, Neighbors, Reachability, Page, Explain,
-    Compare, HistoryLineage, Evolution, Policy, Unresolved, Domains, Drift,
-    Sessions, Session, SessionEvents, SessionFiles, SessionCommands, SessionChanges,
-    SessionActivity, Worktree, Status,
+    Describe,
+    Brief,
+    AgentContext,
+    Search,
+    Occurrences,
+    Neighbors,
+    Reachability,
+    Page,
+    Explain,
+    Compare,
+    HistoryLineage,
+    Evolution,
+    Policy,
+    Unresolved,
+    Domains,
+    Drift,
+    Sessions,
+    Session,
+    SessionEvents,
+    SessionFiles,
+    SessionCommands,
+    SessionChanges,
+    SessionActivity,
+    Worktree,
+    Status,
 }
 pub struct Operation {
     pub kind: Kind,
@@ -17,22 +38,40 @@ pub struct Operation {
     pub schema: Value,
 }
 pub fn discovery_schema() -> Value {
-    schema(&["operation", "query"], &[], json!({"limit":integer(1,100),"names":{"type":"boolean"}}))
+    schema(
+        &["operation", "query"],
+        &[],
+        json!({"limit":integer(1,100),"names":{"type":"boolean"}}),
+    )
 }
-fn integer(min:u64,max:u64) -> Value {json!({"type":"integer","minimum":min,"maximum":max})}
-fn schema(strings:&[&str], required:&[&str], extra:Value) -> Value {
-    let mut properties=extra.as_object().unwrap().clone();
-    for key in strings {properties.insert((*key).into(),json!({"type":"string"}));}
+fn integer(min: u64, max: u64) -> Value {
+    json!({"type":"integer","minimum":min,"maximum":max})
+}
+fn schema(strings: &[&str], required: &[&str], extra: Value) -> Value {
+    let mut properties = extra.as_object().unwrap().clone();
+    for key in strings {
+        properties.insert((*key).into(), json!({"type":"string"}));
+    }
     json!({"type":"object","properties":properties,"required":required,"additionalProperties":false})
 }
-fn common(extra:&[&str],required:&[&str]) -> Value {
-    let mut strings=vec!["view","component"];strings.extend_from_slice(extra);
-    schema(&strings,required,json!({"limit":integer(1,1000),"allow_partial":{"type":"boolean"},
-        "historical":{"type":"boolean"},"include_structure":{"type":"boolean"}}))
+fn common(extra: &[&str], required: &[&str]) -> Value {
+    let mut strings = vec!["view", "component"];
+    strings.extend_from_slice(extra);
+    schema(
+        &strings,
+        required,
+        json!({"limit":integer(1,1000),"allow_partial":{"type":"boolean"},
+        "historical":{"type":"boolean"},"include_structure":{"type":"boolean"}}),
+    )
 }
-fn session(extra:&[&str]) -> Value {
-    let mut strings=vec!["session"];strings.extend_from_slice(extra);
-    schema(&strings,&[],json!({"limit":integer(1,1000),"allow_partial":{"type":"boolean"},"historical":{"type":"boolean"}}))
+fn session(extra: &[&str]) -> Value {
+    let mut strings = vec!["session"];
+    strings.extend_from_slice(extra);
+    schema(
+        &strings,
+        &[],
+        json!({"limit":integer(1,1000),"allow_partial":{"type":"boolean"},"historical":{"type":"boolean"}}),
+    )
 }
 pub fn catalog() -> Vec<Operation> {
     use Kind::*;
@@ -68,6 +107,7 @@ pub fn catalog() -> Vec<Operation> {
             Describe=>discovery_schema(),
             Brief|AgentContext=>schema(&["task","target","view","duty","deployment_view","runtime_environment","runtime_from","runtime_to"],&["task"],
                 json!({"depth":integer(1,3),"limit":integer(1,1000),"max_files":integer(1,1000),
+                    "selection_variant":{"type":"string","enum":crate::architecture::task::selection_variants()},
                     "exclude_facets":{"type":"array","items":{"type":"string","enum":crate::architecture::task::retrieval_facets()},"uniqueItems":true}})),
             Search=>common(&["text","classes"],&["text"]),
             Occurrences=>schema(&["text","path","view"],&["text"],json!({"limit":integer(1,1000),"offset":integer(0,u64::MAX)})),
@@ -115,11 +155,15 @@ pub fn catalog() -> Vec<Operation> {
 }
 /// Compatibility names are unadvertised and resolve to the same implementation.
 /// Removed products intentionally have no compatibility entry.
-pub fn find(name:&str) -> Option<Operation> {
-    let short=name.strip_prefix("architecture_").unwrap_or(name);
-    let canonical=match short {
-        "ask"=>"brief", "recall"|"retrieve"=>"search", "task_page"|"continue"=>"page",
-        "task_explain"=>"explain", "dependencies"|"callgraph"=>"neighbors", _=>short,
+pub fn find(name: &str) -> Option<Operation> {
+    let short = name.strip_prefix("architecture_").unwrap_or(name);
+    let canonical = match short {
+        "ask" => "brief",
+        "recall" | "retrieve" => "search",
+        "task_page" | "continue" => "page",
+        "task_explain" => "explain",
+        "dependencies" | "callgraph" => "neighbors",
+        _ => short,
     };
-    catalog().into_iter().find(|op|op.name==canonical)
+    catalog().into_iter().find(|op| op.name == canonical)
 }

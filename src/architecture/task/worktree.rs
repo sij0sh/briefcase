@@ -13,8 +13,9 @@ pub fn worktree(l:&Ledger,a:&Value,root:&Path)->Result<Value> {
     let recorded=view.diagnostics["capture"]["repository_root"].as_str().ok_or("WORKTREE: Capture has no repository root")?;
     require(Path::new(recorded).canonicalize()?==root,"WORKTREE","Invocation root differs from the retained capture")?;
     let capture=crate::architecture::capture::Capture::read_excluding(&root,None,&l.source_exclusions()?)?;
+    // A `--policy` artifact is a supplied input, not a live path; its drift is not observable here.
     let old:BTreeMap<String,String>=rows(&view.bundle,"snapshots").iter().flat_map(|s|rows(s,"files"))
-        .map(|f|(text(f,"path"),text(f,"digest"))).collect();
+        .map(|f|(text(f,"path"),text(f,"digest"))).filter(|(p,_)|p!=crate::architecture::declarations::ARTIFACT_PATH).collect();
     let current:BTreeMap<String,String>=capture.files.iter().map(|(p,b)|(p.clone(),identity::bytes_digest(b))).collect();
     let selected:BTreeSet<String>=case.as_ref().into_iter().flat_map(|c|source::ARTIFACT_ROLES.iter()
         .flat_map(move |role|rows(&c["slice"],role))).map(|row|text(row,"path")).collect();
@@ -48,7 +49,7 @@ pub fn worktree(l:&Ledger,a:&Value,root:&Path)->Result<Value> {
         "changed_paths":changed,"outside_initial_slice":outside,"items":items,
         "coverage":{"state":if complete {"complete_for_capturable_text"}else{"partial"},
             "inventory":capture.inventory,"capture_complete":capture.complete,
-            "not_covered":["ignored, excluded or unavailable files","external repositories and installed files","edits after this read"]},
+            "not_covered":["ignored, excluded or unavailable files","external repositories and installed files","supplied --policy declarations","edits after this read"]},
         "instruction":"Changes include paths outside the initial slice. Refresh source capture before resuming an old task investigation; old graph assertions do not describe new bytes."});
     crate::architecture::reports::retain_items(l,doc,a["limit"].as_u64().unwrap_or(100) as usize)
 }

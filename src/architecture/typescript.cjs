@@ -31,13 +31,18 @@ const system = {
     p => p),
   realpath: p => path.normalize(p),
 };
-const project = path.join(root, request.project);
 const compilerDigest = () => 'sha256:' + crypto.createHash('sha256').update(fs.readFileSync(compilerPath)).digest('hex');
 const configurationError = (reason, message) => {
   process.stdout.write(JSON.stringify({ schema_version: '1.0', compiler_digest: compilerDigest(),
     configuration: { reason, message } }));
   process.exit(0);
 };
+if (request.project === 'workspace' || request.project.includes(',')) {
+  require(path.join(path.dirname(process.argv[1]), 'typescript_workspace.cjs'))({
+    ts, request, files, system, root, relative, isCode, compilerDigest, configurationError });
+  process.exit(0);
+}
+const project = path.join(root, request.project);
 if (!files.has(project)) configurationError('unavailable_project', 'Project configuration was not captured');
 const config = ts.readConfigFile(project, system.readFile);
 if (config.error) configurationError('invalid_config', ts.flattenDiagnosticMessageText(config.error.messageText, '\n'));
