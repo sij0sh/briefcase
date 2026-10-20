@@ -119,8 +119,9 @@ class Investigation:
         mode = normalize_mode(mode)
         self.state = {"schema_version": "1.0", "kind": "task_investigation", "request": dict(arguments),
                       "budget": budget, "events": [], "queue": [], "scheduled": [], "sources": {},
-                      "requirements": {}, "gaps": [], "status": "open", "binding": binding, "mode": mode,
-                      "compact_inventory": compact_inventory, "verify_sources": verify_sources, "case_revisions": []}
+                      "requirements": {}, "gaps": [], "conclusions": [], "status": "open", "binding": binding,
+                      "mode": mode, "compact_inventory": compact_inventory, "verify_sources": verify_sources,
+                      "case_revisions": []}
         manifest, _ = self.event("agent_context", {**arguments, "max_bytes": budget})
         for field, prefix in (("case_id", "task-case:"), ("view_id", "view:"), ("index_id", "task-index:")):
             if not isinstance(manifest.get(field), str) or not manifest[field].startswith(prefix):
@@ -440,6 +441,70 @@ class Investigation:
             if not isinstance(evidence, list) or any(ref not in known for ref in evidence) or (status == "supported" and not evidence):
                 raise ValueError("Supported claims need evidence from this investigation")
             self.state["requirements"][name] = {"status": status, "reason": reason, "evidence": evidence, "authority": "harness_assessment"}
+
+    def conclude(self, conclusion):
+        """Record one explicit, cited conclusion against delivered evidence.
+
+        Availability never creates a conclusion. Citations must name pinned
+        bytes already inspected, with the retained digest, and relationship
+        IDs must appear in the investigation event log. The scorer still
+        checks the registered claim text and oracle obligations.
+        """
+        if self.state.get("status") == "invalidated":
+            raise ValueError("Cannot record a conclusion against an invalidated investigation; rebind first")
+        if not isinstance(conclusion, dict):
+            raise ValueError("A conclusion must be an object")
+        claim_id, text = conclusion.get("claim_id"), conclusion.get("text")
+        citations = conclusion.get("citations", [])
+        relationship_ids = conclusion.get("relationship_ids", [])
+        if not isinstance(claim_id, str) or not claim_id.strip():
+            raise ValueError("A conclusion needs a claim_id")
+        if not isinstance(text, str) or not text.strip():
+            raise ValueError("A conclusion needs explicit text")
+        if not isinstance(citations, list) or not isinstance(relationship_ids, list):
+            raise ValueError("Conclusion citations and relationship_ids must be lists")
+        if not citations and not relationship_ids:
+            raise ValueError("A conclusion needs at least one citation or relationship")
+        rows = self.state.setdefault("conclusions", [])
+        if not isinstance(rows, list):
+            raise ValueError("Investigation conclusions must be a list")
+        if any(row.get("claim_id") == claim_id for row in rows):
+            raise ValueError("A conclusion submission must assess each claim at most once")
+        for citation in citations:
+            if not isinstance(citation, dict):
+                raise ValueError("A citation must be an object")
+            path, digest = citation.get("path"), citation.get("digest")
+            start, end = citation.get("start_byte"), citation.get("end_byte")
+            source = self.state.get("sources", {}).get(path)
+            if source is None or source.get("identity", {}).get("digest") != digest:
+                raise ValueError("A citation must name an inspected source and retained digest")
+            if type(start) is not int or type(end) is not int or not 0 <= start < end:
+                raise ValueError("A citation needs a valid inspected byte range")
+            spans = source.get("ranges", []) + source.get("excerpts", [])
+            if not any(span["start"] <= start and end <= span["end"] for span in spans):
+                raise ValueError("A citation range is outside the inspected bytes")
+        delivered = set()
+        for record in self.state.get("events", []):
+            event = json.loads((self.directory / record["file"]).read_text())
+            if key(event) != record["id"]:
+                raise ValueError("Stored evidence was modified")
+            def visit(value):
+                if isinstance(value, list):
+                    for item in value:
+                        visit(item)
+                elif isinstance(value, dict):
+                    if isinstance(value.get("id"), str):
+                        delivered.add(value["id"])
+                    for child in value.values():
+                        visit(child)
+            visit(event["response"])
+        if any(not isinstance(rid, str) or rid not in delivered for rid in relationship_ids):
+            raise ValueError("A relationship citation must name delivered evidence")
+        record = {"claim_id": claim_id, "text": text, "citations": citations,
+                  "relationship_ids": relationship_ids}
+        record["id"] = key(record)
+        rows.append(record)
+        return record["id"]
 
     def read_event(self, event_id):
         event = next((e for e in self.state["events"] if e["id"] == event_id), None)

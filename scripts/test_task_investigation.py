@@ -55,7 +55,7 @@ class Protocol:
                     "source_offset": offset, "next_source_offset": end if end < len(raw) else None,
                     "omitted_bytes": len(raw) - end, "text": body}
         if op == "neighbors":
-            return self.page([{ "from_files": ["src/consumer.rs"], "to_files": ["src/a.rs"]}], args, op)
+            return self.page([{"id": "task-link:one", "from_files": ["src/consumer.rs"], "to_files": ["src/a.rs"]}], args, op)
         if op == "occurrences":
             return self.page([{"path": "src/consumer.rs"}], args, op)
         if op == "page":
@@ -117,6 +117,8 @@ class InvestigationTests(unittest.TestCase):
         self.assertEqual(self.flow.state["worktree"]["outside_initial_slice"], 1)
         with self.assertRaisesRegex(ValueError, "Live source differs"):
             self.flow.step()
+        with self.assertRaisesRegex(ValueError, "invalidated"):
+            self.flow.conclude({"claim_id": "c", "text": "x", "citations": []})
         self.flow.save()
         self.assertEqual(self.flow.state["context_readiness"], "blocked")
 
@@ -148,6 +150,30 @@ class InvestigationTests(unittest.TestCase):
         self.flow.save()
         self.assertEqual(self.flow.state["context_readiness"], "ready")
         self.assertEqual(self.flow.state["verification"]["state"], "pending")
+
+    def test_conclusion_requires_inspected_citations_and_unique_claim(self):
+        self.drain()
+        source = self.flow.state["sources"]["src/a.rs"]
+        citation = {"path": "src/a.rs", "digest": source["identity"]["digest"],
+                    "start_byte": 0, "end_byte": 1}
+        conclusion = {"claim_id": "c", "text": "Pinned bytes were inspected.",
+                      "citations": [citation]}
+        self.flow.conclude(conclusion)
+        self.flow.conclude({"claim_id": "r", "text": "A retained link exists.",
+                            "citations": [], "relationship_ids": ["task-link:one"]})
+        with self.assertRaisesRegex(ValueError, "at most once"):
+            self.flow.conclude(conclusion)
+        for bad in (
+            {**conclusion, "claim_id": "bad-digest", "citations": [{**citation, "digest": "sha256:bad"}]},
+            {**conclusion, "claim_id": "bad-range", "citations": [{**citation, "end_byte": 9999}]},
+            {**conclusion, "claim_id": "bad-link", "citations": [], "relationship_ids": ["task-link:missing"]},
+            {**conclusion, "claim_id": "no-evidence", "citations": []},
+        ):
+            with self.assertRaises(ValueError):
+                self.flow.conclude(bad)
+        self.flow.save()
+        state = json.loads((Path(self.directory.name) / "state.json").read_text())
+        self.assertEqual([row["claim_id"] for row in state["conclusions"]], ["c", "r"])
 
     def test_stalled_pages_and_corrupted_bytes_leave_the_action_pending(self):
         self.protocol.corrupt = True
@@ -296,6 +322,35 @@ class InvestigationCliTests(unittest.TestCase):
             self.assertEqual(delivered.returncode, 0, delivered.stderr.decode())
             self.assertEqual(json.loads(delivered.stdout)["event_id"], event_id)
             self.assertLessEqual(len(delivered.stdout), 3000)
+
+    def test_cli_records_a_cited_conclusion_in_the_investigation_state(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            binary = root / "briefcase-stub"
+            scripts = Path(__file__).resolve().parent
+            binary.write_text(f"#!{sys.executable}\nimport sys,json\nsys.path.insert(0,{str(scripts)!r})\n"
+                              "from test_task_investigation import ManifestFirstTests\n"
+                              "operation=sys.argv[sys.argv.index('call')+1]\n"
+                              "args=json.loads(sys.argv[sys.argv.index('--args')+1])\n"
+                              "protocol=ManifestFirstTests().protocol_with_manifest()\n"
+                              "print(json.dumps(protocol(operation,args),ensure_ascii=False))\n")
+            binary.chmod(0o700)
+            command = [sys.executable, "-B", str(scripts / "task-investigate.py"), "--binary", str(binary),
+                       "--root", str(root), "--state-dir", str(root / "state"), "--max-bytes", "3000"]
+            first = subprocess.run([*command, "--task", "refactor storage", "--target", "src/a.rs"],
+                                   capture_output=True, timeout=15)
+            self.assertEqual(first.returncode, 0, first.stderr.decode())
+            state = json.loads((root / "state" / "state.json").read_text())
+            citation = {"path": "src/a.rs", "digest": state["sources"]["src/a.rs"]["identity"]["digest"],
+                        "start_byte": 0, "end_byte": 1}
+            conclusion = root / "conclusion.json"
+            conclusion.write_text(json.dumps({"claim_id": "c", "text": "Pinned bytes were inspected.",
+                                              "citations": [citation]}))
+            recorded = subprocess.run([*command, "--conclusion", str(conclusion)], capture_output=True, timeout=15)
+            self.assertEqual(recorded.returncode, 0, recorded.stderr.decode())
+            self.assertEqual(json.loads(recorded.stdout)["conclusions"], 1)
+            state = json.loads((root / "state" / "state.json").read_text())
+            self.assertEqual(state["conclusions"][0]["claim_id"], "c")
 
 
 class FocusedInvestigationTests(unittest.TestCase):

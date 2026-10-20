@@ -5,8 +5,10 @@ Example: python3 scripts/task-investigate.py --task 'rename save safely' \
   --target src/store.rs --root . --state-dir .briefcase/investigations/rename --steps 20
 Use the same state directory to resume. --read-event delivers earlier evidence;
 --query adds a pinned occurrence/neighbor/search request; --assessment records
-the harness's cited judgments. Neither fetching bytes nor empty queues prove
-completeness. After syncing changed source use --rebind to start fresh pins.
+the harness's cited judgments; --conclusion records an explicit claim with
+inspected citations or delivered relationship IDs. Neither fetching bytes nor
+empty queues prove completeness. After syncing changed source use --rebind to
+start fresh pins.
 """
 import argparse
 import json
@@ -33,6 +35,8 @@ def main():
     parser.add_argument("--timeout", type=float, default=60)
     parser.add_argument("--query", type=Path, help="JSON object/list of pinned occurrences, neighbors or search requests")
     parser.add_argument("--assessment", type=Path, help="JSON requirements with status, reason and delivered evidence event IDs")
+    parser.add_argument("--conclusion", type=Path, action="append", default=[],
+                        help="JSON conclusion object/list recorded against inspected bytes or delivered relationships; repeatable")
     parser.add_argument("--read-event", help="Deliver one retained response by event ID")
     parser.add_argument("--rebind", action="store_true", help="Rebuild the task at latest after explicit source sync")
     parser.add_argument("--compact-inventory", action="store_true", help="Use compact pinned candidate inventories (requires Priority 1 engine)")
@@ -140,6 +144,18 @@ def main():
                     # Keep collection separate from delivery when the wrapper does not fit.
                     next(e for e in workflow.state["events"] if e["id"] == display_event)["delivered_to_harness"] = False
                     result["event"] = last
+        if args.conclusion:
+            for path in args.conclusion:
+                payload = json.loads(path.read_text())
+                rows = payload.get("conclusions", payload) if isinstance(payload, dict) else payload
+                if isinstance(rows, dict):
+                    rows = [rows]
+                if not isinstance(rows, list):
+                    raise ValueError("A conclusion file must contain an object or a list")
+                for row in rows:
+                    workflow.conclude(row)
+            workflow.save()
+        result["conclusions"] = len(workflow.state.get("conclusions", []))
         encoded = json.dumps(result, ensure_ascii=False, separators=(",", ":")) + "\n"
         if len(encoded.encode()) > args.max_bytes:
             raise ValueError("Consumer envelope does not fit; increase --max-bytes to read this event")

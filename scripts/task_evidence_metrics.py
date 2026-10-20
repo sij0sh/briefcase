@@ -12,6 +12,16 @@ from run_evidence import atomic_json
 from task_investigation import key
 from task_loss_witnesses import inspected_passages
 
+EFFORT_FIELDS = ("calls", "bytes", "elapsed_seconds")
+
+
+def state_conclusions(state):
+    """Conclusions recorded by the investigation workflow, not inferred evidence."""
+    rows = state.get("conclusions", [])
+    if not isinstance(rows, list):
+        raise ValueError("Investigation conclusions must be a list")
+    return rows
+
 
 def validate_oracles(scenarios):
     ids = [s["id"] for s in scenarios]
@@ -172,7 +182,7 @@ def score(oracle, passages, ranges, identities, responses, conclusions=None):
 def aggregate(rows):
     totals = {name: sum(r.get(name, 0) for r in rows) for name in
         ("passages_inspected", "passages_required", "relationships_delivered", "relationships_required", "claims_supportable", "claims_required")}
-    errors = sum(r.get("status") == "error" for r in rows)
+    errors = sum(bool(r.get("status") == "error" or r.get("timing_error")) for r in rows)
     for prefix, hits, total, ratio in (("passage", "passages_inspected", "passages_required", "passage_recall"),
         ("relationship", "relationships_delivered", "relationships_required", "relationship_recall"),
         ("claim", "claims_supportable", "claims_required", "claim_supportability")):
@@ -187,6 +197,20 @@ def aggregate(rows):
     submitted = any(r.get("conclusions", {}).get("state") == "scored" for r in rows)
     conclusions["claim_coverage"] = conclusions["supported"] / totals["claims_required"] if submitted and totals["claims_required"] and not errors else None
     conclusions["state"] = "scored" if submitted else "not_submitted"
+    scored_rows = [r for r in rows if r.get("status") != "error" and not r.get("timing_error")]
+    effort = {field: sum((r.get("effort") or {}).get(field) or 0 for r in scored_rows) for field in EFFORT_FIELDS}
+    totals["effort"] = {**effort, "scored_scenarios": len(scored_rows)}
+    unit = lambda hits, size: hits / size if size and not errors else None
+    totals["coverage_per_effort"] = {
+        "passage_hits_per_call": unit(totals["passages_inspected"], effort["calls"]),
+        "relationship_hits_per_call": unit(totals["relationships_delivered"], effort["calls"]),
+        "claim_hits_per_call": unit(totals["claims_supportable"], effort["calls"]),
+        "supported_conclusions_per_call": unit(conclusions["supported"], effort["calls"]),
+        "passage_hits_per_mib": unit(totals["passages_inspected"], effort["bytes"] / 1048576),
+        "relationship_hits_per_mib": unit(totals["relationships_delivered"], effort["bytes"] / 1048576),
+        "claim_hits_per_mib": unit(totals["claims_supportable"], effort["bytes"] / 1048576),
+        "supported_conclusions_per_mib": unit(conclusions["supported"], effort["bytes"] / 1048576),
+        "interpretation": "Coverage divided by the arm's actual calls or response bytes. Null for any incomplete arm; effort is not a quality score."}
     totals.update(errors=errors, comparison_eligible=not errors, scenarios=rows)
     return totals
 
@@ -202,15 +226,21 @@ def evaluate(results_path, oracles, submissions=None):
         scored = []
         for row in rows:
             oracle = labels[row["id"]]
+            effort = {field: row.get(field) for field in EFFORT_FIELDS}
             if row.get("status") == "error":
                 scored.append({"id": row["id"], "status": "error", "passages_required": len(oracle.get("passages", [])),
-                    "relationships_required": len(oracle.get("relationships", [])), "claims_required": len(oracle.get("claims", []))})
+                    "relationships_required": len(oracle.get("relationships", [])), "claims_required": len(oracle.get("claims", [])),
+                    "effort": effort})
                 continue
             state, passages, ranges, identities, responses = read_evidence(row["checkpoint"])
             if any(state[k] != row[k] for k in ("case_id", "index_id", "view_id")):
                 raise ValueError("Checkpoint differs from the measured investigation")
-            conclusions = None if submissions is None else submissions.get((mode, row["id"]), [])
-            scored.append({"id": row["id"], **score(oracle, passages, ranges, identities, responses, conclusions)})
+            # An external file remains an override for harnesses that cannot
+            # write conclusions into the investigation record.
+            conclusions = (submissions.get((mode, row["id"]), []) if submissions is not None
+                           else state_conclusions(state))
+            scored.append({"id": row["id"], **score(oracle, passages, ranges, identities, responses, conclusions),
+                           "effort": effort})
         modes[mode] = aggregate(scored)
     return {"results": str(results_path), "results_sha256": hashlib.sha256(raw).hexdigest(), "modes": modes}
 
