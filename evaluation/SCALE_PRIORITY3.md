@@ -1,7 +1,8 @@
 # Scale Priority 3: inspected evidence and supported conclusions
 
-Status: metric infrastructure implemented and exercised on round 4. No answer
-quality or behavioral sufficiency result has been established. See
+Status: metric infrastructure implemented and exercised on round 4. Conclusion
+recording is now part of the investigation record. No answer quality or
+behavioral sufficiency result has been established. See
 [round-4 results](priority2-r4-results.json) for counts, raw artifact paths and
 SHA-256 digests, and [serving reliability](SERVING_RELIABILITY.md) for the
 unresolved process/data corruption blocker.
@@ -29,13 +30,41 @@ evidence obligations; it is not an unrestricted natural-language truth judge.
 
 Reports include micro coverage (total hits / total authored obligations), macro
 coverage (mean per-task coverage), and submitted/supported/unsupported conclusion
-counts with precision and supported-claim coverage. No submitted conclusions
-means `not_submitted` and null precision/coverage. It is not perfect accuracy.
+counts with precision and supported-claim coverage. They also report actual
+calls, response bytes and elapsed seconds, plus coverage-per-effort ratios. A
+ratio is null when any arm has an error. No submitted conclusions means
+`not_submitted` and null precision/coverage. It is not perfect accuracy.
 Each arm must retain every authored task. Failed tasks retain their full
 obligation counts; comparable coverage becomes null, with observed lower bounds
 reported separately. These metric eligibility flags concern the scored evidence
 arm; they do not override upstream run errors or qualify a diagnostic replay for
 promotion.
+
+## Recording conclusions
+
+`scripts/task-investigate.py --conclusion conclusions.json` records explicit
+conclusions in the investigation state. The file may contain one object, a list,
+or `{"conclusions": [...]}`. Each conclusion has this shape:
+
+```json
+{"claim_id":"registered-claim-id","text":"Exact registered claim text.",
+ "citations":[{"path":"src/example.ts","digest":"sha256:...",
+   "start_byte":100,"end_byte":180}],
+ "relationship_ids":["task-link:..."]}
+```
+
+The workflow rejects a duplicate claim ID in one investigation. Every citation
+must name pinned bytes already inspected and the retained digest. The cited
+range must fall inside an inspected range or excerpt. Every relationship ID must
+appear in the investigation event log. These checks prevent a conclusion from
+citing bytes that were never delivered. The scorer still checks the registered
+claim text and oracle obligations; a well-formed submission can remain
+unsupported.
+
+When `--conclusions` is omitted, `task-evidence-evaluate.py` reads conclusions
+from each investigation checkpoint. An external `--conclusions` file overrides
+the checkpoint for every task. This keeps recorded conclusions attached to the
+evidence that produced them and still supports an external harness.
 
 ## Frozen round-4 pilot
 
