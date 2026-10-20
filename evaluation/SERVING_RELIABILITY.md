@@ -1,9 +1,9 @@
 # Serving and retained-JSON corruption investigation
 
 Status on 2026-10-20: unresolved. Evaluation accounting and failure capture
-have been repaired; the native process/data corruption has not. Neither a
-toolchain pin nor an allocator switch is supported as a fix. No promotion
-comparison should use incomplete arms. See
+have been repaired. A hardware memory fault is now confirmed; the failing
+component is not isolated. Neither a toolchain pin nor an allocator switch is
+supported as a fix. No promotion comparison should use incomplete arms. See
 [round-4 results](priority2-r4-results.json) for frozen experiment hashes.
 
 ## Evaluator repairs
@@ -38,9 +38,10 @@ that run. Its two retrieval errors and one timing error remain recorded.
 R4 reproduced `free(): invalid next size (normal)` in baseline serving and
 `double free or corruption (out)` in a separate process-per-call latency pass.
 The exact-key arm also had a malformed retained-JSON error. These errors occurred
-on different tasks; the shared root cause of every error is not established.
-Both retrieval arms scored 25 of 28 labels, so their equal observed counts do
-not establish equivalence or an exact-key gain.
+on different tasks. The isolated JSON failure is now explained by the hardware
+memory fault; the exact-key malformed JSON error has not been separately
+reproduced. Both retrieval arms scored 25 of 28 labels, so their equal observed
+counts do not establish equivalence or an exact-key gain.
 
 The investigation reduced a corruption failure to a separate executable that
 only parses a 227,229,487-byte retained JSON bundle, deeply clones
@@ -70,11 +71,45 @@ set at the same virtual page byte offset `0xa0d`:
 | 1616968 | Round-2 retained Link drop | `0x55d1de444a08` |
 | 1810400 | R4 manifest process allocator free | `0x561548c16a08` |
 
-The repeated bit/page pattern and JSON-only reproduction make host instability
-a serious hypothesis. They do not prove faulty RAM, CPU settings, or a specific
-software defect. Online memory checks passed; no actual MCE/EDAC failure was
-found. XMP/EXPO, PBO/Curve Optimizer, overclock and undervolt settings remain
-unknown. No firmware or system tuning settings were changed.
+The three cores share an impossible chunk size: bit 43 set at page byte offset
+`0xa0d`. A hardware memory test now reproduces that signature.
+
+### Hardware memory fault confirmed
+
+On 2026-10-20, `stressapptest -s 60 -M 30000 -m 12 -i 4 -C 4 -W` found four
+hardware miscompares in 12 seconds. The test allocates 30 GiB and checks
+walking-bit patterns with multiple reader and writer threads.
+
+| Physical word | Failed bit | Page offset | Read | Expected |
+| --- | --- | --- | --- | --- |
+| `0x9b2853a08` | 43 | `0xa0d` | `0x55555d5555555555` | `0x5555555555555555` |
+| `0xeba0a4158` | 31 | `0x15b` | `0xffffffff80000000` | `0xffffffff00000000` |
+
+The first physical page is the exact JSON signature: bit 43 in the 8-byte word
+at page offset `0xa08`, with the bad byte at `0xa0d`. The three JSON cores had a
+glibc chunk size of `0x0000080000000061` or `0x0000080000000021` where `0x61` or
+`0x21` was expected, and one free path held `0x80000000020` where `0x20` was
+expected. `stressapptest` produced the same bit at the same offset on physical
+page `0x9b2853a08`.
+
+Other failures used page offsets `0x54a` and `0x158` with bits 16 and 31. At
+least two physical pages and several bits are affected. The failing virtual
+addresses were reproduced on CPU 0, 2, 4, 6, 8, 16, 18 and 22, so this is not one
+core's arithmetic error.
+
+The host is already conservative. CPU boost was disabled for the baseline and
+actual single-core and all-core frequency is 4.2 GHz. Memory runs at 2133 MT/s
+JEDEC, not the 3600 rating of the four G.Skill modules. ECC is absent. Tctl was
+about 41 C at the failure and package power was about 63 W. No MCE or EDAC
+record exists because the memory is non-ECC. A BIOS PBO/Curve Optimizer or SoC
+undervolt setting is not visible from the OS and is not yet excluded.
+
+A later sysfs boost probe left the software flag at 1. Actual frequency stayed
+at 4.2 GHz and dmesg reported that the kernel could not enable or disable boost.
+A reboot restores the prior state.
+
+This confirms a hardware memory fault. It does not yet identify a DIMM, slot,
+CPU IMC or board trace.
 
 Native ASAN replay completed 13 of 16 requests before being deliberately
 stopped for diagnostic cost, with no sanitizer finding. One optimized targeted
@@ -108,11 +143,23 @@ Local diagnostic artifacts are under `.agents/artifacts/scale-next/`:
 `current-free-assembly.txt`. The old equality assertion produced a very large
 stderr file; use the bounded diagnostic for subsequent reproduction.
 
-Next discriminating work is to run the isolated project and identical bundle
-on a second host, and inspect the current host's memory/CPU configuration and
-offline memory diagnostics. Reproduce at stock settings if tuning is enabled.
-That requires access to another machine or a maintenance window; it has not
-been performed here. Keep all R4 tasks as regression cases, require a full
-error-free run before any relevance comparison, and freeze independently
-authored new tasks before a promotion test. Do not hide the failures with
-retries, remove failed labels, or assume successful short reruns are a repair.
+Hardware-fault logs are under `.agents/artifacts/scale-next/host-diag/`:
+`stressapptest.log`, `stressapptest-2.log`, `stressapptest-root.log`,
+`physical-addresses.txt`, `capture-phys.py`, `pagemap-capture.sh` and
+`summary.txt`. The full write-up is
+`.agents/artifacts/NATIVE_CORRUPTION_HARDWARE_ANALYSIS.md`.
+
+Next work is to isolate the failing component. Record the BIOS settings, then
+clear CMOS or load optimized defaults. Disable PBO, EXPO/XMP, Curve Optimizer and
+manual voltage offsets, keep memory at 2133 MT/s, and rerun `stressapptest` for
+at least 10 minutes. If errors persist, test one DIMM at a time in the same slot
+with MemTest86+ for at least four passes. Reseat the CPU, DIMMs and cooler, and
+update the BIOS. If every module passes alone, suspect the CPU IMC or the board.
+
+Do not use this host for new evaluation until the fault is repaired and a clean
+`stressapptest` run plus a full MemTest86+ pass are recorded. Keep all R4 tasks
+as regression cases, require a full error-free run before any relevance
+comparison, and freeze independently authored new tasks before a promotion test.
+Do not hide the failures with retries, remove failed labels, or assume successful
+short reruns are a repair. Do not run a repair scrub on the corrupted Btrfs
+filesystem until the hardware is fixed.

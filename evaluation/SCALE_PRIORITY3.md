@@ -6,7 +6,7 @@ A development obligation pilot is authored but not run. No answer quality or
 behavioral sufficiency result has been established. See
 [round-4 results](priority2-r4-results.json) for counts, raw artifact paths and
 SHA-256 digests, and [serving reliability](SERVING_RELIABILITY.md) for the
-unresolved process/data corruption blocker.
+confirmed hardware memory fault blocking a fresh run.
 
 ## What is measured
 
