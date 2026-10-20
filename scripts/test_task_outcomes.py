@@ -21,6 +21,13 @@ class WitnessScoringTests(unittest.TestCase):
         self.assertTrue(outcomes.claim_supported(self.claim, delivered({"a.py": "MAX_DELAY = 30\n"})))
         self.assertFalse(outcomes.claim_supported(self.claim, delivered({"a.py": "delay = 30\n"})))
 
+    def test_focused_passages_do_not_credit_an_artificial_join_across_unread_bytes(self):
+        evidence = delivered({"a.py": "MAX_DELAY ="})
+        evidence["file_passages"] = {"a.py": ["MAX_DELAY", " ="]}
+        self.assertFalse(outcomes.claim_supported(self.claim, evidence))
+        evidence["file_passages"]["a.py"] = ["MAX_DELAY ="]
+        self.assertTrue(outcomes.claim_supported(self.claim, evidence))
+
     def test_finding_alternative_needs_matching_kind_and_text(self):
         right = {"kind": "session_review_requirement", "claim": "keep under MAX_DELAY"}
         wrong = {"kind": "behavior_condition", "claim": "keep under MAX_DELAY"}

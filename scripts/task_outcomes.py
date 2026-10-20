@@ -235,11 +235,16 @@ def deliver_briefcase(call, scenario, directory, exclude, budgets):
             parts.append(json.loads((directory / events[span["event"]]["file"]).read_text())["response"]["text"])
         if parts:
             files[path] = "".join(parts)
+    file_passages = None
+    if state.get("mode") in ("inventory_first", "excerpt_first"):
+        from task_loss_witnesses import inspected_passages
+        file_passages = inspected_passages(directory, state)
+        files = {path: "\n[uninspected source gap]\n".join(parts) for path, parts in file_passages.items() if parts}
     manifest = json.loads((directory / state["events"][0]["file"]).read_text())["response"]
     # Retained findings are fetched scorer-side for the audit; this read is not
     # delivered to the condition and is not counted in its cost.
     retained = retained_findings(call, state["case_id"])
-    return {"files": files, "findings": list(manifest.get("findings") or []), "retained_findings": retained,
+    return {"files": files, "file_passages": file_passages, "findings": list(manifest.get("findings") or []), "retained_findings": retained,
             "findings_status": manifest.get("findings_status"), "case_id": state["case_id"],
             "candidates": sorted(state.get("sources", {})),
             "cost": {"calls": result["calls"], "bytes": result["bytes"], "seconds": result["elapsed_seconds"],
@@ -251,6 +256,8 @@ def deliver_briefcase(call, scenario, directory, exclude, budgets):
 def witness_met(witness, delivered):
     pattern = re.compile(witness["pattern"], re.M)
     if "path" in witness:
+        if delivered.get("file_passages") is not None:
+            return any(pattern.search(part) is not None for part in delivered["file_passages"].get(witness["path"], []))
         text = delivered["files"].get(witness["path"])
         return text is not None and pattern.search(text) is not None
     return any(finding.get("kind") == witness["finding"] and pattern.search(json.dumps(finding, ensure_ascii=False))

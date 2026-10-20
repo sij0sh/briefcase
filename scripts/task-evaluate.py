@@ -656,7 +656,7 @@ def main():
     parser.add_argument("--ablations", default="", help="Comma-separated facets, or all, to disable one at a time; lexical-only disables every non-lexical facet together")
     parser.add_argument("--lexical-only", action="store_true", help="Also run a true lexical-only control (all non-lexical facets disabled together)")
     parser.add_argument("--selection-variants", default="", help="Comma-separated selection variants to compare against baseline at fixed manifest/max-files budgets")
-    parser.add_argument("--investigation-modes", default="", help="Comma-separated Arm B modes: manifest-first,exhaustive")
+    parser.add_argument("--investigation-modes", default="", help="Comma-separated Arm B modes: manifest-first,exhaustive,inventory-first,excerpt-first")
     parser.add_argument("--investigation-max-calls", type=int, default=300)
     parser.add_argument("--investigation-max-bytes", type=int, default=2097152)
     parser.add_argument("--investigation-max-seconds", type=float, default=180)

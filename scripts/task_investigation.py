@@ -14,13 +14,13 @@ def key(value):
     return digest(json.dumps(value, sort_keys=True, separators=(",", ":")).encode())
 
 
-MODES = ("manifest_first", "exhaustive")
+MODES = ("manifest_first", "exhaustive", "inventory_first", "excerpt_first")
 
 
 def normalize_mode(mode):
     value = (mode or "manifest-first").replace("-", "_")
     if value not in MODES:
-        raise ValueError(f"Unknown investigation mode: {mode!r} (expected manifest-first or exhaustive)")
+        raise ValueError(f"Unknown investigation mode: {mode!r} (expected {', '.join(MODES)})")
     return value
 
 
@@ -33,6 +33,18 @@ def manifest_source_ref(manifest, row):
     if isinstance(row.get("ref"), str):
         return row["ref"]
     return None
+
+
+def source_offset(row):
+    """Use the server's localized byte range, never scorer witness locations."""
+    fetch = row.get("fetch", {}).get("arguments", {})
+    offset = fetch.get("source_offset", row.get("source_offset"))
+    if offset is None:
+        spans = row.get("spans") or []
+        offset = spans[0].get("byte_range", {}).get("start", 0) if spans else 0
+    if type(offset) is not int or offset < 0:
+        raise ValueError("Invalid localized source offset")
+    return offset
 
 
 class Investigation:
@@ -70,19 +82,39 @@ class Investigation:
             # decides which sources are complete when the budget runs out.
             queue.insert(1 if front and queue else len(queue), {"id": action_id, **action})
 
-    def source(self, path, report, reference):
+    def source(self, path, report, reference, offset=0):
         if path in self.state.setdefault("sources", {}):
             return
         self.state["sources"][path] = {"report_id": report, "ref": reference, "ranges": [], "state": "queued"}
-        self.enqueue("explain", {"report_id": report, "ref": reference, "source_offset": 0}, "source", path)
+        focused = self.state.get("mode") in ("inventory_first", "excerpt_first") or not self.state.get("verify_sources", True)
+        self.enqueue("explain", {"report_id": report, "ref": reference, "source_offset": offset if focused else 0},
+                     "excerpt" if focused else "source", path)
 
-    def start(self, arguments, budget=8000, binding=None, mode=None):
+    def next_action(self):
+        """Old policies preserve their order; new policies defer whole-file reads.
+
+        excerpt-first alternates one inventory action with up to four focused
+        reads. Its phase is persisted so resuming cannot restart the schedule.
+        inventory-first measures the cost of enumerating inventories up front.
+        """
+        queue = self.state["queue"]
+        mode = self.state.get("mode")
+        if mode not in ("inventory_first", "excerpt_first"):
+            return queue[0]
+        inventories = [a for a in queue if a["kind"] not in ("source", "excerpt")]
+        excerpts = [a for a in queue if a["kind"] == "excerpt"]
+        if inventories and (mode == "inventory_first" or not excerpts or self.state.get("excerpt_turn", 0) == 0):
+            return inventories[0]
+        return (excerpts or inventories or queue)[0]
+
+    def start(self, arguments, budget=8000, binding=None, mode=None, *, compact_inventory=False, verify_sources=True):
         if self.state:
             raise ValueError("Start requires a new investigation directory")
         mode = normalize_mode(mode)
         self.state = {"schema_version": "1.0", "kind": "task_investigation", "request": dict(arguments),
                       "budget": budget, "events": [], "queue": [], "scheduled": [], "sources": {},
-                      "requirements": {}, "gaps": [], "status": "open", "binding": binding, "mode": mode}
+                      "requirements": {}, "gaps": [], "status": "open", "binding": binding, "mode": mode,
+                      "compact_inventory": compact_inventory, "verify_sources": verify_sources, "case_revisions": []}
         manifest, _ = self.event("agent_context", {**arguments, "max_bytes": budget})
         for field, prefix in (("case_id", "task-case:"), ("view_id", "view:"), ("index_id", "task-index:")):
             if not isinstance(manifest.get(field), str) or not manifest[field].startswith(prefix):
@@ -99,7 +131,7 @@ class Investigation:
         rows = ([anchor] if anchor.get("path") else []) + list(manifest.get("files") or [])
         self.state["manifest"] = {"anchor_path": anchor.get("path"),
                                    "paths": [row["path"] for row in rows if isinstance(row, dict) and row.get("path")]}
-        if mode == "manifest_first":
+        if mode != "exhaustive":
             # Selected evidence first: anchor, then supplemental files in
             # manifest order. Candidate/gap traversal is enqueued after.
             for row in rows:
@@ -107,11 +139,14 @@ class Investigation:
                     continue
                 ref = manifest_source_ref(manifest, row)
                 if ref is not None:
-                    self.source(row["path"], report, ref)
+                    self.source(row["path"], report, ref, source_offset(row))
         for ref, kind in (("/coverage/artifact_roles", "roles"), ("/coverage/required_roles", "required_roles")):
             self.enqueue("explain", {"report_id": report, "ref": ref}, kind)
         self.enqueue("page", {"report_id": report, "section": "/not_covered", "offset": 0, "limit": 20}, "gaps")
-        self.enqueue("page", {"report_id": report, "section": "/candidates", "offset": 0, "limit": 20}, "candidates")
+        if compact_inventory:
+            self.enqueue("inventory", {"case_id": report, "kind": "candidates", "offset": 0, "limit": 20}, "candidates")
+        else:
+            self.enqueue("page", {"report_id": report, "section": "/candidates", "offset": 0, "limit": 20}, "candidates")
         target = arguments.get("target")
         if target and target not in (".", "./", "/"):
             self.enqueue("neighbors", {"index_id": self.state["index_id"], "view": self.state["view_id"],
@@ -170,14 +205,14 @@ class Investigation:
             raise ValueError(self.state["blocker"])
         if not self.state["queue"]:
             return None
-        action = self.state["queue"][0]
+        action = self.next_action()
         args = {**action["arguments"], "max_bytes": self.state["budget"]}
-        if action["kind"] == "source":
+        if action["kind"] in ("source", "excerpt"):
             args["source_bytes"] = min(4000, max(4, self.state["budget"] // 2))
         else:
             # Inventory pages must fit at least one row; the manifest budget
             # alone can stall T3-scale gap/candidate pages at zero rows.
-            args["max_bytes"] = max(self.state["budget"], 65536)
+            args["max_bytes"] = self.state["budget"] if self.state.get("compact_inventory") and action["kind"] == "candidates" else max(self.state["budget"], 65536)
         result, event_id = self.event(action["operation"], args)
         self.validate_pin(result)
         if args.get("report_id") and result.get("report_id") != args["report_id"]:
@@ -187,6 +222,8 @@ class Investigation:
         kind = action["kind"]
         if kind == "source":
             self.consume_source(action, result, event_id)
+        elif kind == "excerpt":
+            self.consume_source(action, result, event_id, excerpt=True)
         elif kind in ("roles", "required_roles"):
             if "entry" not in result:
                 raise ValueError("Task policy metadata was omitted by the budget")
@@ -221,9 +258,12 @@ class Investigation:
             if kind == "gaps":
                 self.state["gaps"].extend({"event": event_id, "area": row.get("area"), "dimension": row.get("dimension"),
                                            "actionable": row.get("actionable", True)} for row in items)
-            if kind == "candidates":
+            if kind in ("candidates", "lexical", "files"):
+                inventory = self.state.setdefault("candidate_inventory" if kind == "candidates" else kind + "_inventory", [])
+                report = result.get("fetch_source", {}).get("arguments", {}).get("report_id", self.state["case_id"])
                 for index, row in enumerate(items, start=page["offset"]):
-                    self.source(row["path"], self.state["case_id"], row.get("source_ref", f"/candidates/{index}"))
+                    inventory.append(row["path"])
+                    self.source(row["path"], report, row.get("source_ref", f"/candidates/{index}"), source_offset(row))
             if kind in ("neighbors", "occurrences", "search"):
                 paths = set()
                 for row in items:
@@ -233,12 +273,14 @@ class Investigation:
                 for path in sorted(paths):
                     escaped = path.replace("~", "~0").replace("/", "~1")
                     self.source(path, self.state["index_id"], "/files/" + escaped)
-        self.state["queue"].pop(0)
+        self.state["queue"].remove(action)
+        if self.state.get("mode") == "excerpt_first":
+            self.state["excerpt_turn"] = (self.state.get("excerpt_turn", 0) + 1) % 5 if kind == "excerpt" else 1
         self.state["status"] = "open"
         self.save()
         return event_id
 
-    def consume_source(self, action, result, event_id):
+    def consume_source(self, action, result, event_id, excerpt=False):
         path, expected = action["path"], action["arguments"].get("source_offset", 0)
         source = self.state["sources"][path]
         entry, text = result.get("entry", {}), result.get("text")
@@ -259,10 +301,22 @@ class Investigation:
                 or (end < entry["bytes"] and (not text or type(next_offset) is not int or next_offset != end))
                 or (end == entry["bytes"] and next_offset is not None)):
             raise ValueError("Non-contiguous or stalled source bytes")
+        source["inspection_state"] = "inspected_pinned_range"
+        if excerpt and (expected != 0 or next_offset is not None):
+            source.setdefault("excerpts", []).append({"start": expected, "end": end, "event": event_id})
+            source["state"] = "excerpt_inspected"
+            # The retained server validates the pinned payload. A localized
+            # excerpt is not client verification of the full-file digest.
+            source["verification_state"] = "not_requested"
+            if self.state.get("verify_sources", True):
+                self.enqueue("explain", {**action["arguments"], "source_offset": 0}, "source", path)
+                source["verification_state"] = "queued"
+            return
         source["ranges"].append({"start": expected, "end": end, "event": event_id})
         if next_offset is not None:
             self.enqueue("explain", {**action["arguments"], "source_offset": next_offset}, "source", path, front=True)
             source["state"] = "partial"
+            source["verification_state"] = "partial"
         else:
             hasher = hashlib.sha256()
             offset = 0
@@ -277,9 +331,50 @@ class Investigation:
             if "sha256:" + hasher.hexdigest() != entry["digest"]:
                 raise ValueError("Delivered source digest does not match retained bytes")
             source["state"] = "digest_verified"
+            source["verification_state"] = "digest_verified"
+
+    def verify_source(self, path):
+        source = self.state.get("sources", {}).get(path)
+        if source is None:
+            raise ValueError("Inspect or queue a pinned source before requesting verification")
+        if source.get("state") != "digest_verified":
+            offset = source["ranges"][-1]["end"] if source["ranges"] else 0
+            self.enqueue("explain", {"report_id": source["report_id"], "ref": source["ref"], "source_offset": offset}, "source", path)
+            source["verification_state"] = "queued"
+
+    def expand_scope(self, arguments):
+        if arguments.get("case_id", self.state["case_id"]) != self.state["case_id"]:
+            raise ValueError("Expansion must derive from the current investigation case")
+        parent = self.state["case_id"]
+        result, event_id = self.event("expand_case", {**arguments, "case_id": parent, "max_bytes": self.state["budget"]})
+        self.validate_pin(result)
+        if result.get("parent_case_id") != parent or not str(result.get("case_id", "")).startswith("task-case:"):
+            raise ValueError("Expansion did not return a pinned child case; increase the response budget")
+        previous_requirements = json.loads(json.dumps(self.state["requirements"]))
+        self.state.setdefault("case_revisions", []).append({"parent_case_id": parent, "case_id": result["case_id"],
+                                                            "event": event_id, "previous_requirements": previous_requirements})
+        self.state["case_id"] = result["case_id"]
+        self.state["requirements"] = {name: {**requirement, "status": "open",
+            "reason": "Reassess this requirement against the expanded case", "evidence": []}
+            if requirement["status"] == "supported" else requirement
+            for name, requirement in self.state["requirements"].items()}
+        self.enqueue("inventory", {"case_id": result["case_id"], "kind": "candidates", "selected": True}, "candidates")
+        self.save()
+        return event_id
 
     def add_query(self, query):
         operation, args = query["operation"], dict(query.get("arguments", {}))
+        if operation == "expand_case":
+            return self.expand_scope(args)
+        if operation == "inventory":
+            if args.get("case_id", self.state["case_id"]) != self.state["case_id"]:
+                raise ValueError("Inventory differs from the investigation case")
+            args["case_id"] = self.state["case_id"]
+            kind = args.get("kind", "candidates")
+            if kind not in ("candidates", "lexical", "files", "work"):
+                raise ValueError("Unknown inventory kind")
+            self.enqueue(operation, args, "candidates" if kind == "candidates" else kind)
+            return
         if operation not in ("occurrences", "neighbors", "search"):
             raise ValueError("Additional investigations use occurrences, neighbors or search")
         if args.get("view", self.state["view_id"]) != self.state["view_id"]:
@@ -345,7 +440,7 @@ def run_bounded_investigation(call, directory, scenario, *, mode="manifest-first
     started = _time.monotonic()
     flow = Investigation(counted, directory)
     request = {"task": scenario["task"]}
-    for name in ("target", "duty", "view"):
+    for name in ("target", "duty", "view", "depth", "max_files", "exclude_facets", "selection_variant"):
         if name in scenario:
             request[name] = scenario[name]
     flow.start(request, budget, mode=mode)
@@ -362,12 +457,22 @@ def run_bounded_investigation(call, directory, scenario, *, mode="manifest-first
         limit = "complete"
     if limit == "complete" and flow.state["queue"]:
         limit = "calls" if stats["calls"] >= max_calls else "bytes" if stats["bytes"] >= max_bytes else "seconds"
-    inspected = {path for path, src in flow.state.get("sources", {}).items() if src.get("ranges")}
+    inspected = {path for path, src in flow.state.get("sources", {}).items() if src.get("ranges") or src.get("excerpts")}
+    verified = {path for path, src in flow.state.get("sources", {}).items() if src.get("state") == "digest_verified"}
     expected = set(scenario.get("required_paths", []))
     manifest_paths = set(flow.state.get("manifest", {}).get("paths", []))
     return {"mode": normalize_mode(mode), "limit_reached": limit, "calls": stats["calls"],
             "bytes": stats["bytes"], "elapsed_seconds": round(_time.monotonic() - started, 3),
+            "byte_limit_overshoot": max(0, stats["bytes"] - max_bytes),
             "inspected_files": len(inspected),
+            "digest_verified_files": len(verified),
+            "digest_verified_required_paths": sorted(expected & verified),
+            "candidate_inventory_paths": len(set(flow.state.get("candidate_inventory", []))),
+            "inventory_required_paths": sorted(expected & set(flow.state.get("candidate_inventory", []))),
+            "remaining_actions": {kind: sum(a["kind"] == kind for a in flow.state["queue"])
+                                  for kind in sorted({a["kind"] for a in flow.state["queue"]})},
+            "case_id": flow.state["case_id"], "view_id": flow.state["view_id"], "index_id": flow.state["index_id"],
+            "checkpoint": str(flow.directory / "state.json"),
             "manifest_required_paths": sorted(expected & manifest_paths),
             "recovered_required_paths": sorted(expected & inspected),
             "missing_required_paths": sorted(expected - inspected),

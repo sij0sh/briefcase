@@ -15,7 +15,7 @@ import subprocess
 import sys
 
 from run_evidence import RunEvidence, atomic_json
-from task_investigation import Investigation, key
+from task_investigation import Investigation, MODES, key
 
 
 def main():
@@ -35,8 +35,12 @@ def main():
     parser.add_argument("--assessment", type=Path, help="JSON requirements with status, reason and delivered evidence event IDs")
     parser.add_argument("--read-event", help="Deliver one retained response by event ID")
     parser.add_argument("--rebind", action="store_true", help="Rebuild the task at latest after explicit source sync")
-    parser.add_argument("--mode", choices=("manifest-first", "exhaustive"), default="manifest-first",
-                        help="manifest-first reads anchor/selected files before candidate traversal; exhaustive keeps candidate-first traversal")
+    parser.add_argument("--compact-inventory", action="store_true", help="Use compact pinned candidate inventories (requires Priority 1 engine)")
+    parser.add_argument("--inspection-only", action="store_true", help="Read pinned excerpts without automatically requesting whole-file verification")
+    parser.add_argument("--verify-source", action="append", default=[], help="Explicitly request full-file digest verification for an already queued source path")
+    parser.add_argument("--mode", choices=tuple(mode.replace("_", "-") for mode in MODES), default="manifest-first",
+                        help="manifest-first preserves source-first behavior; inventory-first enumerates before excerpts; "
+                             "excerpt-first interleaves inventories and localized excerpts before full-file verification")
     args = parser.parse_args()
     if args.steps < 0 or not 2048 <= args.max_bytes <= 1048576 or (args.initial_files is not None and not 1 <= args.initial_files <= 1000):
         parser.error("steps must be nonnegative; max-bytes must be 2048..1048576")
@@ -87,7 +91,8 @@ def main():
         if state is None:
             if not request.get("task"):
                 raise ValueError("A new investigation requires --task")
-            workflow.start(request, args.max_bytes, binding, mode=args.mode)
+            workflow.start(request, args.max_bytes, binding, mode=args.mode,
+                           compact_inventory=args.compact_inventory, verify_sources=not args.inspection_only)
             if parent:
                 workflow.state["previous_revision"] = parent
         else:
@@ -99,6 +104,8 @@ def main():
             queries = json.loads(args.query.read_text())
             for query in queries if isinstance(queries, list) else [queries]:
                 workflow.add_query(query)
+        for path in args.verify_source:
+            workflow.verify_source(path)
         if args.read_event:
             result = {"event_id": args.read_event, "response": workflow.read_event(args.read_event)}
         else:
@@ -118,7 +125,9 @@ def main():
                       "verification": workflow.state["verification"], "pending_actions": len(workflow.state["queue"]),
                       "source_files_verified": sum(s["state"] == "digest_verified" for s in workflow.state["sources"].values()),
                       "blocker": workflow.state.get("blocker"), "worktree": workflow.state.get("worktree"),
-                      "next_action": workflow.state["queue"][0] if workflow.state["queue"] else None,
+                      "next_action": workflow.next_action() if workflow.state["queue"] else None,
+                      "source_files_inspected": sum(bool(s["ranges"] or s.get("excerpts")) for s in workflow.state["sources"].values()),
+                      "case_revision_count": len(workflow.state.get("case_revisions", [])),
                       "event_count": len(workflow.state["events"]),
                       "instruction": "Read state_file for requirements and event references. --read-event <id> delivers evidence; --assessment records cited harness judgments. Resume with this state directory. Fetched source is not proof of task completeness."}
             if display_event:

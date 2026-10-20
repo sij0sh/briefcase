@@ -241,5 +241,126 @@ class InvestigationCliTests(unittest.TestCase):
             self.assertLessEqual(len(delivered.stdout), 3000)
 
 
+class FocusedInvestigationTests(unittest.TestCase):
+    def protocol(self):
+        class FocusedProtocol(ManifestFirstTests().protocol_with_manifest().__class__):
+            def __call__(self, op, args):
+                result = super().__call__(op, args)
+                if op == "agent_context":
+                    result["files"][0]["source_offset"] = 100
+                return result
+        protocol = FocusedProtocol()
+        protocol.contents["src/b.rs"] = "// oversized anchor\n" * 10000
+        return protocol
+
+    def test_excerpt_first_reaches_tail_before_finishing_a_large_manifest_file(self):
+        from task_investigation import run_bounded_investigation
+        scenario = {"task": "refactor storage", "target": "src/a.rs", "required_paths": ["scripts/check"]}
+        with tempfile.TemporaryDirectory() as directory:
+            baseline = run_bounded_investigation(self.protocol(), Path(directory) / "old", scenario,
+                                                 max_calls=22, budget=3000)
+            focused = run_bounded_investigation(self.protocol(), Path(directory) / "new", scenario,
+                                                mode="excerpt-first", max_calls=22, budget=3000)
+            self.assertEqual(baseline["recovered_beyond_manifest"], [])
+            self.assertEqual(focused["recovered_beyond_manifest"], ["scripts/check"])
+            self.assertGreater(focused["candidate_inventory_paths"], 0)
+            self.assertIn("source", focused["remaining_actions"])
+
+    def test_localized_excerpt_is_pinned_and_resume_verifies_the_whole_file(self):
+        with tempfile.TemporaryDirectory() as directory:
+            protocol = self.protocol()
+            protocol.contents["src/b.rs"] = "// ASCII localized bytes\n" * 12
+            flow = Investigation(protocol, directory)
+            flow.start({"task": "refactor storage"}, mode="excerpt-first")
+            while not flow.state["sources"]["src/b.rs"].get("excerpts"):
+                flow.step()
+            source = flow.state["sources"]["src/b.rs"]
+            self.assertEqual(source["excerpts"][0]["start"], 100)
+            self.assertEqual(source["state"], "excerpt_inspected")
+            self.assertEqual(source["ranges"], [])
+            flow = Investigation(protocol, directory, json.loads((Path(directory) / "state.json").read_text()))
+            while flow.state["queue"]:
+                flow.step()
+            self.assertEqual(flow.state["sources"]["src/b.rs"]["state"], "digest_verified")
+            reads = [args["source_offset"] for op, args in protocol.calls
+                     if op == "explain" and args.get("ref") == "/files/src~1b.rs"]
+            self.assertEqual(reads[:2], [100, 0])
+
+    def test_inventory_first_enumerates_all_candidates_before_source_reading(self):
+        with tempfile.TemporaryDirectory() as directory:
+            protocol = self.protocol()
+            flow = Investigation(protocol, directory)
+            flow.start({"task": "refactor storage"}, mode="inventory-first")
+            while flow.next_action()["kind"] != "excerpt":
+                flow.step()
+            self.assertEqual(flow.state["candidate_inventory"], protocol.paths)
+            self.assertFalse(any(src["ranges"] or src.get("excerpts") for src in flow.state["sources"].values()))
+
+    def test_excerpt_rejects_identity_changes_before_full_verification(self):
+        with tempfile.TemporaryDirectory() as directory:
+            protocol = self.protocol()
+            flow = Investigation(protocol, directory)
+            flow.start({"task": "refactor storage"}, mode="excerpt-first")
+            while not flow.state["sources"]["src/b.rs"].get("excerpts"):
+                flow.step()
+            protocol.contents["src/b.rs"] += "changed"
+            with self.assertRaisesRegex(ValueError, "identity changed"):
+                while flow.state["queue"]:
+                    flow.step()
+
+
+class IndependentEvidenceStagesTests(unittest.TestCase):
+    class CompactProtocol(Protocol):
+        def __call__(self, op, args):
+            if op == "inventory":
+                self.calls.append((op, copy.deepcopy(args)))
+                items = [{"path": path, "source_ref": f"/candidates/{index}", "source_offset": 0}
+                         for index, path in enumerate(self.paths)]
+                result = self.page(items, args, "inventory")
+                result["fetch_source"] = {"operation": "explain", "arguments": {"report_id": args["case_id"]}}
+                return result
+            if op == "expand_case":
+                self.calls.append((op, copy.deepcopy(args)))
+                return {"kind": "case_revision", "parent_case_id": args["case_id"], "case_id": "task-case:child",
+                        "view_id": self.view, "index_id": "task-index:one"}
+            return super().__call__(op, args)
+
+    def test_inspection_verification_and_assembly_require_independent_progress(self):
+        with tempfile.TemporaryDirectory() as directory:
+            protocol = self.CompactProtocol()
+            flow = Investigation(protocol, directory)
+            flow.start({"task": "refactor storage"}, mode="excerpt-first", compact_inventory=True, verify_sources=False)
+            while flow.state["queue"]:
+                flow.step()
+            source = flow.state["sources"]["src/b.rs"]
+            self.assertEqual(source["inspection_state"], "inspected_pinned_range")
+            self.assertEqual(source["verification_state"], "not_requested")
+            self.assertEqual(flow.state["case_id"], "task-case:one")
+            self.assertEqual(flow.state["case_revisions"], [])
+            flow = Investigation(protocol, directory, json.loads((Path(directory) / "state.json").read_text()))
+            flow.verify_source("src/b.rs")
+            while flow.state["queue"]:
+                flow.step()
+            self.assertEqual(flow.state["sources"]["src/b.rs"]["verification_state"], "digest_verified")
+            self.assertEqual(flow.state["case_id"], "task-case:one")
+            evidence = flow.state["events"][-1]["id"]
+            flow.read_event(evidence)
+            flow.assess({"requirements": {"implementation": {"status": "supported", "reason": "Reviewed prior scope", "evidence": [evidence]}}})
+            flow.add_query({"operation": "expand_case", "arguments": {"paths": ["src/b.rs"]}})
+            self.assertEqual(flow.state["case_id"], "task-case:child")
+            self.assertEqual(flow.state["case_revisions"][0]["parent_case_id"], "task-case:one")
+            self.assertEqual(flow.state["sources"]["src/b.rs"]["report_id"], "task-case:one")
+            self.assertEqual(flow.state["requirements"]["implementation"]["status"], "open")
+            self.assertEqual(flow.state["case_revisions"][0]["previous_requirements"]["implementation"]["status"], "supported")
+
+    def test_queries_cannot_replace_the_case_pin(self):
+        with tempfile.TemporaryDirectory() as directory:
+            flow = Investigation(self.CompactProtocol(), directory)
+            flow.start({"task": "refactor storage"}, compact_inventory=True)
+            for operation in ("inventory", "expand_case"):
+                with self.assertRaisesRegex(ValueError, "case"):
+                    flow.add_query({"operation": operation, "arguments": {"case_id": "task-case:other"}})
+
+
 if __name__ == "__main__":
     unittest.main()
