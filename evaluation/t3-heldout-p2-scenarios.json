@@ -1,0 +1,114 @@
+{
+ "provenance": "Priority 2 held-out T3 set, authored 2026-10-20 before any P2 measurement on it. Modules were drawn by random.seed(20261020) from 939 impl files that have a sibling .test.ts(x), are >1500 bytes, and lie outside every directory of the 14-task development set; the first 10 sampled were used without replacement. Task text describes behavior without naming files or symbols where avoidable. Required paths were chosen by reading the code: the module, its test, and a collaborator only when the task explicitly describes that collaborator's role. Authoring bias: the author knew the P2 relations (identifier components, binding references) while writing; collaborators are usually import-adjacent by construction, which favors structural relations. No target is given for any task.",
+ "scenarios": [
+  {
+   "id": "T3-P2-HO1-cache-versioning",
+   "task": "After a client update, threads restored from the local cache are missing queued runs while cached sidebar data stays warm. Find where cached thread snapshots are versioned independently of shell snapshots, where a cache that fails to decode is thrown away instead of blocking live synchronization, and the browser storage that applies it.",
+   "duty": "debug",
+   "required_paths": [
+    "packages/client-runtime/src/platform/orchestrationCache.ts",
+    "packages/client-runtime/src/platform/orchestrationCache.test.ts",
+    "apps/web/src/connection/storage.ts"
+   ],
+   "required_facts": []
+  },
+  {
+   "id": "T3-P2-HO2-outdated-access-warning",
+   "task": "Users paired with an older connection link keep seeing a warning toast about changed access each time the app refreshes its session. Find the component that decides when to warn about outdated connection access, how it remembers a dismissal across launches, the rule that classifies a session's access as outdated, and the tests.",
+   "duty": "debug",
+   "required_paths": [
+    "apps/web/src/components/PermissionUpdateNotice.tsx",
+    "apps/web/src/components/PermissionUpdateNotice.test.tsx",
+    "packages/contracts/src/auth.ts"
+   ],
+   "required_facts": []
+  },
+  {
+   "id": "T3-P2-HO3-terminal-selection-reference",
+   "task": "Explain how a selected range of terminal output becomes an inline reference in a chat prompt, including how drafts saved by older versions with placeholder characters are converted when loaded, and which tests cover it.",
+   "duty": "explain",
+   "required_paths": [
+    "apps/web/src/lib/terminalContext.ts",
+    "apps/web/src/lib/terminalContext.test.ts",
+    "apps/web/src/composerDraftStore.ts"
+   ],
+   "required_facts": []
+  },
+  {
+   "id": "T3-P2-HO4-hoisted-decoder-lint",
+   "task": "Extend the repository's custom lint rule that flags decoders and encoders being built inside function bodies so it also covers a newly added decoding API. Find the rule, where the plugin registers it, where it is enabled, and its tests.",
+   "duty": "extend",
+   "required_paths": [
+    "oxlint-plugin-t3code/rules/no-inline-schema-compile.ts",
+    "oxlint-plugin-t3code/rules/no-inline-schema-compile.test.ts",
+    "oxlint-plugin-t3code/index.ts",
+    "vite.config.ts"
+   ],
+   "required_facts": []
+  },
+  {
+   "id": "T3-P2-HO5-reasoning-double-count",
+   "task": "The usage page reports token totals that look inflated for models that reason before answering. Find the shared token-total arithmetic that providers report through and the test that guards it.",
+   "duty": "debug",
+   "required_paths": [
+    "packages/provider-core/src/server/usage.ts",
+    "packages/provider-core/src/server/usage.test.ts"
+   ],
+   "required_facts": []
+  },
+  {
+   "id": "T3-P2-HO6-event-log-migration",
+   "task": "Review the database migration that introduced the event-sourced orchestration tables: confirm it is registered as one released step and that upgrading an older released database through the latest migrations is tested.",
+   "duty": "review",
+   "required_paths": [
+    "apps/server/src/persistence/Migrations/055_OrchestrationV2.ts",
+    "apps/server/src/persistence/Migrations/055_OrchestrationV2.test.ts",
+    "apps/server/src/persistence/Migrations.ts"
+   ],
+   "required_facts": []
+  },
+  {
+   "id": "T3-P2-HO7-dev-login-fallback",
+   "task": "Review how the server authenticates a request when a developer's reusable local login cookie, a normal session cookie and an Authorization header may all be present, including where the reusable local login is configured, and the tests for each fallback rule.",
+   "duty": "review",
+   "required_paths": [
+    "apps/server/src/auth/EnvironmentAuth.ts",
+    "apps/server/src/auth/EnvironmentAuth.test.ts",
+    "apps/server/src/auth/ReusableDevAuth.ts"
+   ],
+   "required_facts": []
+  },
+  {
+   "id": "T3-P2-HO8-pending-question-panel",
+   "task": "Find the chat composer panel that shows an agent's pending question to the user, including when a dismiss action is offered and whether the question starts expanded, and the tests that cover it.",
+   "duty": "test",
+   "required_paths": [
+    "apps/web/src/components/chat/ComposerPendingUserInputPanel.tsx",
+    "apps/web/src/components/chat/ComposerPendingUserInputPanel.test.tsx"
+   ],
+   "required_facts": []
+  },
+  {
+   "id": "T3-P2-HO9-accessibility-helper-crash",
+   "task": "A desktop window capture hangs or takes the app down when another program's accessibility tree crashes the extraction helper. Find the helper process manager that isolates the crash and keeps a warm replacement ready, the capture code that uses it, and the tests.",
+   "duty": "debug",
+   "required_paths": [
+    "apps/desktop/src/snapShot/SnapShotAccessibilityProcess.ts",
+    "apps/desktop/src/snapShot/SnapShotAccessibilityProcess.test.ts",
+    "apps/desktop/src/snapShot/DesktopSnapShot.ts"
+   ],
+   "required_facts": []
+  },
+  {
+   "id": "T3-P2-HO10-capture-shortcut-conflict",
+   "task": "The settings page fails to warn when the window-capture key combination collides with an existing app keybinding on macOS. Find the shortcut label parsing and conflict logic, the settings screen that uses it, and the tests.",
+   "duty": "debug",
+   "required_paths": [
+    "apps/web/src/lib/snapShotShortcut.ts",
+    "apps/web/src/lib/snapShotShortcut.test.ts",
+    "apps/web/src/components/settings/SnapShotSettings.tsx"
+   ],
+   "required_facts": []
+  }
+ ]
+}

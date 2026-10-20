@@ -8,6 +8,10 @@ See [engine Phase 0/1](ENGINE_PHASE0_PHASE1.md) for the substrate audit,
 corrected evaluation baseline, and the shared Case findings contract with the
 first capability/condition explanation, and [engine Phase 3](ENGINE_PHASE3.md)
 for the task-local dependency-convention cohort rule.
+See [loss-boundary evaluation](evaluation/LOSS_BOUNDARY.md) for frozen-baseline
+miss attribution, producer/index saturation, and inventory/excerpt reading policies.
+See [scale Priority 1](SCALE_PRIORITY1.md) for complete retained adjacency,
+compact filtered inventories, and explicit case expansion.
 
 Briefcase traces retained evidence from a codebase to build a case around a
 task, delivered as a brief. Source, coverage and provenance stay explicit.

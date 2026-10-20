@@ -1,0 +1,71 @@
+{
+  "method": "priority1-t3-retained-continuation-check-v1",
+  "source_view": "view:1",
+  "scenario_id": "T3-R-H2-checkpoint-finalization",
+  "binary_sha256": "349d3f44d06d11950c65358b6ea939c3b1430e8a9c95f97c723a0f045dafb9b2",
+  "initial_selected_paths_match_frozen_baseline": true,
+  "initial_assembly_files": 48,
+  "candidate_expansion_files": 49,
+  "lexical_promotion_files": 50,
+  "captured_file_promotion_files": 51,
+  "captured_file_inventory_rows": 1,
+  "adjacency": {
+    "hot_relationships": 100000,
+    "overflow_relationships": 59582,
+    "overflow_report_id": "task-overflow:e7fa25d8c290966b692dc01df68906098bd388131b7c29b5547ad65d66f2ddaa",
+    "state": "retained",
+    "total_relationships": 159582
+  },
+  "queried_overflow_link": "task-link:040c6cb3169271901eea1a793e0b3f078fafb1dbb648c9c27cd5c64138a1a827",
+  "overflow_link_explanation_verified": true,
+  "complete_starter_inventory": 0,
+  "remaining_discovery_work_count": 46,
+  "compact_filtered_rows": 1,
+  "parent_and_historical_reports_unchanged": true,
+  "legacy_boundary": {
+    "hot_relationships": 100000,
+    "overflow_relationships": 59582,
+    "remediation": "Build a new index from the pinned retained source using neighbors with view and no index_id. The old index and its cursors remain unchanged.",
+    "state": "legacy_overflow_unavailable"
+  },
+  "case_id": "task-case:832004ad68d57eb28c935d6309f924082460059c174f7e6f0621d4e79c35fbcf",
+  "child_case_id": "task-case:9994c7b8a4be1c3f338e84f1469637bbf054ec7cb449276690c34bba3388a95a",
+  "grandchild_case_id": "task-case:33887ce7b5058309769f2683cefa70252f8ca237d5aa5637b60f4f2a99fcb110",
+  "captured_file_case_id": "task-case:a6876e557dd8007fd21c09f906f0c8420e6ebde3a92df9c6e2b2cff88f4d027c",
+  "elapsed_seconds": 54.698,
+  "raw_rpc_directory": "/home/joshsimon/Projects/briefcase/.agents/artifacts/priority1-validation/rpc",
+  "provenance_array_pages_verified": [
+    {
+      "report_id": "task-proof:b6c4e0ef2eff9949ad397a96eaa952dfbc52ca5bc1483437d3086aebfcd6bc47",
+      "section": "/assertions/0/derivation/input_assertion_ids",
+      "total": 29267,
+      "returned": 1
+    }
+  ],
+  "validation": {
+    "library_tests_passed": 160,
+    "context_tests_passed": 62,
+    "p0p1_tests_passed": 7,
+    "p2_tests_passed": 10,
+    "stage2_tests_passed": 3,
+    "stage4_tests_passed": 4,
+    "stage3": {
+      "parallel_passed": 3,
+      "parallel_failed": 1,
+      "isolated_preflight_passed": 1,
+      "failure_reproduced_on_unmodified_HEAD": true,
+      "failure": "invalid_profile_preflight_reports_configuration_without_creating_a_database returns sync=locked under parallel execution"
+    },
+    "available_core_tests_passed": 47,
+    "core_tests_blocked_by_missing_archives": 8,
+    "core_conformance_tests_ignored": 36,
+    "python_script_tests_passed": 102,
+    "python_tool_tests_passed": 8,
+    "node_adapter_tests_passed": 17,
+    "owned_schemas_validated": 10,
+    "clippy": "passed with existing warnings",
+    "diff_check": "passed"
+  },
+  "scope": "Functional continuation and immutability check against one frozen T3 scenario; not a blind retrieval, relationship-recall, or answer-quality benchmark.",
+  "raw_result_sha256": "4a3754b5690d394fc82da12d3f68d05b23d6489b30f6ed0e845e8f716cbc18ec"
+}
