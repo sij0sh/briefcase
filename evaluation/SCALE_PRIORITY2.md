@@ -3,17 +3,23 @@
 **Reviewed:** 2026-10-20. **Evaluation verdict: promotion gate not met.**
 Keep the 48-file default and import corroboration; leave experimental
 retrieval variants opt-in. Retain the overflow-aware traversal fix as a
-correctness repair. Exact contract/state-key joins and richer implementation binding
-resolution remain follow-up work; this evaluation does not establish that
-all Priority 2 recommendations have been implemented.
+correctness repair. Scoped exact-key joins and protected structural exploration
+are now implemented and tested opt-in; their round-4 measurements below do not
+justify promotion. Native serving/data corruption remains unresolved.
 
 The original gate is: **a proposed relation demonstrably adds correct
 witnesses on held-out tasks without converting association into behavioral
-authority.** No tested relation meets it. The latest discriminating held-out
+authority.** No tested relation meets it. The latest error-free discriminating held-out
 set gives every arm **22/28 selected and manifest-delivered required paths,
 8/10 scenarios passing, zero errors**. Precise binding spans did not produce
 additional required paths. These are path-retrieval results, with no measured
 claim-witness or answer-quality gain.
+
+The follow-up implementation and R4 record are below. Earlier sections describe
+the original three rounds. [Priority 3](SCALE_PRIORITY3.md) adds inspected
+passage, relationship and explicit supported-conclusion metrics;
+[serving reliability](SERVING_RELIABILITY.md) separates evaluator repairs from
+the remaining native corruption blocker.
 
 ## Session handoff and evidence
 
@@ -242,7 +248,7 @@ and `git diff --check` is clean. These results are recorded in the review
 entry in [priority2-results.json](priority2-results.json). The full T3
 results above remain pinned to their original binaries and inputs.
 
-## Recommended next steps
+## Original recommendations after rounds 1–3
 
 1. **Close this evaluation with a failed promotion gate.** Preserve the
    opt-in experiments and overflow repair as separate reviewable changes,
@@ -284,3 +290,103 @@ results above remain pinned to their original binaries and inputs.
    provide the continuation substrate; Priority 2 provides no promoted
    relevance improvement to assume. A larger universal cap or broader
    default binding scan is not justified by these results.
+
+## Follow-up implementation and round 4
+
+Implemented on 2026-10-20 following the requested next steps. Machine-readable
+counts, input hashes, binary digest and raw artifact locations are in
+[priority2-r4-results.json](priority2-r4-results.json). Original results are
+preserved; failed rows were not replaced with successful retries.
+
+**Reliability and denominators.** The evaluator now captures process exits and
+bounded stderr diagnostics, serializes reply validation, drains stderr, detects
+between-request/shutdown failures, and uses SQLite backup for consistent worker
+snapshots. All arms retain every authored label. Incomplete recall is null;
+explicit observed lower bounds keep the full denominator. Timing failures
+preserve earlier selection observations, invalidate comparisons and remain
+errors. Paired deltas are suppressed on incomplete/error arms. The final
+lifecycle checks were regression-tested after the frozen R4 run. Native
+corruption remains unresolved: the isolated JSON parse/clone/drop reproducer
+also fails on Rust 1.97 and 1.98 and with two allocators. See the
+[diagnostic record](SERVING_RELIABILITY.md); host instability is a hypothesis,
+not an established cause or a completed repair.
+
+**Scoped exact keys.** `selection_variant:"exact_keys"` extracts a narrow set
+of dotted event identities and namespaced `x-...` headers from verified retained
+TS/JS text. It keeps literal byte spans and syntactic declaration/producer/
+consumer/occurrence hints. Imports, comments, relative paths and generic
+strings are excluded. Hints are bounded, not a full semantic binding analysis.
+Keys have at most eight file holders. Same-package joins are eligible;
+cross-package event joins require one canonical declaration package and retained
+dependency links from both packages to it. Ambiguous declaration packages are
+skipped. At most eight independently relevant origins contribute, with no
+recursive key propagation. Each candidate association retains both source
+identities/spans and report provenance. It does not enter canonical graph
+authority or establish calls, execution or behavioral sufficiency. A negative
+control rejects unrelated cross-package uses of the same literal. Defaults
+remain unchanged.
+
+**Held-out construction.** R4's ten tasks/28 required paths and passage/
+relationship oracles were frozen before implementation and measurement, with
+the receipt in [priority2-r4-freeze.json](priority2-r4-freeze.json). Sampling
+excluded prior labelled directories and retained all first ten samples. The
+author knew the proposals and collaborators may have been observed previously;
+this is a prospective fresh split, not independently blinded authorship.
+Paths/oracles are scorer-only; tasks have no target anchors. R4 is now regression
+evidence, so future promotion requires new independently authored frozen tasks.
+
+| Primary R4 arm | Authored paths | Scored labels | Observed selected | Observed manifest | Retrieval errors | Timing errors |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Baseline | 28 | 25 | 25 | 24 | 1 | 1 |
+| Exact keys | 28 | 25 | 25 | 24 | 1 | 0 |
+
+The failures affect different tasks. Both arms have null comparable recall and
+`comparison_eligible:false`; 25/28 is only an observed selection lower bound.
+Equal counts over different surviving tasks are not a gain/loss result. This
+does not establish whether exact keys improve admission, selection or delivery.
+The full native run used frozen binary
+`72dcf33d00a2b7aa149a06a7d594675c6df8356e87d58536b9cafe8c51e310ab`,
+8,000-byte manifests and the same text/import corpus used for the baseline.
+
+**Bounded exploration.** A protected side queue uses existing filtered
+inventories, adjacency and source continuations. Both policies received the
+same 80-call/512-KiB/120-second ceilings. The first structural run had an ordinary
+phase-counter defect; its evidence is retained and excluded from policy
+conclusions. The repaired schedule was replayed against identical retained
+cases/indexes with the same binary and the successful excerpt-first control.
+This is a diagnostic correction after observing R4, not a fresh promotion test.
+Both policies inspected 28/28 required paths and 12/28 passage witnesses. The
+protected policy delivered 5/10 relationship witnesses versus 0/10, with no
+increase in complete availability obligations (both 0/10). Both had zero
+investigation errors and zero byte/time overshoot. No conclusions were
+submitted. See [Priority 3](SCALE_PRIORITY3.md) for effort accounting, micro/
+macro metrics, scorer schema and limitations.
+
+**Validation.** `scripts/verify-context -- --test-threads=1` passed: library 165,
+context 62, p0p1 7, p2 11, stages 2/3/4 3/4/4, Python scripts 116 plus tools 8,
+and Node 17. Subsequent lifecycle, authority and denominator refinements pass
+all 119 Python script tests. `cargo clippy --locked --all-targets` and
+`cargo check --locked --example retained-json-stress` pass with existing
+warnings. Raw logs are in `.agents/artifacts/scale-next/`.
+
+## Remaining acceptance gates
+
+1. Resolve or isolate native process/data corruption with the minimal
+   reproducer, including a second-host comparison and host configuration/offline
+   diagnostics. Successful short reruns are insufficient. Require complete
+   authored denominators, stable pins and no process/protocol/timing errors.
+2. After reliability is established, freeze independently authored new tasks
+   with explicit contract identities and alternate valid evidence sets. Measure
+   exact-key candidate admission, selection, delivery and negative controls;
+   accept only demonstrated correct witnesses without new losses or upgraded
+   behavioral authority. Retain R1–R4 as regression sets.
+3. Keep protected exploration opt-in. Its relationship yield warrants further
+   study, but it has not improved passage or complete-obligation coverage.
+   Priority 3 should author substantive condition/consumer/counterevidence
+   obligations and collect actual cited conclusions before claiming useful
+   scoped sufficiency.
+
+Priority 2 can close with a failed promotion gate and the correctness repair
+retained. Promoting an experimental relevance policy requires the first two
+gates above; implementing ever broader joins is not a prerequisite for that
+honest closure.

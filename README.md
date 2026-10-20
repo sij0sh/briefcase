@@ -14,6 +14,10 @@ See [scale Priority 1](evaluation/SCALE_PRIORITY1.md) for complete retained adja
 compact filtered inventories, and explicit case expansion.
 See [scale Priority 2](evaluation/SCALE_PRIORITY2.md) for binding references,
 identifier indexing, and fusion experiments measured on held-out tasks.
+See [scale Priority 3](evaluation/SCALE_PRIORITY3.md) for inspected passage,
+relationship and supported-conclusion metrics, and
+[serving reliability](evaluation/SERVING_RELIABILITY.md) for the unresolved
+native corruption investigation and complete-denominator evaluation gate.
 
 Briefcase traces retained evidence from a codebase to build a case around a
 task, delivered as a brief. Source, coverage and provenance stay explicit.
@@ -158,6 +162,13 @@ For controlled evaluation, `exclude_facets` accepts any of `structure`,
 `dependency`, `tests`, `domain`, `execution`, `data`, `runtime`, `history`,
 `sessions` or `lexical`. Disabling a facet changes case identity and records a gap.
 Array types, item enums and uniqueness are validated before reading the ledger.
+
+The opt-in `selection_variant:"exact_keys"` adds scoped candidate associations
+for retained TS/JS event identities and namespaced headers, with exact spans
+and provenance. It does not establish runtime behavior. It has no valid
+held-out promotion result yet. The investigation mode `structural-explore`
+reserves bounded actions for filtered inventories and adjacency while retaining
+the ordinary excerpt-first reading schedule; see the Priority 3 record above.
 
 Rust static-call analysis verifies required endpoints on demand, caches caller
 identity checks, and schedules calls across files. It has no fixed 4,096-function
