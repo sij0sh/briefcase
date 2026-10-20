@@ -721,3 +721,69 @@ fn workspace_partitions_resolve_manifests_barrels_and_classify_calls() {
         .iter()
         .any(|l| l.contains("1 file(s) under scripts")));
 }
+
+#[test]
+fn workspace_binding_references_resolve_uses_through_barrels_namespaces_and_heritage() {
+    let temp = tempfile::tempdir().unwrap();
+    let root = temp.path().join("source");
+    source(
+        &root,
+        &[
+            ("tsconfig.base.json", r#"{"compilerOptions":{"module":"NodeNext","moduleResolution":"NodeNext","allowImportingTsExtensions":true,"strict":true}}"#),
+            ("packages/core/package.json", r#"{"name":"@w/core","exports":{".":{"types":"./src/index.ts"},"./util":{"types":"./src/util.ts"},"./def":{"types":"./src/def.ts"}}}"#),
+            ("packages/core/tsconfig.json", r#"{"extends":"../../tsconfig.base.json","include":["src"]}"#),
+            ("packages/core/src/index.ts", "export * from \"./settings.ts\";\nexport { helper as aliased } from \"./util.ts\";\n"),
+            ("packages/core/src/settings.ts", "export interface Policy { allow(): boolean }\nexport class Base {}\nexport function loadSettings() { return 1; }\n"),
+            ("packages/core/src/util.ts", "export function helper() { return 1; }\n"),
+            ("packages/core/src/def.ts", "function makeDef() { return 2; }\nexport default makeDef;\n"),
+            ("apps/server/package.json", r#"{"name":"server"}"#),
+            ("apps/server/tsconfig.json", r#"{"extends":"../../tsconfig.base.json","include":["src"]}"#),
+            ("apps/server/src/server.ts", concat!(
+                "import { loadSettings, aliased, type Policy, Base } from \"@w/core\";\n",
+                "import * as util from \"@w/core/util\";\n",
+                "import makeDef from \"@w/core/def\";\n",
+                "loadSettings();\n",
+                "export function run(cfg: { loadSettings: number }) { return loadSettings() + cfg.loadSettings + aliased(); }\n",
+                "export class Impl extends Base implements Policy { allow() { return true; } }\n",
+                "export function useUtil() { return util.helper() + makeDef(); }\n",
+                "export function shadow(loadSettings: () => number) { return loadSettings(); }\n",
+            )),
+        ],
+    );
+    let generation_options = |references| ScanOptions {
+        project: "workspace".into(),
+        references,
+        ..Default::default()
+    };
+    let mut l = Ledger::open(&temp.path().join("knowledge.db")).unwrap();
+    let generation = l.begin("typescript-tests", Some("workspace")).unwrap();
+    let plain = typescript::produce(Capture::read(&root, None).unwrap(), "typescript-tests", generation, &generation_options(false)).unwrap();
+    assert!(pairs(&plain.bundle, "REFERENCES").is_empty());
+    assert_eq!(plain.diagnostics["workspace"]["references"], "not_requested");
+    let prepared = typescript::produce(Capture::read(&root, None).unwrap(), "typescript-tests", generation, &generation_options(true)).unwrap();
+    contracts::validate(&prepared.bundle, &prepared.payloads).unwrap();
+    let server = "apps/server/src/server.ts";
+    let expected: BTreeSet<(String, String)> = [
+        (server.to_owned(), "packages/core/src/settings.ts::loadSettings"),
+        (format!("{server}::run"), "packages/core/src/settings.ts::loadSettings"),
+        (format!("{server}::run"), "packages/core/src/util.ts::helper"),
+        (format!("{server}::Impl"), "packages/core/src/settings.ts::Base"),
+        (format!("{server}::Impl"), "packages/core/src/settings.ts::Policy"),
+        (format!("{server}::useUtil"), "packages/core/src/util.ts::helper"),
+        (format!("{server}::useUtil"), "packages/core/src/def.ts::makeDef"),
+    ]
+    .into_iter()
+    .map(|(a, b)| (a, b.to_owned()))
+    .collect();
+    assert_eq!(pairs(&prepared.bundle, "REFERENCES"), expected);
+    let counts = &prepared.diagnostics["workspace"]["references"];
+    assert_eq!(counts["by_kind"]["implements"], 1);
+    assert_eq!(counts["by_kind"]["extends"], 1);
+    assert_eq!(counts["shadowed"], 1, "the parameter shadows the import: {counts}");
+    let run = rows(&prepared.bundle, "runs")
+        .into_iter()
+        .find(|r| r["coverage"]["guarantees"][0]["predicate"] == "REFERENCES")
+        .unwrap();
+    assert_eq!(run["coverage"]["guarantees"][0]["kind"], "syntax_only");
+    assert!(text(&run["coverage"]["guarantees"][0], "scope").starts_with("imported binding uses"));
+}
