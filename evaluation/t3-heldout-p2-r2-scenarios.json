@@ -1,0 +1,105 @@
+{
+ "provenance": "Priority 2 round-2 held-out T3 set, authored 2026-10-20 before any round-2 measurement on it and after the overflow-aware traversal fix. Modules were drawn by random.Random(20261021) from 711 impl files that have a sibling .test.ts(x), are >1500 bytes, and lie outside every directory of the 14-task development set and the round-1 held-out set; the first 10 sampled were used without replacement. Task text describes behavior without naming files or symbols where avoidable. Required paths are the module and its test; no collaborator is required, so structural gains must come from discovery rather than authored import adjacency. Authoring bias: the author knew the round-2 relations (binding references, overflow-aware traversal) while writing. No target is given for any task. Pre-registered gate rule: the gate is met only if, on this set, a variant or the binding baseline beats both the old-database baseline and its same-database baseline by at least 2 net selected required paths with at least one newly passing scenario, zero errors, and zero false-complete outcomes.",
+ "scenarios": [
+  {
+   "id": "T3-P2R2-HO1-endpoint-reaper",
+   "task": "Review the relay sweep that deletes managed endpoint tunnels after they go down: a tunnel that never connected gets a longer grace period than one that was active, legacy tunnels face a still longer delay, deletions run with bounded concurrency inside a time budget, and replaced or unrecorded allocations are skipped. Find the sweep and its tests.",
+   "duty": "review",
+   "required_paths": [
+    "infra/relay/src/environments/ManagedEndpointReaper.ts",
+    "infra/relay/src/environments/ManagedEndpointReaper.test.ts"
+   ],
+   "required_facts": []
+  },
+  {
+   "id": "T3-P2R2-HO2-scan-cache-codec",
+   "task": "Find the persisted usage scan cache that restores file records unchanged, drops entries whose persisted parse state is corrupt or whose guard values are out of range, treats a foreign document as empty, and rewrites only changed entries while interning repeated strings. Include its tests.",
+   "duty": "explain",
+   "required_paths": [
+    "apps/server/src/usage/usageScanCache.ts",
+    "apps/server/src/usage/usageScanCache.test.ts"
+   ],
+   "required_facts": []
+  },
+  {
+   "id": "T3-P2R2-HO3-tool-presentation",
+   "task": "Explain how retained tool calls get their chat presentation when result metadata is missing: computer-use presentation is recovered, a failed call of that kind is replaced, valid image paths survive redacted output, and provider-specific payload data is never used to infer presentation. Find the extraction and its tests.",
+   "duty": "explain",
+   "required_paths": [
+    "packages/client-runtime/src/work-log/toolPresentation.ts",
+    "packages/client-runtime/src/work-log/toolPresentation.test.ts"
+   ],
+   "required_facts": []
+  },
+  {
+   "id": "T3-P2R2-HO4-safe-external-url",
+   "task": "Find where the desktop shell decides which links may open externally: plain web links pass, remote open-in-editor deep links for the supported editors pass only in their exact host and path shapes with no embedded credentials, and every other scheme is blocked. Include the tests.",
+   "duty": "review",
+   "required_paths": [
+    "apps/desktop/src/electron/ElectronShell.ts",
+    "apps/desktop/src/electron/ElectronShell.test.ts"
+   ],
+   "required_facts": []
+  },
+  {
+   "id": "T3-P2R2-HO5-usage-service-scans",
+   "task": "Find the server usage service that scans provider usage into totals, coordinates overlapping scans so concurrent readers share work, and serves the usage page data. Include its tests.",
+   "duty": "debug",
+   "required_paths": [
+    "apps/server/src/usage/UsageService.ts",
+    "apps/server/src/usage/UsageService.test.ts"
+   ],
+   "required_facts": []
+  },
+  {
+   "id": "T3-P2R2-HO6-browser-target-resolver",
+   "task": "Explain how a browser navigation target is resolved for remote environments: environment ports map onto a private network host, explicit loopback links stay loopback with credentials preserved across address families, schemeless localhost stays local for local environments, and public relay hosts are refused until an authenticated gateway exists. Find the resolver and its tests.",
+   "duty": "explain",
+   "required_paths": [
+    "apps/web/src/browser/browserTargetResolver.ts",
+    "apps/web/src/browser/browserTargetResolver.test.ts"
+   ],
+   "required_facts": []
+  },
+  {
+   "id": "T3-P2R2-HO7-antigravity-catalog",
+   "task": "Find how one provider's model catalog is built from a captured session: the captured personal catalog is kept, legacy session models are used only when model configuration is absent, and native option groups are flattened without merging distinct model identities. Include the tests.",
+   "duty": "debug",
+   "required_paths": [
+    "apps/server/src/provider/AntigravityProvider.ts",
+    "apps/server/src/provider/AntigravityProvider.test.ts"
+   ],
+   "required_facts": []
+  },
+  {
+   "id": "T3-P2R2-HO8-pi-driver-discovery",
+   "task": "Find the driver for the agent whose state lives in the user's own agent home directory: it composes workspace discovery through the real stdio transport with a distinct command catalog per working directory, snapshot and status probing, and package-managed updates. Include its tests.",
+   "duty": "explain",
+   "required_paths": [
+    "packages/provider-pi/src/server/driver.ts",
+    "packages/provider-pi/src/server/driver.test.ts"
+   ],
+   "required_facts": []
+  },
+  {
+   "id": "T3-P2R2-HO9-pi-thinking-levels",
+   "task": "Find the per-model thinking-level capabilities for one provider: the full ladder is never advertised globally because the top levels are opt-in per model, each offered choice carries its real level identifier, and an unsupported default is clamped to the nearest offered level. Include the tests.",
+   "duty": "extend",
+   "required_paths": [
+    "packages/provider-pi/src/server/thinkingCapabilities.ts",
+    "packages/provider-pi/src/server/thinkingCapabilities.test.ts"
+   ],
+   "required_facts": []
+  },
+  {
+   "id": "T3-P2R2-HO10-relay-public-config",
+   "task": "Find the cloud public configuration that resolves relay client tracing from runtime configuration with a build-time fallback, builds relay and hosted-app URLs, and reports whether any public configuration is present at all. Include its tests.",
+   "duty": "review",
+   "required_paths": [
+    "apps/server/src/cloud/publicConfig.ts",
+    "apps/server/src/cloud/publicConfig.test.ts"
+   ],
+   "required_facts": []
+  }
+ ]
+}

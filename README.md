@@ -10,8 +10,10 @@ first capability/condition explanation, and [engine Phase 3](ENGINE_PHASE3.md)
 for the task-local dependency-convention cohort rule.
 See [loss-boundary evaluation](evaluation/LOSS_BOUNDARY.md) for frozen-baseline
 miss attribution, producer/index saturation, and inventory/excerpt reading policies.
-See [scale Priority 1](SCALE_PRIORITY1.md) for complete retained adjacency,
+See [scale Priority 1](evaluation/SCALE_PRIORITY1.md) for complete retained adjacency,
 compact filtered inventories, and explicit case expansion.
+See [scale Priority 2](evaluation/SCALE_PRIORITY2.md) for binding references,
+identifier indexing, and fusion experiments measured on held-out tasks.
 
 Briefcase traces retained evidence from a codebase to build a case around a
 task, delivered as a brief. Source, coverage and provenance stay explicit.

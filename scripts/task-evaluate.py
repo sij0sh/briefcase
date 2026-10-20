@@ -11,11 +11,13 @@ No expected files are inferred by the evaluator. Unsupported operations,
 timeouts, delivery omissions and malformed responses are failures, not zeros.
 """
 import argparse
+from collections import deque
 import hashlib
 import json
 from pathlib import Path
 import statistics
 import shutil
+import sqlite3
 import subprocess
 import tempfile
 import threading
@@ -68,21 +70,39 @@ class Served:
         self.command = [str(binary), *database, "--project-root", str(root), "serve"]
         self.root, self.timeout, self.evidence = root, timeout, evidence
         self.lock, self.process, self.lines, self.sequence = threading.Lock(), None, None, 0
+        self.stderr = deque(maxlen=64)
+        self.readers = []
 
     def start(self):
         import queue
-        self.process = subprocess.Popen(self.command, cwd=self.root, stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
+        self.stderr.clear()
+        self.process = subprocess.Popen(self.command, cwd=self.root, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                                        stderr=subprocess.PIPE, text=True)
         self.lines = queue.Queue()
         def read(stream, lines):
             for line in stream:
                 lines.put(line)
             lines.put(None)
-        threading.Thread(target=read, args=(self.process.stdout, self.lines), daemon=True).start()
+        def read_errors(stream):
+            # Drain stderr continuously so diagnostics cannot block the server.
+            for line in stream:
+                self.stderr.append(line[-2048:])
+        self.readers = [threading.Thread(target=read, args=(self.process.stdout, self.lines), daemon=True),
+                        threading.Thread(target=read_errors, args=(self.process.stderr,), daemon=True)]
+        for reader in self.readers:
+            reader.start()
 
     def __call__(self, operation, arguments):
         import queue
         with self.lock:
             if self.process is None or self.process.poll() is not None:
+                code = self.stop()
+                if code not in (None, 0):
+                    detail = "".join(self.stderr)[-8192:].strip()
+                    if self.evidence:
+                        self.evidence.record(self.command, "", "", cwd=self.root, timeout=self.timeout,
+                            started_at=time.time(), elapsed=0, state="exit_between_requests", stderr=detail, exit_code=code)
+                    raise RuntimeError(f"briefcase serve exited between requests (code {code}): {detail}")
                 self.start()
             self.sequence += 1
             request = json.dumps({"id": self.sequence, "operation": operation, "arguments": arguments}, ensure_ascii=False)
@@ -100,21 +120,27 @@ class Served:
                     raise subprocess.TimeoutExpired(self.command, self.timeout) from None
                 raise
             if line is None:
-                self.stop()
-                raise RuntimeError("briefcase serve exited")
+                code = self.stop()
+                detail = "".join(self.stderr)[-8192:].strip()
+                if self.evidence:
+                    self.evidence.record(self.command, request, "", cwd=self.root, timeout=self.timeout,
+                                         started_at=started_at, elapsed=time.monotonic() - started,
+                                         state="error", stderr=detail, exit_code=code)
+                raise RuntimeError(f"briefcase serve exited (code {code}): {detail}")
             if self.evidence:
                 self.evidence.record(self.command, request, line, cwd=self.root, timeout=self.timeout,
                                      started_at=started_at, elapsed=time.monotonic() - started)
-        reply = json.loads(line)
-        if reply.get("id") != self.sequence:
-            raise RuntimeError("briefcase serve reply is out of order")
-        if not reply.get("ok"):
-            raise RuntimeError(str(reply.get("error"))[:2000])
-        if not isinstance(reply.get("result"), dict):
-            raise ValueError("Expected one JSON object")
-        return reply["result"]
+            reply = json.loads(line)
+            if reply.get("id") != self.sequence:
+                raise RuntimeError("briefcase serve reply is out of order")
+            if not reply.get("ok"):
+                raise RuntimeError(str(reply.get("error"))[:2000])
+            if not isinstance(reply.get("result"), dict):
+                raise ValueError("Expected one JSON object")
+            return reply["result"]
 
     def stop(self):
+        code = None
         if self.process is not None:
             try:
                 self.process.stdin.close()
@@ -125,7 +151,13 @@ class Served:
             except subprocess.TimeoutExpired:
                 self.process.kill()
                 self.process.wait()
+            code = self.process.returncode
+            for reader in self.readers:
+                reader.join(timeout=1)
+            self.process.stdout.close()
+            self.process.stderr.close()
             self.process = None
+        return code
 
 
 class PinnedCall:
@@ -526,6 +558,10 @@ def required_path_diagnostics(expected, selected, candidates, manifest_paths, mi
 
 
 def ablation_deltas(baseline, ablated):
+    # Do not publish a conveniently smaller paired comparison after a crash.
+    if ({r["id"] for r in baseline} != {r["id"] for r in ablated}
+            or any(r.get("status") == "error" or r.get("timing_error") for r in [*baseline, *ablated])):
+        return []
     original = {row["id"]: row for row in baseline if row.get("status") != "error"}
     compared = []
     for row in ablated:
@@ -554,6 +590,42 @@ def false_complete_metrics(results):
             "false_complete_definition": "Complete outcome with at least one authored required path missing, divided by scored scenarios."}
 
 
+def coverage_metrics(scenarios, results):
+    """Keep the authored denominator even when a process or protocol fails.
+
+    Recall is unavailable on incomplete arms. Observed successes divided by
+    the full authored count are a labelled lower bound, never an error-free
+    estimate over a smaller set.
+    """
+    by_id = {row["id"]: row for row in results}
+    if len(by_id) != len(results) or set(by_id) != {s["id"] for s in scenarios}:
+        raise ValueError("Every arm must retain exactly one row per authored scenario")
+    total = scored = selected = delivered = 0
+    errors, timing_errors = [], []
+    for scenario in scenarios:
+        row = by_id[scenario["id"]]
+        expected = set(scenario.get("required_paths", scenario.get("followup_paths", [])))
+        total += len(expected)
+        if row.get("status") == "error":
+            errors.append(scenario["id"])
+            continue
+        scored += len(expected)
+        selected += len(expected & set(row.get("selected_paths", [])))
+        manifest = row.get("harness_context")
+        if manifest is not None:
+            delivered += len(expected - set(manifest.get("missing_required_paths", [])))
+        if row.get("timing_error"):
+            timing_errors.append(scenario["id"])
+    return {"authored_scenarios": len(scenarios), "authored_required_paths": total,
+            "scored_required_paths": scored, "error_required_paths": total - scored,
+            "selected_required_paths": selected, "manifest_delivered_required_paths": delivered,
+            "complete_denominator": not errors, "comparison_eligible": not errors and not timing_errors,
+            "error_scenarios": errors, "timing_error_scenarios": timing_errors,
+            "selected_recall": selected / total if total and not errors else None,
+            "selected_recall_lower_bound": selected / total if total else None,
+            "manifest_recall": delivered / total if total and not errors and all(r.get("harness_context") is not None for r in results) else None}
+
+
 TIMING_FIELDS = ("first_packet_ms", "brief_ms", "manifest_latency_ms", "first_relevant_passage_ms", "timing_phase")
 FAILURES = (OSError, ValueError, RuntimeError, subprocess.TimeoutExpired)
 
@@ -562,11 +634,14 @@ def guarded(scenario, job):
     try:
         return job()
     except FAILURES as error:
-        return {"id": scenario.get("id"), "status": "error", "error": str(error)}
+        expected = sorted(set(scenario.get("required_paths", scenario.get("followup_paths", []))))
+        return {"id": scenario.get("id"), "status": "error", "error": str(error),
+                "required_paths": len(expected), "required_path_ranks": dict.fromkeys(expected),
+                "unscored_required_paths": expected, "selection_observed": False}
 
 
 class WorkerPool:
-    """Run per-scenario jobs serially, or across private reflinked DB copies.
+    """Run per-scenario jobs serially, or across private SQLite snapshots.
 
     Each worker owns one database copy and one pinned call, so concurrent
     writes never contend. Results keep job order.
@@ -579,10 +654,11 @@ class WorkerPool:
             self.calls = queue.Queue()
             for index in range(workers):
                 copy = self.directory / f"worker-{index}.db"
-                for suffix in ("", "-wal"):
-                    source = Path(str(database) + suffix)
-                    if source.exists():
-                        subprocess.run(["cp", "--reflink=auto", str(source), str(copy) + suffix], check=True)
+                # Copy DB + committed WAL in one consistent SQLite snapshot.
+                # Separate filesystem copies can mix different commits.
+                with sqlite3.connect(database.resolve().as_uri() + "?mode=ro", uri=True) as source, \
+                        sqlite3.connect(copy) as destination:
+                    source.backup(destination)
                 self.calls.put(make_call(copy))
 
     def map(self, jobs):
@@ -611,10 +687,10 @@ def adopt_serial_timings(results, serial):
         if row.get("status") == "error":
             continue
         if timed.get("status") == "error":
-            row.update(status="error", error="Serial latency pass failed: " + timed.get("error", ""))
+            row["timing_error"] = "Serial latency pass failed: " + timed.get("error", "")
             continue
         if timed.get("case_id") != row.get("case_id"):
-            row.update(status="error", error="Serial and parallel passes retained different cases")
+            row["timing_error"] = "Serial and parallel passes retained different cases"
             continue
         row["parallel_timings"] = {field: row.get(field) for field in TIMING_FIELDS}
         row.update({field: timed.get(field) for field in TIMING_FIELDS}, timing_source="serial")
@@ -637,7 +713,7 @@ def main():
     parser.add_argument("--no-dedupe-sources", action="store_true",
                         help="Hash every selected file in full even when its digest was already verified this run")
     parser.add_argument("--workers", type=int, default=1,
-                        help="Run scenarios, controls and investigations across this many reflinked DB copies (requires --db); "
+                        help="Run scenarios, controls and investigations across this many SQLite snapshots (requires --db); "
                              "a serial brief/manifest pass supplies latency of record")
     parser.add_argument("--serve", action="store_true",
                         help="Send main-pass, control and investigation calls through one long-lived `briefcase serve` per DB; "
@@ -656,10 +732,13 @@ def main():
     parser.add_argument("--ablations", default="", help="Comma-separated facets, or all, to disable one at a time; lexical-only disables every non-lexical facet together")
     parser.add_argument("--lexical-only", action="store_true", help="Also run a true lexical-only control (all non-lexical facets disabled together)")
     parser.add_argument("--selection-variants", default="", help="Comma-separated selection variants to compare against baseline at fixed manifest/max-files budgets")
-    parser.add_argument("--investigation-modes", default="", help="Comma-separated Arm B modes: manifest-first,exhaustive,inventory-first,excerpt-first")
+    parser.add_argument("--investigation-modes", default="", help="Comma-separated Arm B modes: manifest-first,exhaustive,inventory-first,excerpt-first,structural-explore")
     parser.add_argument("--investigation-max-calls", type=int, default=300)
     parser.add_argument("--investigation-max-bytes", type=int, default=2097152)
     parser.add_argument("--investigation-max-seconds", type=float, default=180)
+    parser.add_argument("--investigation-compact-inventory", action="store_true")
+    parser.add_argument("--investigation-inspection-only", action="store_true")
+    parser.add_argument("--investigation-dir", type=Path, help="New persistent directory for investigation checkpoints and exact events")
     parser.add_argument("--rg-baseline", action="store_true", help="Also run the predeclared rg/read baseline on --root")
     args = parser.parse_args()
     try:
@@ -676,11 +755,18 @@ def main():
         parser.error("verify-page-bytes must be 0 or 4..65536")
     if args.workers < 1 or (args.workers > 1 and not args.db):
         parser.error("--workers above 1 requires an explicit --db to copy")
+    if args.investigation_dir:
+        args.investigation_dir.mkdir(parents=True, exist_ok=True)
+        if any(args.investigation_dir.iterdir()):
+            parser.error("--investigation-dir must be empty")
     scenario_bytes = args.scenarios.read_bytes()
     authored = json.loads(scenario_bytes)
     scenarios = authored.get("scenarios", authored.get("cases", []))
     if not scenarios:
         parser.error("At least one labelled scenario is required")
+    if (any(not s.get("id") or not s.get("required_paths", s.get("followup_paths")) for s in scenarios)
+            or len({s["id"] for s in scenarios}) != len(scenarios)):
+        parser.error("Scenarios need unique IDs and nonempty authored path labels")
     binary, root = args.binary.resolve(), args.root.resolve()
     database = args.db.resolve() if args.db else None
     try:
@@ -714,8 +800,9 @@ def main():
     main_call = make_call(database) if args.serve and args.workers == 1 else call
     try:
         pool = WorkerPool(main_call, args.workers, make_call, database)
-    except (OSError, subprocess.CalledProcessError) as error:
+    except (OSError, sqlite3.Error) as error:
         parser.error(f"Cannot copy the evaluation database: {error}")
+    shutdown_failures = []
     try:
         serial = None
         if args.workers > 1:
@@ -752,11 +839,17 @@ def main():
         if modes:
             from task_investigation import run_bounded_investigation
             def investigate(c, scenario, mode):
+                options = dict(mode=mode, max_calls=args.investigation_max_calls,
+                    max_bytes=args.investigation_max_bytes, max_seconds=args.investigation_max_seconds,
+                    budget=args.manifest_bytes, compact_inventory=args.investigation_compact_inventory,
+                    verify_sources=not args.investigation_inspection_only)
+                if args.investigation_dir:
+                    # Hash the authored ID into a path rather than trusting it as a directory.
+                    name = hashlib.sha256(scenario["id"].encode()).hexdigest()[:24]
+                    directory = args.investigation_dir.resolve() / mode / name
+                    return {"id": scenario["id"], **run_bounded_investigation(c, directory, scenario, **options)}
                 with tempfile.TemporaryDirectory() as directory:
-                    return {"id": scenario.get("id"), **run_bounded_investigation(
-                        c, Path(directory) / "inv", scenario, mode=mode,
-                        max_calls=args.investigation_max_calls, max_bytes=args.investigation_max_bytes,
-                        max_seconds=args.investigation_max_seconds, budget=args.manifest_bytes)}
+                    return {"id": scenario.get("id"), **run_bounded_investigation(c, Path(directory) / "inv", scenario, **options)}
             pairs = [(mode, scenario) for mode in modes for scenario in scenarios]
             rows = pool.map([(scenario, lambda c, scenario=scenario, mode=mode: investigate(c, scenario, mode))
                              for mode, scenario in pairs])
@@ -764,7 +857,13 @@ def main():
                 investigations.setdefault(mode, []).append(row)
     finally:
         for server in servers:
-            server.stop()
+            code = server.stop()
+            if code not in (None, 0):
+                detail = "".join(server.stderr)[-8192:].strip()
+                shutdown_failures.append({"command": server.command, "exit_code": code, "stderr_tail": detail})
+                if evidence:
+                    evidence.record(server.command, "", "", cwd=root, timeout=args.timeout,
+                        started_at=time.time(), elapsed=0, state="shutdown_error", stderr=detail, exit_code=code)
         pool.close()
     rg_baseline = None
     if args.rg_baseline:
@@ -801,13 +900,33 @@ def main():
                 values = [r[field] for r in subset if r.get(field) is not None]
                 summary.setdefault(phase, {})[key] = statistics.median(values) if values else None
         return summary
-    report = {"method": "ranked-task-context-v5", "scenarios": results, "facet_ablations": ablations,
+    arms = {"baseline": results,
+            **{f"ablation:{name}": rows for name, rows in ablations.items()},
+            **{f"control:{name}": rows for name, rows in controls.items()},
+            **{f"variant:{name}": rows for name, rows in selection_variants.items()}}
+    coverage = {name: coverage_metrics(scenarios, rows) for name, rows in arms.items()}
+    retrieval_errors = sum(row.get("status") == "error" for rows in arms.values() for row in rows)
+    investigation_errors = sum(row.get("status") == "error" for rows in investigations.values() for row in rows)
+    timing_errors = sum(bool(row.get("timing_error")) for row in results)
+    error_count = retrieval_errors + investigation_errors + timing_errors + int(input_error is not None) + len(shutdown_failures)
+    if input_error or shutdown_failures:
+        for arm in coverage.values():
+            arm["comparison_eligible"] = False
+    report = {"method": "ranked-task-context-v6", "scenarios": results, "facet_ablations": ablations,
+              "arm_coverage": coverage,
+              "comparison_eligible": error_count == 0,
+              "error_counts": {"retrieval": retrieval_errors, "investigation": investigation_errors,
+                               "timing": timing_errors, "input": int(input_error is not None),
+                               "shutdown": len(shutdown_failures)},
+              "shutdown_failures": shutdown_failures,
               "controls": controls, "selection_variants": selection_variants,
               "selection_variant_deltas": {variant: ablation_deltas(results, rows) for variant, rows in selection_variants.items()},
               "investigations": investigations, "rg_baseline": rg_baseline,
               "timing_summary": timing_summary(results),
               "investigation_limits": {"max_calls": args.investigation_max_calls, "max_bytes": args.investigation_max_bytes,
-                                       "max_seconds": args.investigation_max_seconds},
+                                       "max_seconds": args.investigation_max_seconds,
+                                       "compact_inventory": args.investigation_compact_inventory,
+                                       "verification": not args.investigation_inspection_only},
               "facet_ablation_deltas": {facet: ablation_deltas(results, rows) for facet, rows in ablations.items()},
               "inputs": {"root": str(root), "database": str(database) if database else "environment/default",
                          "provenance": build_inputs, "raw_rpc_directory": str(args.trace_dir.resolve()) if args.trace_dir else None,
@@ -824,7 +943,7 @@ def main():
                          "verification_scope": "Source/candidate fetches and budget sweeps run only on full scenarios, not facet ablations. Candidate fetches measure protocol reachability, not harness judgment."},
               "passed": sum(r["status"] == "pass" for r in results),
               "missed": sum(r["status"] == "miss" for r in results),
-              "errors": sum(r["status"] == "error" for r in results) + int(input_error is not None),
+              "errors": error_count,
               **false_complete_metrics(results),
               "median_first_packet_ms": statistics.median(timings) if timings else None,
               "interpretation": "Labelled task evidence recall and actual manifest delivery, not safe patch completion. Labelled precision treats only authored required paths as relevant, so unlabelled useful files lower it. Token counts are byte-based estimates. Source pinning/status preflight precedes query timing. Ablations and controls run on the same retained corpus (on private DB copies when workers > 1) and their timings are warm; with workers > 1 primary latency comes from a separate serial pass. Weights require validation on a larger held-out task corpus."}
@@ -832,7 +951,7 @@ def main():
     if args.output:
         args.output.write_text(encoded)
     print(encoded, end="")
-    return 0 if not report["errors"] and report["passed"] == len(results) and not any(r["status"] == "error" for scored in ablations.values() for r in scored) else 1
+    return 0 if not report["errors"] and report["passed"] == len(results) else 1
 
 
 if __name__ == "__main__":

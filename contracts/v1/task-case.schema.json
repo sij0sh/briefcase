@@ -379,7 +379,8 @@
             "docs_disabled",
             "identifier_terms",
             "origin_fusion",
-            "structural_reach"
+            "structural_reach",
+            "exact_keys"
           ]
         }
       },

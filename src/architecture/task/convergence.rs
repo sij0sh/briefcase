@@ -556,6 +556,7 @@ mod tests {
             files,
             entities,
             links,
+            overflow_links: vec![],
             coverage: json!({}),
         }
     }

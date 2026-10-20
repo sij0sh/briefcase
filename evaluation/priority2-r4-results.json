@@ -1,0 +1,899 @@
+{
+  "date": "2026-10-20",
+  "method": "priority2-round4-review-v1",
+  "promotion_gate": "not_met",
+  "blocking_condition": "Intermittent process failures and JSON corruption remain unresolved. Primary arms lack complete scored denominators.",
+  "freeze": {
+    "date": "2026-10-20",
+    "scenario_sha256": "5690f305781c5448ec36e26c57994497332d9469a80cb781ff2d74a8c4e737d7",
+    "oracle_sha256": "9aa91e7bbbb2758444d68c20f07e0056eac9ce2b057ab6d0a2e097f7914b7bcd",
+    "scenarios": 10,
+    "required_paths": 28,
+    "seed": 20261023,
+    "feature_implemented": false,
+    "measured": false
+  },
+  "authorship": "Fresh prospectively frozen split before implementation/measurement, sampled without replacement from directories outside prior labels. Author knew proposals; collaborators may be previously observed. Not independently blinded authorship. Now regression evidence.",
+  "artifacts": {
+    "primary_results": {
+      "path": "/home/joshsimon/Projects/t3-eval-work/scale-next-1020/results/heldout.json",
+      "sha256": "e0084816146d645b6bad0ede8534cee7c634c9f9751c296f82f6442c0b04fb01"
+    },
+    "initial_evidence": {
+      "path": "/home/joshsimon/Projects/t3-eval-work/scale-next-1020/results/evidence.json",
+      "sha256": "43ce5e2a357caa6c6ae6f1b4e1c1fe74ac413f9b459a61254b37ff7aad76d36d"
+    },
+    "corrected_results": {
+      "path": "/home/joshsimon/Projects/t3-eval-work/scale-next-corrected-1020/results.json",
+      "sha256": "d5b26d6c946061f106f6a9c4fdc4447cf2d08827369988d7d336d29d9f4f0033"
+    },
+    "corrected_evidence_final": {
+      "path": "/home/joshsimon/Projects/t3-eval-work/scale-next-corrected-1020/evidence-final.json",
+      "sha256": "96426d76f043877eb359d0abf3a9ef52a147ab3f65481ca26823087471ec0a2a"
+    },
+    "implementation_freeze": {
+      "path": "/home/joshsimon/Projects/t3-eval-work/scale-next-1020/freeze.json",
+      "sha256": "4223f575fa4e0a62e8c4b236736530e995d3b8a0e54d0812e34b6987b6c8cc7d"
+    },
+    "corrected_driver": {
+      "path": "/home/joshsimon/Projects/t3-eval-work/scale-next-corrected-1020/run.py",
+      "sha256": "1e5d0cbe18d739dc1c0c891cea51beb065599a08c9d8d5f52e159c84dace282f"
+    }
+  },
+  "binary_sha256": "72dcf33d00a2b7aa149a06a7d594675c6df8356e87d58536b9cafe8c51e310ab",
+  "source_view": "view:1",
+  "primary": {
+    "errors": 3,
+    "error_counts": {
+      "retrieval": 2,
+      "investigation": 0,
+      "timing": 1,
+      "input": 0
+    },
+    "comparison_eligible": false,
+    "arm_coverage": {
+      "baseline": {
+        "authored_scenarios": 10,
+        "authored_required_paths": 28,
+        "scored_required_paths": 25,
+        "error_required_paths": 3,
+        "selected_required_paths": 25,
+        "manifest_delivered_required_paths": 24,
+        "complete_denominator": false,
+        "comparison_eligible": false,
+        "error_scenarios": [
+          "T3-P2R4-HO2-native-diff-registration"
+        ],
+        "timing_error_scenarios": [
+          "T3-P2R4-HO4-notification-response-navigation"
+        ],
+        "selected_recall": null,
+        "selected_recall_lower_bound": 0.8928571428571429,
+        "manifest_recall": null
+      },
+      "variant:exact_keys": {
+        "authored_scenarios": 10,
+        "authored_required_paths": 28,
+        "scored_required_paths": 25,
+        "error_required_paths": 3,
+        "selected_required_paths": 25,
+        "manifest_delivered_required_paths": 24,
+        "complete_denominator": false,
+        "comparison_eligible": false,
+        "error_scenarios": [
+          "T3-P2R4-HO6-mobile-diff-page-refresh"
+        ],
+        "timing_error_scenarios": [],
+        "selected_recall": null,
+        "selected_recall_lower_bound": 0.8928571428571429,
+        "manifest_recall": null
+      }
+    },
+    "failures": [
+      {
+        "arm": "baseline",
+        "id": "T3-P2R4-HO2-native-diff-registration",
+        "status": "error",
+        "error": "briefcase serve exited (code -6): free(): invalid next size (normal)",
+        "unscored_required_paths": [
+          "apps/mobile/src/features/diffs/nativeReviewDiffSurface.test.ts",
+          "apps/mobile/src/features/diffs/nativeReviewDiffSurface.ts",
+          "apps/mobile/src/native/nativeViewResolutionError.ts"
+        ]
+      },
+      {
+        "arm": "baseline",
+        "id": "T3-P2R4-HO4-notification-response-navigation",
+        "status": "pass",
+        "timing_error": "Serial latency pass failed: double free or corruption (out)"
+      },
+      {
+        "arm": "exact_keys",
+        "id": "T3-P2R4-HO6-mobile-diff-page-refresh",
+        "status": "error",
+        "error": "malformed JSON (Briefcase readiness: ready)",
+        "unscored_required_paths": [
+          "apps/mobile/src/features/pull-requests/pullRequestDiffPages.test.ts",
+          "apps/mobile/src/features/pull-requests/pullRequestDiffPages.ts",
+          "apps/mobile/src/features/review/reviewModel.ts"
+        ]
+      }
+    ],
+    "interpretation": "Observed counts are lower bounds over all 28 labels. Different error rows preclude paired improvement/loss claims. Initial structural schedule had a phase-counter defect; preserve it, exclude it from policy conclusions."
+  },
+  "corrected_exploration": {
+    "scope": "Diagnostic schedule correction on already-observed held-out tasks. Upstream retrieval/timing errors remain in the original report. No relevance tuning, re-authoring or promotion claim.",
+    "limits": {
+      "max_calls": 80,
+      "max_bytes": 524288,
+      "max_seconds": 120.0,
+      "compact_inventory": true,
+      "verification": false
+    },
+    "shutdown_exit_codes": [
+      0,
+      0
+    ],
+    "errors": 0,
+    "promotion_eligible": false,
+    "modes": {
+      "excerpt-first": {
+        "effort": {
+          "scenarios": 10,
+          "errors": 0,
+          "authored_required_paths": 28,
+          "inspected_required_paths": 28,
+          "inspected_beyond_manifest": 1,
+          "digest_verified_required_paths": 10,
+          "calls": {
+            "total": 773,
+            "median": 76.5,
+            "min": 75,
+            "max": 80
+          },
+          "bytes": {
+            "total": 5162935,
+            "median": 519534.0,
+            "min": 495709,
+            "max": 522439
+          },
+          "elapsed_seconds": {
+            "total": 445.243,
+            "median": 43.96,
+            "min": 40.689,
+            "max": 50.791
+          },
+          "byte_limit_overshoot": {
+            "total": 0,
+            "median": 0.0,
+            "min": 0,
+            "max": 0
+          },
+          "time_limit_overshoot": {
+            "total": 0,
+            "median": 0.0,
+            "min": 0,
+            "max": 0
+          }
+        },
+        "evidence": {
+          "passages_inspected": 12,
+          "passages_required": 28,
+          "relationships_delivered": 0,
+          "relationships_required": 10,
+          "claims_supportable": 0,
+          "claims_required": 10,
+          "micro_passage_coverage_lower_bound": 0.42857142857142855,
+          "micro_passage_coverage": 0.42857142857142855,
+          "macro_passage_coverage": 0.4333333333333333,
+          "micro_relationship_coverage_lower_bound": 0.0,
+          "micro_relationship_coverage": 0.0,
+          "macro_relationship_coverage": 0.0,
+          "micro_claim_coverage_lower_bound": 0.0,
+          "micro_claim_coverage": 0.0,
+          "macro_claim_coverage": 0.0,
+          "conclusions": {
+            "submitted": 0,
+            "supported": 0,
+            "unsupported": 0,
+            "precision": null,
+            "claim_coverage": null,
+            "state": "not_submitted"
+          },
+          "errors": 0,
+          "comparison_eligible": true,
+          "scenarios": [
+            {
+              "id": "T3-P2R4-HO1-device-stream-readiness",
+              "passages_inspected": 1,
+              "passages_required": 3,
+              "passage_recall": 0.3333333333333333,
+              "passage_hits": {
+                "p1": false,
+                "p2": true,
+                "p3": false
+              },
+              "relationships_delivered": 0,
+              "relationships_required": 1,
+              "relationship_recall": 0.0,
+              "relationship_hits": {
+                "r1": []
+              },
+              "claims_supportable": 0,
+              "claims_required": 1,
+              "supportable_claim_ids": [],
+              "claim_supportability": 0.0,
+              "conclusions": {
+                "state": "not_submitted",
+                "submitted": 0,
+                "supported": 0,
+                "unsupported": 0,
+                "precision": null,
+                "claim_coverage": null,
+                "rows": []
+              }
+            },
+            {
+              "id": "T3-P2R4-HO2-native-diff-registration",
+              "passages_inspected": 1,
+              "passages_required": 3,
+              "passage_recall": 0.3333333333333333,
+              "passage_hits": {
+                "p1": false,
+                "p2": false,
+                "p3": true
+              },
+              "relationships_delivered": 0,
+              "relationships_required": 1,
+              "relationship_recall": 0.0,
+              "relationship_hits": {
+                "r1": []
+              },
+              "claims_supportable": 0,
+              "claims_required": 1,
+              "supportable_claim_ids": [],
+              "claim_supportability": 0.0,
+              "conclusions": {
+                "state": "not_submitted",
+                "submitted": 0,
+                "supported": 0,
+                "unsupported": 0,
+                "precision": null,
+                "claim_coverage": null,
+                "rows": []
+              }
+            },
+            {
+              "id": "T3-P2R4-HO3-muse-effort-picker",
+              "passages_inspected": 0,
+              "passages_required": 3,
+              "passage_recall": 0.0,
+              "passage_hits": {
+                "p1": false,
+                "p2": false,
+                "p3": false
+              },
+              "relationships_delivered": 0,
+              "relationships_required": 1,
+              "relationship_recall": 0.0,
+              "relationship_hits": {
+                "r1": []
+              },
+              "claims_supportable": 0,
+              "claims_required": 1,
+              "supportable_claim_ids": [],
+              "claim_supportability": 0.0,
+              "conclusions": {
+                "state": "not_submitted",
+                "submitted": 0,
+                "supported": 0,
+                "unsupported": 0,
+                "precision": null,
+                "claim_coverage": null,
+                "rows": []
+              }
+            },
+            {
+              "id": "T3-P2R4-HO4-notification-response-navigation",
+              "passages_inspected": 1,
+              "passages_required": 3,
+              "passage_recall": 0.3333333333333333,
+              "passage_hits": {
+                "p1": false,
+                "p2": false,
+                "p3": true
+              },
+              "relationships_delivered": 0,
+              "relationships_required": 1,
+              "relationship_recall": 0.0,
+              "relationship_hits": {
+                "r1": []
+              },
+              "claims_supportable": 0,
+              "claims_required": 1,
+              "supportable_claim_ids": [],
+              "claim_supportability": 0.0,
+              "conclusions": {
+                "state": "not_submitted",
+                "submitted": 0,
+                "supported": 0,
+                "unsupported": 0,
+                "precision": null,
+                "claim_coverage": null,
+                "rows": []
+              }
+            },
+            {
+              "id": "T3-P2R4-HO5-delayed-native-dismissal",
+              "passages_inspected": 1,
+              "passages_required": 2,
+              "passage_recall": 0.5,
+              "passage_hits": {
+                "p1": true,
+                "p2": false
+              },
+              "relationships_delivered": 0,
+              "relationships_required": 1,
+              "relationship_recall": 0.0,
+              "relationship_hits": {
+                "r1": []
+              },
+              "claims_supportable": 0,
+              "claims_required": 1,
+              "supportable_claim_ids": [],
+              "claim_supportability": 0.0,
+              "conclusions": {
+                "state": "not_submitted",
+                "submitted": 0,
+                "supported": 0,
+                "unsupported": 0,
+                "precision": null,
+                "claim_coverage": null,
+                "rows": []
+              }
+            },
+            {
+              "id": "T3-P2R4-HO6-mobile-diff-page-refresh",
+              "passages_inspected": 2,
+              "passages_required": 3,
+              "passage_recall": 0.6666666666666666,
+              "passage_hits": {
+                "p1": true,
+                "p2": true,
+                "p3": false
+              },
+              "relationships_delivered": 0,
+              "relationships_required": 1,
+              "relationship_recall": 0.0,
+              "relationship_hits": {
+                "r1": []
+              },
+              "claims_supportable": 0,
+              "claims_required": 1,
+              "supportable_claim_ids": [],
+              "claim_supportability": 0.0,
+              "conclusions": {
+                "state": "not_submitted",
+                "submitted": 0,
+                "supported": 0,
+                "unsupported": 0,
+                "precision": null,
+                "claim_coverage": null,
+                "rows": []
+              }
+            },
+            {
+              "id": "T3-P2R4-HO7-relay-environment-sections",
+              "passages_inspected": 2,
+              "passages_required": 3,
+              "passage_recall": 0.6666666666666666,
+              "passage_hits": {
+                "p1": true,
+                "p2": false,
+                "p3": true
+              },
+              "relationships_delivered": 0,
+              "relationships_required": 1,
+              "relationship_recall": 0.0,
+              "relationship_hits": {
+                "r1": []
+              },
+              "claims_supportable": 0,
+              "claims_required": 1,
+              "supportable_claim_ids": [],
+              "claim_supportability": 0.0,
+              "conclusions": {
+                "state": "not_submitted",
+                "submitted": 0,
+                "supported": 0,
+                "unsupported": 0,
+                "precision": null,
+                "claim_coverage": null,
+                "rows": []
+              }
+            },
+            {
+              "id": "T3-P2R4-HO8-apns-provider-token-reuse",
+              "passages_inspected": 2,
+              "passages_required": 3,
+              "passage_recall": 0.6666666666666666,
+              "passage_hits": {
+                "p1": true,
+                "p2": true,
+                "p3": false
+              },
+              "relationships_delivered": 0,
+              "relationships_required": 1,
+              "relationship_recall": 0.0,
+              "relationship_hits": {
+                "r1": []
+              },
+              "claims_supportable": 0,
+              "claims_required": 1,
+              "supportable_claim_ids": [],
+              "claim_supportability": 0.0,
+              "conclusions": {
+                "state": "not_submitted",
+                "submitted": 0,
+                "supported": 0,
+                "unsupported": 0,
+                "precision": null,
+                "claim_coverage": null,
+                "rows": []
+              }
+            },
+            {
+              "id": "T3-P2R4-HO9-mobile-stack-merge-scope",
+              "passages_inspected": 1,
+              "passages_required": 2,
+              "passage_recall": 0.5,
+              "passage_hits": {
+                "p1": true,
+                "p2": false
+              },
+              "relationships_delivered": 0,
+              "relationships_required": 1,
+              "relationship_recall": 0.0,
+              "relationship_hits": {
+                "r1": []
+              },
+              "claims_supportable": 0,
+              "claims_required": 1,
+              "supportable_claim_ids": [],
+              "claim_supportability": 0.0,
+              "conclusions": {
+                "state": "not_submitted",
+                "submitted": 0,
+                "supported": 0,
+                "unsupported": 0,
+                "precision": null,
+                "claim_coverage": null,
+                "rows": []
+              }
+            },
+            {
+              "id": "T3-P2R4-HO10-desktop-window-ipc",
+              "passages_inspected": 1,
+              "passages_required": 3,
+              "passage_recall": 0.3333333333333333,
+              "passage_hits": {
+                "p1": true,
+                "p2": false,
+                "p3": false
+              },
+              "relationships_delivered": 0,
+              "relationships_required": 1,
+              "relationship_recall": 0.0,
+              "relationship_hits": {
+                "r1": []
+              },
+              "claims_supportable": 0,
+              "claims_required": 1,
+              "supportable_claim_ids": [],
+              "claim_supportability": 0.0,
+              "conclusions": {
+                "state": "not_submitted",
+                "submitted": 0,
+                "supported": 0,
+                "unsupported": 0,
+                "precision": null,
+                "claim_coverage": null,
+                "rows": []
+              }
+            }
+          ]
+        }
+      },
+      "structural-explore": {
+        "effort": {
+          "scenarios": 10,
+          "errors": 0,
+          "authored_required_paths": 28,
+          "inspected_required_paths": 28,
+          "inspected_beyond_manifest": 1,
+          "digest_verified_required_paths": 10,
+          "calls": {
+            "total": 774,
+            "median": 77.0,
+            "min": 75,
+            "max": 80
+          },
+          "bytes": {
+            "total": 5143541,
+            "median": 518433.5,
+            "min": 489815,
+            "max": 521515
+          },
+          "elapsed_seconds": {
+            "total": 425.259,
+            "median": 39.4045,
+            "min": 35.294,
+            "max": 53.156
+          },
+          "byte_limit_overshoot": {
+            "total": 0,
+            "median": 0.0,
+            "min": 0,
+            "max": 0
+          },
+          "time_limit_overshoot": {
+            "total": 0,
+            "median": 0.0,
+            "min": 0,
+            "max": 0
+          }
+        },
+        "evidence": {
+          "passages_inspected": 12,
+          "passages_required": 28,
+          "relationships_delivered": 5,
+          "relationships_required": 10,
+          "claims_supportable": 0,
+          "claims_required": 10,
+          "micro_passage_coverage_lower_bound": 0.42857142857142855,
+          "micro_passage_coverage": 0.42857142857142855,
+          "macro_passage_coverage": 0.4333333333333333,
+          "micro_relationship_coverage_lower_bound": 0.5,
+          "micro_relationship_coverage": 0.5,
+          "macro_relationship_coverage": 0.5,
+          "micro_claim_coverage_lower_bound": 0.0,
+          "micro_claim_coverage": 0.0,
+          "macro_claim_coverage": 0.0,
+          "conclusions": {
+            "submitted": 0,
+            "supported": 0,
+            "unsupported": 0,
+            "precision": null,
+            "claim_coverage": null,
+            "state": "not_submitted"
+          },
+          "errors": 0,
+          "comparison_eligible": true,
+          "scenarios": [
+            {
+              "id": "T3-P2R4-HO1-device-stream-readiness",
+              "passages_inspected": 1,
+              "passages_required": 3,
+              "passage_recall": 0.3333333333333333,
+              "passage_hits": {
+                "p1": false,
+                "p2": true,
+                "p3": false
+              },
+              "relationships_delivered": 1,
+              "relationships_required": 1,
+              "relationship_recall": 1.0,
+              "relationship_hits": {
+                "r1": [
+                  "task-link:0c0508794fc43ce69e4da4d3f21b5c23ee6fafad5c291158c66088e689252dd0"
+                ]
+              },
+              "claims_supportable": 0,
+              "claims_required": 1,
+              "supportable_claim_ids": [],
+              "claim_supportability": 0.0,
+              "conclusions": {
+                "state": "not_submitted",
+                "submitted": 0,
+                "supported": 0,
+                "unsupported": 0,
+                "precision": null,
+                "claim_coverage": null,
+                "rows": []
+              }
+            },
+            {
+              "id": "T3-P2R4-HO2-native-diff-registration",
+              "passages_inspected": 1,
+              "passages_required": 3,
+              "passage_recall": 0.3333333333333333,
+              "passage_hits": {
+                "p1": false,
+                "p2": false,
+                "p3": true
+              },
+              "relationships_delivered": 0,
+              "relationships_required": 1,
+              "relationship_recall": 0.0,
+              "relationship_hits": {
+                "r1": []
+              },
+              "claims_supportable": 0,
+              "claims_required": 1,
+              "supportable_claim_ids": [],
+              "claim_supportability": 0.0,
+              "conclusions": {
+                "state": "not_submitted",
+                "submitted": 0,
+                "supported": 0,
+                "unsupported": 0,
+                "precision": null,
+                "claim_coverage": null,
+                "rows": []
+              }
+            },
+            {
+              "id": "T3-P2R4-HO3-muse-effort-picker",
+              "passages_inspected": 0,
+              "passages_required": 3,
+              "passage_recall": 0.0,
+              "passage_hits": {
+                "p1": false,
+                "p2": false,
+                "p3": false
+              },
+              "relationships_delivered": 0,
+              "relationships_required": 1,
+              "relationship_recall": 0.0,
+              "relationship_hits": {
+                "r1": []
+              },
+              "claims_supportable": 0,
+              "claims_required": 1,
+              "supportable_claim_ids": [],
+              "claim_supportability": 0.0,
+              "conclusions": {
+                "state": "not_submitted",
+                "submitted": 0,
+                "supported": 0,
+                "unsupported": 0,
+                "precision": null,
+                "claim_coverage": null,
+                "rows": []
+              }
+            },
+            {
+              "id": "T3-P2R4-HO4-notification-response-navigation",
+              "passages_inspected": 1,
+              "passages_required": 3,
+              "passage_recall": 0.3333333333333333,
+              "passage_hits": {
+                "p1": false,
+                "p2": false,
+                "p3": true
+              },
+              "relationships_delivered": 1,
+              "relationships_required": 1,
+              "relationship_recall": 1.0,
+              "relationship_hits": {
+                "r1": [
+                  "task-link:030bdf95def89c973f7895c180b9359ae667c3557ae64f2707310520063512de"
+                ]
+              },
+              "claims_supportable": 0,
+              "claims_required": 1,
+              "supportable_claim_ids": [],
+              "claim_supportability": 0.0,
+              "conclusions": {
+                "state": "not_submitted",
+                "submitted": 0,
+                "supported": 0,
+                "unsupported": 0,
+                "precision": null,
+                "claim_coverage": null,
+                "rows": []
+              }
+            },
+            {
+              "id": "T3-P2R4-HO5-delayed-native-dismissal",
+              "passages_inspected": 1,
+              "passages_required": 2,
+              "passage_recall": 0.5,
+              "passage_hits": {
+                "p1": true,
+                "p2": false
+              },
+              "relationships_delivered": 1,
+              "relationships_required": 1,
+              "relationship_recall": 1.0,
+              "relationship_hits": {
+                "r1": [
+                  "task-link:140f413d278337805806eb3e7f2669d68cef61c76b2baea479a9be27f7c20652"
+                ]
+              },
+              "claims_supportable": 0,
+              "claims_required": 1,
+              "supportable_claim_ids": [],
+              "claim_supportability": 0.0,
+              "conclusions": {
+                "state": "not_submitted",
+                "submitted": 0,
+                "supported": 0,
+                "unsupported": 0,
+                "precision": null,
+                "claim_coverage": null,
+                "rows": []
+              }
+            },
+            {
+              "id": "T3-P2R4-HO6-mobile-diff-page-refresh",
+              "passages_inspected": 2,
+              "passages_required": 3,
+              "passage_recall": 0.6666666666666666,
+              "passage_hits": {
+                "p1": true,
+                "p2": true,
+                "p3": false
+              },
+              "relationships_delivered": 1,
+              "relationships_required": 1,
+              "relationship_recall": 1.0,
+              "relationship_hits": {
+                "r1": [
+                  "task-link:0813a67e6cda1c09186edcffd082c2ef4d0c4a0b47edf74263d49e168304b9ab"
+                ]
+              },
+              "claims_supportable": 0,
+              "claims_required": 1,
+              "supportable_claim_ids": [],
+              "claim_supportability": 0.0,
+              "conclusions": {
+                "state": "not_submitted",
+                "submitted": 0,
+                "supported": 0,
+                "unsupported": 0,
+                "precision": null,
+                "claim_coverage": null,
+                "rows": []
+              }
+            },
+            {
+              "id": "T3-P2R4-HO7-relay-environment-sections",
+              "passages_inspected": 2,
+              "passages_required": 3,
+              "passage_recall": 0.6666666666666666,
+              "passage_hits": {
+                "p1": true,
+                "p2": false,
+                "p3": true
+              },
+              "relationships_delivered": 0,
+              "relationships_required": 1,
+              "relationship_recall": 0.0,
+              "relationship_hits": {
+                "r1": []
+              },
+              "claims_supportable": 0,
+              "claims_required": 1,
+              "supportable_claim_ids": [],
+              "claim_supportability": 0.0,
+              "conclusions": {
+                "state": "not_submitted",
+                "submitted": 0,
+                "supported": 0,
+                "unsupported": 0,
+                "precision": null,
+                "claim_coverage": null,
+                "rows": []
+              }
+            },
+            {
+              "id": "T3-P2R4-HO8-apns-provider-token-reuse",
+              "passages_inspected": 2,
+              "passages_required": 3,
+              "passage_recall": 0.6666666666666666,
+              "passage_hits": {
+                "p1": true,
+                "p2": true,
+                "p3": false
+              },
+              "relationships_delivered": 0,
+              "relationships_required": 1,
+              "relationship_recall": 0.0,
+              "relationship_hits": {
+                "r1": []
+              },
+              "claims_supportable": 0,
+              "claims_required": 1,
+              "supportable_claim_ids": [],
+              "claim_supportability": 0.0,
+              "conclusions": {
+                "state": "not_submitted",
+                "submitted": 0,
+                "supported": 0,
+                "unsupported": 0,
+                "precision": null,
+                "claim_coverage": null,
+                "rows": []
+              }
+            },
+            {
+              "id": "T3-P2R4-HO9-mobile-stack-merge-scope",
+              "passages_inspected": 1,
+              "passages_required": 2,
+              "passage_recall": 0.5,
+              "passage_hits": {
+                "p1": true,
+                "p2": false
+              },
+              "relationships_delivered": 1,
+              "relationships_required": 1,
+              "relationship_recall": 1.0,
+              "relationship_hits": {
+                "r1": [
+                  "task-link:050c2130a63401550db454b75cbb7f48a047e88ea3d388de5f03d2ff2e85b815"
+                ]
+              },
+              "claims_supportable": 0,
+              "claims_required": 1,
+              "supportable_claim_ids": [],
+              "claim_supportability": 0.0,
+              "conclusions": {
+                "state": "not_submitted",
+                "submitted": 0,
+                "supported": 0,
+                "unsupported": 0,
+                "precision": null,
+                "claim_coverage": null,
+                "rows": []
+              }
+            },
+            {
+              "id": "T3-P2R4-HO10-desktop-window-ipc",
+              "passages_inspected": 1,
+              "passages_required": 3,
+              "passage_recall": 0.3333333333333333,
+              "passage_hits": {
+                "p1": true,
+                "p2": false,
+                "p3": false
+              },
+              "relationships_delivered": 0,
+              "relationships_required": 1,
+              "relationship_recall": 0.0,
+              "relationship_hits": {
+                "r1": []
+              },
+              "claims_supportable": 0,
+              "claims_required": 1,
+              "supportable_claim_ids": [],
+              "claim_supportability": 0.0,
+              "conclusions": {
+                "state": "not_submitted",
+                "submitted": 0,
+                "supported": 0,
+                "unsupported": 0,
+                "precision": null,
+                "claim_coverage": null,
+                "rows": []
+              }
+            }
+          ]
+        }
+      }
+    },
+    "interpretation": "Same retained cases/view/index and native binary; excerpt-first evidence reused, structural driver repaired. All authored labels retained; 28/28 path inspection in both modes, 12/28 passage witnesses in both, relationships 0/10 versus 5/10, no complete availability obligations, no conclusions submitted. Diagnostic replay after observing R4, not a fresh promotion test. Timing affected by separate runs and concurrent diagnostics."
+  },
+  "scorer": {
+    "entry": {
+      "path": "scripts/task-evidence-evaluate.py",
+      "sha256": "2788c21fd104e2cdfef8d489272103a54d26bc090365e9e6fdfae9a95e350b68"
+    },
+    "module": {
+      "path": "scripts/task_evidence_metrics.py",
+      "sha256": "27ac71b727c989bef39d464ac7d639e8df3f4180e7e267cf1dc325d3e4e2c7eb"
+    },
+    "interpretation": "Final scorer honors optional relationship authority/class constraints and reports explicit conclusion precision/coverage; these additions do not change measured witness counts."
+  },
+  "post_measurement_hardening": "Process death between requests and shutdown failures are now also errors; incomplete paired deltas are suppressed; report-wide comparison_eligible gates on all errors. This latest harness was regression-tested, not substituted into the frozen primary run."
+}

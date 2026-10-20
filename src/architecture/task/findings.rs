@@ -412,6 +412,7 @@ mod tests {
             files,
             entities: BTreeMap::new(),
             links,
+            overflow_links: vec![],
             coverage: json!({}),
         }
     }

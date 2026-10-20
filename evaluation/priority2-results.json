@@ -1,0 +1,1052 @@
+{
+ "method": "priority2-relationship-and-candidate-generation-v1",
+ "date": "2026-10-20",
+ "gate": "A proposed relation demonstrably adds correct witnesses on held-out tasks without converting association into behavioral authority.",
+ "gate_met": false,
+ "decision": "Keep the 48-file default and import corroboration; leave identifier_terms, origin_fusion, structural_reach and workspace binding REFERENCES opt-in. Retain overflow-aware traversal as a correctness repair. The post-fix held-out evidence is saturated round 2 and neutral round 3; the first held-out set was not rerun after the fix. No tested relation meets the promotion gate; a new scoped exact-key relation remains unimplemented.",
+ "engine": {
+  "binary_sha256": "b3144bb019f7fc1cbb82e0c731a1c00542415b6d2eb3d06e9a034db97c1d3a75",
+  "scan_binary_sha256": "fdbbdcbd0d962ff9f9e231d55be9186bc26d8339840de8187c6e8d577c90b1c7",
+  "heldout_scenarios_sha256": "d135d067252807be0f2e5b7d21f8d81f1753110febfcac30bb5dd584175c83b5",
+  "heldout_scenarios": "evaluation/t3-heldout-p2-scenarios.json (10 scenarios, 29 required paths, frozen before measurement; authoring bias documented in its provenance)",
+  "reference_view": "view:3 on db-ref (66,661 binding REFERENCES assertions; profile pin repointed view:2 -> view:3 after snapshot match)",
+  "reference_index": {
+   "id": "task-index:bbae97ba7f883594fafbd9b148d93ae88491d6b81a0caa5f6601ccdaa72f4434",
+   "hot_relationships": 100000,
+   "overflow_relationships": 143567,
+   "total_relationships": 243567,
+   "hot_predicates": {
+    "REFERENCES": 31725,
+    "TESTS": 40012,
+    "DEPENDS_ON": 14006,
+    "IMPORTS": 14257
+   },
+   "note": "Baseline joined index total was 159,582. The 80-weight tier (IMPORTS+DEPENDS_ON+REFERENCES) alone is 125,998 links, so hot-index eviction falls inside that tier by link ID and removes IMPORTS/DEPENDS_ON plus every 65-70-weight artifact/config link from hot traversal."
+  }
+ },
+ "arms": {
+  "briefcase_orig": {
+   "file": "bc-orig.json",
+   "sha256": "c89df1c1298b8647382862459c0f665d947dde5d8212538e9455434cba72abe6",
+   "reported_passed": 5,
+   "reported_errors": 0,
+   "false_complete_count": 0,
+   "baseline": {
+    "selected": 32,
+    "manifest_delivered": 31,
+    "required": 36,
+    "scenarios": 8,
+    "passed": 5,
+    "errors": 0
+   },
+   "variants": {
+    "identifier_terms": {
+     "selected": 32,
+     "manifest_delivered": 31,
+     "required": 36,
+     "scenarios": 8,
+     "passed": 5,
+     "errors": 0
+    },
+    "origin_fusion": {
+     "selected": 32,
+     "manifest_delivered": 31,
+     "required": 36,
+     "scenarios": 8,
+     "passed": 5,
+     "errors": 0
+    },
+    "structural_reach": {
+     "selected": 32,
+     "manifest_delivered": 31,
+     "required": 36,
+     "scenarios": 8,
+     "passed": 5,
+     "errors": 0
+    }
+   },
+   "deltas": {
+    "identifier_terms": {
+     "gained": [],
+     "lost": []
+    },
+    "origin_fusion": {
+     "gained": [],
+     "lost": []
+    },
+    "structural_reach": {
+     "gained": [],
+     "lost": []
+    }
+   }
+  },
+  "briefcase_heldout": {
+   "file": "bc-heldout.json",
+   "sha256": "69129aeb0e8e03c817a59059df3b101404a34090a779865cfa419a6a68aaa4b1",
+   "reported_passed": 4,
+   "reported_errors": 0,
+   "false_complete_count": 0,
+   "baseline": {
+    "selected": 18,
+    "manifest_delivered": 18,
+    "required": 19,
+    "scenarios": 5,
+    "passed": 4,
+    "errors": 0
+   },
+   "variants": {
+    "identifier_terms": {
+     "selected": 18,
+     "manifest_delivered": 18,
+     "required": 19,
+     "scenarios": 5,
+     "passed": 4,
+     "errors": 0
+    },
+    "origin_fusion": {
+     "selected": 18,
+     "manifest_delivered": 18,
+     "required": 19,
+     "scenarios": 5,
+     "passed": 4,
+     "errors": 0
+    },
+    "structural_reach": {
+     "selected": 18,
+     "manifest_delivered": 18,
+     "required": 19,
+     "scenarios": 5,
+     "passed": 4,
+     "errors": 0
+    }
+   },
+   "deltas": {
+    "identifier_terms": {
+     "gained": [],
+     "lost": []
+    },
+    "origin_fusion": {
+     "gained": [],
+     "lost": []
+    },
+    "structural_reach": {
+     "gained": [],
+     "lost": []
+    }
+   }
+  },
+  "t3_text_dev": {
+   "file": "t3-txt-dev.json",
+   "sha256": "c8b550cd64687fb7c0a3e8b5aeca229a2cb2bc361b8767b8e6ab5e45687e87f8",
+   "reported_passed": 7,
+   "reported_errors": 0,
+   "false_complete_count": 0,
+   "baseline": {
+    "selected": 42,
+    "manifest_delivered": 41,
+    "required": 56,
+    "scenarios": 14,
+    "passed": 7,
+    "errors": 0
+   },
+   "variants": {
+    "identifier_terms": {
+     "selected": 41,
+     "manifest_delivered": 39,
+     "required": 56,
+     "scenarios": 14,
+     "passed": 7,
+     "errors": 0
+    },
+    "origin_fusion": {
+     "selected": 42,
+     "manifest_delivered": 41,
+     "required": 56,
+     "scenarios": 14,
+     "passed": 7,
+     "errors": 0
+    },
+    "structural_reach": {
+     "selected": 42,
+     "manifest_delivered": 41,
+     "required": 56,
+     "scenarios": 14,
+     "passed": 7,
+     "errors": 0
+    }
+   },
+   "deltas": {
+    "identifier_terms": {
+     "gained": [],
+     "lost": [
+      {
+       "scenario": "T3-R-H2-checkpoint-finalization",
+       "path": "apps/server/src/orchestration-v2/RunFinalizationService.ts"
+      }
+     ]
+    },
+    "origin_fusion": {
+     "gained": [],
+     "lost": []
+    },
+    "structural_reach": {
+     "gained": [],
+     "lost": []
+    }
+   }
+  },
+  "t3_text_heldout": {
+   "file": "t3-txt-heldout.json",
+   "sha256": "a6643844a5bfa483848c721afc929612e015e1a3a4c218c62db938f4bdedb980",
+   "reported_passed": 5,
+   "reported_errors": 0,
+   "false_complete_count": 0,
+   "baseline": {
+    "selected": 22,
+    "manifest_delivered": 21,
+    "required": 29,
+    "scenarios": 10,
+    "passed": 5,
+    "errors": 0
+   },
+   "variants": {
+    "identifier_terms": {
+     "selected": 23,
+     "manifest_delivered": 22,
+     "required": 29,
+     "scenarios": 10,
+     "passed": 5,
+     "errors": 0
+    },
+    "origin_fusion": {
+     "selected": 22,
+     "manifest_delivered": 21,
+     "required": 29,
+     "scenarios": 10,
+     "passed": 5,
+     "errors": 0
+    },
+    "structural_reach": {
+     "selected": 22,
+     "manifest_delivered": 21,
+     "required": 29,
+     "scenarios": 10,
+     "passed": 5,
+     "errors": 0
+    }
+   },
+   "deltas": {
+    "identifier_terms": {
+     "gained": [
+      {
+       "scenario": "T3-P2-HO2-outdated-access-warning",
+       "path": "apps/web/src/components/PermissionUpdateNotice.tsx"
+      },
+      {
+       "scenario": "T3-P2-HO5-reasoning-double-count",
+       "path": "packages/provider-core/src/server/usage.ts"
+      },
+      {
+       "scenario": "T3-P2-HO7-dev-login-fallback",
+       "path": "apps/server/src/auth/ReusableDevAuth.ts"
+      }
+     ],
+     "lost": [
+      {
+       "scenario": "T3-P2-HO10-capture-shortcut-conflict",
+       "path": "apps/web/src/components/settings/SnapShotSettings.tsx"
+      },
+      {
+       "scenario": "T3-P2-HO10-capture-shortcut-conflict",
+       "path": "apps/web/src/lib/snapShotShortcut.ts"
+      }
+     ]
+    },
+    "origin_fusion": {
+     "gained": [],
+     "lost": []
+    },
+    "structural_reach": {
+     "gained": [],
+     "lost": []
+    }
+   }
+  },
+  "t3_joined_dev": {
+   "file": "t3-sem-dev.json",
+   "sha256": "c275952a35078f716dbc927765407292f0e6b95fbd2e87477b46e9c8410a66b0",
+   "reported_passed": 9,
+   "reported_errors": 0,
+   "false_complete_count": 0,
+   "baseline": {
+    "selected": 44,
+    "manifest_delivered": 42,
+    "required": 56,
+    "scenarios": 14,
+    "passed": 9,
+    "errors": 0
+   },
+   "variants": {
+    "identifier_terms": {
+     "selected": 41,
+     "manifest_delivered": 41,
+     "required": 56,
+     "scenarios": 14,
+     "passed": 9,
+     "errors": 0
+    },
+    "origin_fusion": {
+     "selected": 44,
+     "manifest_delivered": 44,
+     "required": 56,
+     "scenarios": 14,
+     "passed": 9,
+     "errors": 0
+    },
+    "structural_reach": {
+     "selected": 40,
+     "manifest_delivered": 39,
+     "required": 50,
+     "scenarios": 14,
+     "passed": 9,
+     "errors": 1,
+     "authored_required": 56,
+     "comparison_eligible": false,
+     "note": "One error row (T3-R-H7) omits six authored labels. The raw 40/39 over 50 represented labels is not full-set recall; preserve the error rather than impute it."
+    }
+   },
+   "deltas": {
+    "identifier_terms": {
+     "gained": [],
+     "lost": [
+      {
+       "scenario": "T3-R-H1-rpc-permission",
+       "path": "packages/client-runtime/src/state/commandPermissions.ts"
+      },
+      {
+       "scenario": "T3-R-H2-checkpoint-finalization",
+       "path": "apps/server/src/orchestration-v2/EffectWorker.ts"
+      },
+      {
+       "scenario": "T3-R-H4-stale-pr-display",
+       "path": "packages/client-runtime/src/threadPullRequestCompatibility.test.ts"
+      }
+     ]
+    },
+    "origin_fusion": {
+     "gained": [],
+     "lost": []
+    },
+    "structural_reach": {
+     "gained": [],
+     "lost": []
+    }
+   }
+  },
+  "t3_joined_heldout": {
+   "file": "t3-sem-heldout.json",
+   "sha256": "97c004c0e4669356b520227719bc4799f673b33070d53038ef3b2afda6f06496",
+   "reported_passed": 3,
+   "reported_errors": 6,
+   "false_complete_count": 0,
+   "baseline": {
+    "selected": 25,
+    "manifest_delivered": 24,
+    "required": 29,
+    "scenarios": 10,
+    "passed": 3,
+    "errors": 6,
+    "comparison_eligible": false,
+    "note": "Six status errors came from the serial latency pass after selections were captured. The clean serial baseline reproduces every required-path selection and gives 25 selected, 24 delivered, 6 passes and zero errors."
+   },
+   "variants": {
+    "identifier_terms": {
+     "selected": 25,
+     "manifest_delivered": 25,
+     "required": 29,
+     "scenarios": 10,
+     "passed": 6,
+     "errors": 0
+    },
+    "origin_fusion": {
+     "selected": 25,
+     "manifest_delivered": 24,
+     "required": 29,
+     "scenarios": 10,
+     "passed": 6,
+     "errors": 0
+    },
+    "structural_reach": {
+     "selected": 25,
+     "manifest_delivered": 24,
+     "required": 29,
+     "scenarios": 10,
+     "passed": 6,
+     "errors": 0
+    }
+   },
+   "deltas": {
+    "identifier_terms": {
+     "gained": [
+      {
+       "scenario": "T3-P2-HO2-outdated-access-warning",
+       "path": "apps/web/src/components/PermissionUpdateNotice.tsx"
+      }
+     ],
+     "lost": [
+      {
+       "scenario": "T3-P2-HO10-capture-shortcut-conflict",
+       "path": "apps/web/src/lib/snapShotShortcut.ts"
+      }
+     ]
+    },
+    "origin_fusion": {
+     "gained": [],
+     "lost": []
+    },
+    "structural_reach": {
+     "gained": [],
+     "lost": []
+    }
+   },
+   "deltas_note": "Identifier deltas recomputed from captured selected paths, including HO10 whose status was later marked error by the latency pass. All baseline required-path selections match the clean serial control."
+  },
+  "t3_reference_dev": {
+   "file": "t3-ref-dev.json",
+   "sha256": "552376b0085b47e53fc568a9cf24711634e03cb75c75429b085331189d88d151",
+   "reported_passed": 8,
+   "reported_errors": 0,
+   "false_complete_count": 0,
+   "baseline": {
+    "selected": 43,
+    "manifest_delivered": 41,
+    "required": 56,
+    "scenarios": 14,
+    "passed": 8,
+    "errors": 0
+   },
+   "variants": {
+    "identifier_terms": {
+     "selected": 40,
+     "manifest_delivered": 39,
+     "required": 56,
+     "scenarios": 14,
+     "passed": 8,
+     "errors": 0
+    },
+    "origin_fusion": {
+     "selected": 43,
+     "manifest_delivered": 42,
+     "required": 56,
+     "scenarios": 14,
+     "passed": 8,
+     "errors": 0
+    },
+    "structural_reach": {
+     "selected": 41,
+     "manifest_delivered": 41,
+     "required": 56,
+     "scenarios": 14,
+     "passed": 7,
+     "errors": 0
+    }
+   },
+   "deltas": {
+    "identifier_terms": {
+     "gained": [
+      {
+       "scenario": "T3-R-H7-offline-webhook-retry",
+       "path": "infra/relay/src/hooks/HookForwarder.ts"
+      },
+      {
+       "scenario": "T3-R-H7-offline-webhook-retry",
+       "path": "infra/relay/src/hooks/HookInboxObject.ts"
+      }
+     ],
+     "lost": [
+      {
+       "scenario": "T3-R-H1-rpc-permission",
+       "path": "packages/client-runtime/src/state/commandPermissions.ts"
+      },
+      {
+       "scenario": "T3-R-H2-checkpoint-finalization",
+       "path": "apps/server/src/orchestration-v2/EffectWorker.ts"
+      },
+      {
+       "scenario": "T3-R-H4-stale-pr-display",
+       "path": "packages/client-runtime/src/threadPullRequestCompatibility.test.ts"
+      },
+      {
+       "scenario": "T3-R-H6-rollback-capability",
+       "path": "packages/provider-acp/src/server/adapter.ts"
+      },
+      {
+       "scenario": "T3-R-H7-offline-webhook-retry",
+       "path": "apps/server/src/scheduledTasks/webhookRoute.ts"
+      }
+     ]
+    },
+    "origin_fusion": {
+     "gained": [],
+     "lost": []
+    },
+    "structural_reach": {
+     "gained": [],
+     "lost": [
+      {
+       "scenario": "T3-R-H7-offline-webhook-retry",
+       "path": "apps/server/src/scheduledTasks/webhookRoute.ts"
+      },
+      {
+       "scenario": "T3-R-H10-attachment-retry",
+       "path": "apps/server/src/orchestration-v2/AttachmentClaims.ts"
+      }
+     ]
+    }
+   }
+  },
+  "t3_reference_heldout": {
+   "file": "t3-ref-heldout.json",
+   "sha256": "25885a93d598d128550857c702258bc48b4086d05518f06855cfadf9d03bc897",
+   "reported_passed": 6,
+   "reported_errors": 0,
+   "false_complete_count": 0,
+   "baseline": {
+    "selected": 25,
+    "manifest_delivered": 23,
+    "required": 29,
+    "scenarios": 10,
+    "passed": 6,
+    "errors": 0
+   },
+   "variants": {
+    "identifier_terms": {
+     "selected": 25,
+     "manifest_delivered": 24,
+     "required": 29,
+     "scenarios": 10,
+     "passed": 6,
+     "errors": 0
+    },
+    "origin_fusion": {
+     "selected": 25,
+     "manifest_delivered": 24,
+     "required": 29,
+     "scenarios": 10,
+     "passed": 6,
+     "errors": 0
+    },
+    "structural_reach": {
+     "selected": 24,
+     "manifest_delivered": 23,
+     "required": 29,
+     "scenarios": 10,
+     "passed": 5,
+     "errors": 0
+    }
+   },
+   "deltas": {
+    "identifier_terms": {
+     "gained": [
+      {
+       "scenario": "T3-P2-HO2-outdated-access-warning",
+       "path": "apps/web/src/components/PermissionUpdateNotice.tsx"
+      }
+     ],
+     "lost": [
+      {
+       "scenario": "T3-P2-HO10-capture-shortcut-conflict",
+       "path": "apps/web/src/lib/snapShotShortcut.ts"
+      }
+     ]
+    },
+    "origin_fusion": {
+     "gained": [],
+     "lost": []
+    },
+    "structural_reach": {
+     "gained": [],
+     "lost": [
+      {
+       "scenario": "T3-P2-HO10-capture-shortcut-conflict",
+       "path": "apps/web/src/lib/snapShotShortcut.test.ts"
+      }
+     ]
+    }
+   }
+  }
+ },
+ "audits": {
+  "binding_witness": {
+   "file": "binding-audit-v3.json",
+   "binding_references": 66661,
+   "sample": 400,
+   "seed": 20261020,
+   "correct": 399,
+   "alias": 1,
+   "incorrect": 0,
+   "precision": 1.0,
+   "meaning": "Witness-span precision only; a binding use is association, not a call or runtime dependency."
+  },
+  "exact_key_join": {
+   "file": "key-audit-p1-joined.json",
+   "missed_paths": 14,
+   "exact_key_join_available": 10,
+   "no_exact_key_join": 4,
+   "meaning": "Audit only; no key-join relation was implemented or measured on held-out tasks."
+  },
+  "clean_serial_baseline": "repro/s1.json: workers=1 gives 6 pass, 4 miss, zero errors, 25/29 selected and 24 delivered, reproducing every original baseline required-path selection. The parallel joined held-out file marks six baseline rows error during the serial latency pass; errors include allocator/panic failures and invalid manifest/case failures. The variant rows are error-free. A shared root cause has not been established."
+ },
+ "validation": {
+  "verify_context": "lib 163, context 62, stage2 3, stage4 4, p0p1 7, p2 10 pass; stage3 passes 4/4 serially (parallel preflight lock flake pre-existing, reproduced on unmodified HEAD per SCALE_PRIORITY1)",
+  "python_scripts": 104,
+  "python_tools": 8,
+  "node_adapter_tests": 17,
+  "conformance": "57 passed, 11 failed (pre-existing missing evaluation/fixtures and evaluation/sources), 111 ignored; workspace binding-references test passes",
+  "clippy": "0 errors (warnings pre-existing)"
+ },
+ "scope": "Selected-path and 8,000-byte manifest recall against authored required paths. Held-out required_facts are empty, so no claim-witness or answer-quality improvement is measured. Latency is not compared: reference arms ran serially (workers=1) while frozen arms used workers=4.",
+ "round2": {
+  "fix": "Overflow-aware traversal: Index.overflow_links loaded from the retained overflow report at index load; retrieval expansion, config-key join and origin-fusion map traverse hot + overflow. Hot links, neighbors scopes and adjacency coverage unchanged. New unit test: overflow_only_binding_link_reaches_a_candidate.",
+  "binary_sha256": "f72540312869acaa8346515772285656779349f4110239a74e04fcb7405e0c0f",
+  "heldout_r2": {
+   "scenarios": "evaluation/t3-heldout-p2-r2-scenarios.json",
+   "sha256": "e04999a7dd4f3e58cbfafe575943b9c71e19ad0a4e476863334cf117858e5f3b",
+   "verdict": "Invalid for the gate: baseline saturated 20/20 on both databases; retained as saturation evidence only.",
+   "old_db": {
+    "file": "old-heldout.json",
+    "sha256": "2e0ff243a4f7c860de91800943493bf2914d403a2693cc6ddce8d2f9e303bc6b",
+    "reported_passed": 10,
+    "reported_errors": 0,
+    "false_complete_count": 0,
+    "baseline": {
+     "selected": 20,
+     "manifest_delivered": 20,
+     "required": 20,
+     "scenarios": 10,
+     "passed": 10,
+     "errors": 0
+    },
+    "variants": {
+     "identifier_terms": {
+      "selected": 20,
+      "manifest_delivered": 20,
+      "required": 20,
+      "scenarios": 10,
+      "passed": 10,
+      "errors": 0
+     },
+     "origin_fusion": {
+      "selected": 20,
+      "manifest_delivered": 20,
+      "required": 20,
+      "scenarios": 10,
+      "passed": 10,
+      "errors": 0
+     },
+     "structural_reach": {
+      "selected": 20,
+      "manifest_delivered": 20,
+      "required": 20,
+      "scenarios": 10,
+      "passed": 10,
+      "errors": 0
+     }
+    }
+   },
+   "reference_db": {
+    "file": "fix-heldout.json",
+    "sha256": "43295969db5594bd461ce168daac047c06c96e255883741bbac64f0a859afbcb",
+    "reported_passed": 10,
+    "reported_errors": 0,
+    "false_complete_count": 0,
+    "baseline": {
+     "selected": 20,
+     "manifest_delivered": 20,
+     "required": 20,
+     "scenarios": 10,
+     "passed": 10,
+     "errors": 0
+    },
+    "variants": {
+     "identifier_terms": {
+      "selected": 20,
+      "manifest_delivered": 20,
+      "required": 20,
+      "scenarios": 10,
+      "passed": 10,
+      "errors": 0
+     },
+     "origin_fusion": {
+      "selected": 20,
+      "manifest_delivered": 20,
+      "required": 20,
+      "scenarios": 10,
+      "passed": 10,
+      "errors": 0
+     },
+     "structural_reach": {
+      "selected": 20,
+      "manifest_delivered": 20,
+      "required": 20,
+      "scenarios": 10,
+      "passed": 10,
+      "errors": 0
+     }
+    }
+   }
+  },
+  "heldout_r3": {
+   "scenarios": "evaluation/t3-heldout-p2-r3-scenarios.json",
+   "sha256": "6c50c1688946865a830a383962d893573187f45a16bbdf928bec055c0bb8400a",
+   "old_db": {
+    "file": "r3-old-heldout.json",
+    "sha256": "9b7540ff274d845f33d55c250b31aa3ace3c83d5a8fa271fb8fbad0b7922da0b",
+    "reported_passed": 8,
+    "reported_errors": 0,
+    "false_complete_count": 0,
+    "baseline": {
+     "selected": 22,
+     "manifest_delivered": 22,
+     "required": 28,
+     "scenarios": 10,
+     "passed": 8,
+     "errors": 0
+    },
+    "variants": {
+     "identifier_terms": {
+      "selected": 22,
+      "manifest_delivered": 22,
+      "required": 28,
+      "scenarios": 10,
+      "passed": 8,
+      "errors": 0
+     },
+     "origin_fusion": {
+      "selected": 22,
+      "manifest_delivered": 22,
+      "required": 28,
+      "scenarios": 10,
+      "passed": 8,
+      "errors": 0
+     },
+     "structural_reach": {
+      "selected": 22,
+      "manifest_delivered": 22,
+      "required": 28,
+      "scenarios": 10,
+      "passed": 8,
+      "errors": 0
+     }
+    }
+   },
+   "reference_db": {
+    "file": "r3-fix-heldout.json",
+    "sha256": "0ac71b0d3f4ada8610cfb453656175c44b4d0eaea484986acd83b39afb08ed05",
+    "reported_passed": 8,
+    "reported_errors": 0,
+    "false_complete_count": 0,
+    "baseline": {
+     "selected": 22,
+     "manifest_delivered": 22,
+     "required": 28,
+     "scenarios": 10,
+     "passed": 8,
+     "errors": 0
+    },
+    "variants": {
+     "identifier_terms": {
+      "selected": 22,
+      "manifest_delivered": 22,
+      "required": 28,
+      "scenarios": 10,
+      "passed": 8,
+      "errors": 0
+     },
+     "origin_fusion": {
+      "selected": 22,
+      "manifest_delivered": 22,
+      "required": 28,
+      "scenarios": 10,
+      "passed": 8,
+      "errors": 0
+     },
+     "structural_reach": {
+      "selected": 22,
+      "manifest_delivered": 22,
+      "required": 28,
+      "scenarios": 10,
+      "passed": 8,
+      "errors": 0
+     }
+    }
+   }
+  },
+  "dev": {
+   "old_db": {
+    "file": "old-dev.json",
+    "sha256": "62496df712716f8683e820519af6c93656799ad0aef48d4df10e3f256b3a46e0",
+    "reported_passed": 9,
+    "reported_errors": 1,
+    "false_complete_count": 0,
+    "baseline": {
+     "selected": 40,
+     "manifest_delivered": 38,
+     "required": 51,
+     "scenarios": 14,
+     "passed": 9,
+     "errors": 1,
+     "authored_required": 56,
+     "comparison_eligible": false,
+     "note": "One error row (T3-R-H1) omits five authored labels. The raw 40/38 over 51 represented labels is not full-set recall."
+    },
+    "variants": {
+     "identifier_terms": {
+      "selected": 42,
+      "manifest_delivered": 42,
+      "required": 56,
+      "scenarios": 14,
+      "passed": 9,
+      "errors": 0
+     },
+     "origin_fusion": {
+      "selected": 44,
+      "manifest_delivered": 42,
+      "required": 56,
+      "scenarios": 14,
+      "passed": 9,
+      "errors": 0
+     },
+     "structural_reach": {
+      "selected": 44,
+      "manifest_delivered": 42,
+      "required": 56,
+      "scenarios": 14,
+      "passed": 9,
+      "errors": 0
+     }
+    }
+   },
+   "reference_db": {
+    "file": "fix-dev.json",
+    "sha256": "51d97020bb9f6300c7e6db8b790110abc1850c132723bef647f0365b1c7b1199",
+    "reported_passed": 9,
+    "reported_errors": 0,
+    "false_complete_count": 0,
+    "baseline": {
+     "selected": 45,
+     "manifest_delivered": 43,
+     "required": 56,
+     "scenarios": 14,
+     "passed": 9,
+     "errors": 0
+    },
+    "variants": {
+     "identifier_terms": {
+      "selected": 42,
+      "manifest_delivered": 40,
+      "required": 56,
+      "scenarios": 14,
+      "passed": 9,
+      "errors": 0
+     },
+     "origin_fusion": {
+      "selected": 45,
+      "manifest_delivered": 44,
+      "required": 56,
+      "scenarios": 14,
+      "passed": 9,
+      "errors": 0
+     },
+     "structural_reach": {
+      "selected": 44,
+      "manifest_delivered": 42,
+      "required": 56,
+      "scenarios": 14,
+      "passed": 8,
+      "errors": 0
+     }
+    }
+   }
+  },
+  "pre_registered_rule": "Gate met only if a variant or the binding baseline beats both the old-database baseline and its same-database baseline by >=2 net selected required paths with >=1 newly passing scenario, zero errors, zero false-complete (for the binding baseline itself, the binding-vs-old comparison applies).",
+  "gate_met": false,
+  "findings": [
+   "Dev on the reference DB improves from 43/41 selected/delivered and 8 passing scenarios in round 1 to 45/43 and 9 passes after overflow-aware traversal. The round-2 old-DB baseline has one process error and represents only 51 of 56 authored labels, so it is not a complete paired baseline. Error-free old-DB origin_fusion and structural_reach controls give 44/42 and 9 passes.",
+   "Round-3 held-out (28 paths): every arm on both databases selects 22 and delivers 22, 8/10 pass, zero errors and zero false-complete. No relation adds a required path. The two failing scenarios each miss 3 paths: SSH auth.ts and its test are below the score floor (12 and 6); SSH errors.ts is not a candidate; all 3 Azure paths are above the score floor (38-51) but excluded by selection. Five candidates have lexical-only signals, at evidence ranks 73-802 across the two databases. Missing graph signals do not identify the producer/index/traversal failure stage.",
+   "The round-2 old-dev baseline records briefcase serve exited for T3-R-H1. Its selected/delivered totals are partial and cannot establish a full-set gain. The variant rows are error-free. The root cause and its relationship to round-1 allocator/manifest failures remain unresolved.",
+   "The original 29-path held-out set was not rerun after overflow-aware traversal. Round 2 is saturated and round 3 is neutral; post-fix neutrality on the original set has not been measured."
+  ]
+ },
+ "review": {
+  "date": "2026-10-20",
+  "status": "Evaluation documentation complete; promotion gate not met. Exact-key implementation and richer implementation binding resolution remain follow-up work.",
+  "sessions": [
+   {
+    "agent": "Claude Code",
+    "id": "500380cf-4333-4e53-b442-34462437ecba",
+    "path": "/home/joshsimon/.claude/projects/-home-joshsimon-Projects-briefcase/500380cf-4333-4e53-b442-34462437ecba.jsonl",
+    "work": "Opt-in experiments, regression tests, initial measurements and rescan; usage limit before reference-DB evaluation/write-up."
+   },
+   {
+    "agent": "Muse",
+    "id": "01a15a41-281c-7260-bc7f-d354adedaf40",
+    "path": "/home/joshsimon/.local/share/muse/sessions/2026/10/20/01a15a41-281c-7260-bc7f-d354adedaf40/session.jsonl",
+    "work": "Reference evaluation, audits, overflow traversal repair, rounds 2/3; usage limit during final documentation."
+   }
+  ],
+  "raw_result_roots": {
+   "round1": "/home/joshsimon/Projects/t3-eval-work/p2-1020/results",
+   "round2_and_round3": "/home/joshsimon/Projects/t3-eval-work/p2r2-1020/results"
+  },
+  "artifact_verification": {
+   "result_files": 14,
+   "binaries": 3,
+   "scenario_files": 3,
+   "all_sha256_match": true,
+   "aggregate_counts_recomputed": true,
+   "full_t3_evaluation_rerun": false,
+   "current_src_matches_round2_frozen_tree": true
+  },
+  "additional_evidence": [
+   {
+    "path": "/home/joshsimon/Projects/t3-eval-work/p2-1020/repro/s1.json",
+    "sha256": "4e4dc5e4b45acd113b4d746f78634c3fc5f031afa8fdcda492def766a56120e9"
+   },
+   {
+    "path": "/home/joshsimon/Projects/t3-eval-work/p2-1020/results/key-audit-p1-joined.json",
+    "sha256": "030b5666a831dcd8eff7e62342d45cf845e3ff9c93cce37a9105d74109b3d5a1"
+   },
+   {
+    "path": "/home/joshsimon/Projects/t3-eval-work/p2-1020/results/binding-audit-v3.json",
+    "sha256": "e33d678b90e30bcf02f85c74c5384891ae278eb20cab675fcdfa25d628f2ab56"
+   }
+  ],
+  "clean_serial_baseline": {
+   "selected": 25,
+   "manifest_delivered": 24,
+   "required": 29,
+   "scenarios": 10,
+   "passed": 6,
+   "errors": 0,
+   "required_path_selections_match_original": true
+  },
+  "round3_miss_diagnostics": {
+   "old_db": [
+    {
+     "scenario": "T3-P2R3-HO2-ssh-password-prompts",
+     "path": "packages/ssh/src/auth.ts",
+     "state": "below_minimum_score",
+     "score": 12,
+     "evidence_rank": 444
+    },
+    {
+     "scenario": "T3-P2R3-HO2-ssh-password-prompts",
+     "path": "packages/ssh/src/auth.test.ts",
+     "state": "below_minimum_score",
+     "score": 6,
+     "evidence_rank": 789
+    },
+    {
+     "scenario": "T3-P2R3-HO2-ssh-password-prompts",
+     "path": "packages/ssh/src/errors.ts",
+     "state": "not_a_candidate",
+     "score": null,
+     "evidence_rank": null
+    },
+    {
+     "scenario": "T3-P2R3-HO10-azure-source-control",
+     "path": "packages/source-control-azure-devops/src/server/AzureDevOpsSourceControlProvider.ts",
+     "state": "not_selected",
+     "score": 51,
+     "evidence_rank": 73
+    },
+    {
+     "scenario": "T3-P2R3-HO10-azure-source-control",
+     "path": "packages/source-control-azure-devops/src/server/AzureDevOpsSourceControlProvider.test.ts",
+     "state": "not_selected",
+     "score": 47,
+     "evidence_rank": 109
+    },
+    {
+     "scenario": "T3-P2R3-HO10-azure-source-control",
+     "path": "packages/source-control-azure-devops/src/server/AzureDevOpsCli.ts",
+     "state": "not_selected",
+     "score": 38,
+     "evidence_rank": 184
+    }
+   ],
+   "reference_db": [
+    {
+     "scenario": "T3-P2R3-HO2-ssh-password-prompts",
+     "path": "packages/ssh/src/auth.ts",
+     "state": "below_minimum_score",
+     "score": 12,
+     "evidence_rank": 446
+    },
+    {
+     "scenario": "T3-P2R3-HO2-ssh-password-prompts",
+     "path": "packages/ssh/src/auth.test.ts",
+     "state": "below_minimum_score",
+     "score": 6,
+     "evidence_rank": 802
+    },
+    {
+     "scenario": "T3-P2R3-HO2-ssh-password-prompts",
+     "path": "packages/ssh/src/errors.ts",
+     "state": "not_a_candidate",
+     "score": null,
+     "evidence_rank": null
+    },
+    {
+     "scenario": "T3-P2R3-HO10-azure-source-control",
+     "path": "packages/source-control-azure-devops/src/server/AzureDevOpsSourceControlProvider.ts",
+     "state": "not_selected",
+     "score": 51,
+     "evidence_rank": 74
+    },
+    {
+     "scenario": "T3-P2R3-HO10-azure-source-control",
+     "path": "packages/source-control-azure-devops/src/server/AzureDevOpsSourceControlProvider.test.ts",
+     "state": "not_selected",
+     "score": 47,
+     "evidence_rank": 110
+    },
+    {
+     "scenario": "T3-P2R3-HO10-azure-source-control",
+     "path": "packages/source-control-azure-devops/src/server/AzureDevOpsCli.ts",
+     "state": "not_selected",
+     "score": 38,
+     "evidence_rank": 184
+    }
+   ]
+  },
+  "authority_limit": "All measured T3 baseline and selection-variant rows have zero complete outcomes as well as zero false-complete outcomes. This is conservative reporting, not evidence of answer correctness or useful sufficiency.",
+  "exact_key_limit": "10 of 14 non-delivered dev paths have a bounded-frequency shared literal. Two were already selected and lost only at manifest delivery, leaving at most eight earlier-stage opportunities before semantic validation. No new key relation was built or measured on held-out tasks.",
+  "benchmark_limit": "The round-3 Azure scenario asks for one hosted provider integration without specifying Azure. Alternative provider witness groups may satisfy the task; preserve frozen labels and address ambiguity in future independently authored sets.",
+  "current_validation": {
+   "context_gate": {
+    "command": "scripts/verify-context -- --test-threads=1",
+    "exit_code": 0,
+    "status": "passed"
+   },
+   "binding_reference": {
+    "command": "cargo test --locked --test conformance workspace_binding_references_resolve_uses_through_barrels_namespaces_and_heritage -- --include-ignored --test-threads=1",
+    "exit_code": 0,
+    "passed": 1,
+    "failed": 0
+   },
+   "diff_check": {
+    "command": "git diff --check",
+    "exit_code": 0
+   }
+  },
+  "next_steps": [
+   "Retain the overflow correctness repair and opt-in experiments separately; preserve raw inputs/results and resolve serving/manifest failures before another promotion run.",
+   "Evaluate one scoped exact contract/event-key association with exact witnesses, identity-aware negative controls, stage-specific metrics and a newly frozen independent held-out set.",
+   "Evaluate bounded protected structural exploration through existing inventories/adjacency/case revisions under equal investigation budgets; audit coverage and starters on observed SSH/Azure cases as dev evidence.",
+   "Measure identifier candidate admission independently of selection displacement; keep fusion and reach opt-in.",
+   "Prototype Priority 3 obligation groups with passage/relationship and micro/macro claim-witness coverage, counterevidence and useful scoped sufficiency metrics."
+  ]
+ }
+}

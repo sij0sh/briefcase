@@ -13,6 +13,13 @@ spec.loader.exec_module(task_evaluate)
 
 
 class TaskEvaluationTests(unittest.TestCase):
+    def test_incomplete_arms_do_not_publish_partial_paired_deltas(self):
+        row = {"id": "a", "status": "error"}
+        self.assertEqual(task_evaluate.ablation_deltas([row], [row]), [])
+        self.assertEqual(task_evaluate.ablation_deltas([row], []), [])
+        self.assertEqual(task_evaluate.ablation_deltas(
+            [{"id": "a", "timing_error": "crash"}], [{"id": "a"}]), [])
+
     def test_followup_files_measure_missed_context(self):
         packet = {"id": "task-brief:test", "view_id": "view:1", "outcome": "partial", "slice": {},
                   "not_covered": [{"area": "external_installations"}],
@@ -246,13 +253,13 @@ class TaskEvaluationTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "changed"):
             task_evaluate.PinnedCall(lambda *_: {"view_id": "view:other"}, "view:stable")("brief", {})
 
-    def test_ablation_deltas_expose_role_crowding_and_exclude_errors(self):
+    def test_ablation_deltas_expose_role_crowding_on_complete_arms(self):
         base = {"id": "one", "status": "miss", "selected_paths": ["test", "code"], "missing_paths": ["needed"],
                 "required_path_recall": 0.5, "selected_role_counts": {role: 0 for role in task_evaluate.ROLES}}
         base["selected_role_counts"].update(test=1, impl=1)
         changed = {**base, "status": "pass", "selected_paths": ["needed", "code"], "missing_paths": [],
                    "required_path_recall": 1.0, "selected_role_counts": {**base["selected_role_counts"], "test": 0, "impl": 2}}
-        delta = task_evaluate.ablation_deltas([base], [changed, {"id": "error", "status": "error"}])[0]
+        delta = task_evaluate.ablation_deltas([base], [changed])[0]
         self.assertEqual(delta["required_paths_gained"], ["needed"])
         self.assertEqual(delta["selected_role_count_deltas"]["test"], -1)
         self.assertEqual(delta["selected_paths_removed"], ["test"])
@@ -420,7 +427,104 @@ class SourceTransportTests(unittest.TestCase):
                   {"id": "b", "case_id": "other", "brief_ms": 90, "timing_phase": "warm"}]
         task_evaluate.adopt_serial_timings(results, serial)
         self.assertEqual((results[0]["brief_ms"], results[0]["parallel_timings"]["brief_ms"]), (100, 900))
-        self.assertEqual(results[1]["status"], "error")
+        self.assertIn("timing_error", results[1])
+        self.assertEqual(results[1]["case_id"], "c2")
+
+    def test_served_exit_keeps_stderr_exit_code_and_failed_exchange(self):
+        from run_evidence import RunEvidence
+        with tempfile.TemporaryDirectory() as directory:
+            fake = Path(directory) / "briefcase"
+            fake.write_text("#!/usr/bin/env python3\nimport sys\nsys.stdin.readline()\n"
+                            "print('allocator diagnostic', file=sys.stderr, flush=True)\nsys.exit(7)\n")
+            fake.chmod(0o755)
+            trace = Path(directory) / "trace"
+            served = task_evaluate.Served(fake, Path(directory), 5, evidence=RunEvidence(trace))
+            with self.assertRaisesRegex(RuntimeError, r"code 7.*allocator diagnostic"):
+                served("brief", {"task": "x"})
+            record = json.loads((trace / "000001.json").read_text())
+            self.assertEqual((record["state"], record["exit_code"]), ("error", 7))
+            self.assertIn("allocator diagnostic", (trace / "000001.stderr").read_text())
+
+    def test_served_concurrent_callers_match_their_own_reply(self):
+        from concurrent.futures import ThreadPoolExecutor
+        with tempfile.TemporaryDirectory() as directory:
+            fake = Path(directory) / "briefcase"
+            fake.write_text("#!/usr/bin/env python3\nimport json,sys,time\n"
+                            "for line in sys.stdin:\n"
+                            " r=json.loads(line)\n time.sleep(.005)\n"
+                            " print(json.dumps({'id':r['id'],'ok':True,'result':r['arguments']}),flush=True)\n")
+            fake.chmod(0o755)
+            served = task_evaluate.Served(fake, Path(directory), 5)
+            try:
+                with ThreadPoolExecutor(max_workers=4) as pool:
+                    rows = list(pool.map(lambda i: served("brief", {"task": str(i)}), range(12)))
+                self.assertEqual(rows, [{"task": str(i)} for i in range(12)])
+            finally:
+                served.stop()
+
+    def test_server_crash_after_a_reply_is_not_silently_restarted(self):
+        with tempfile.TemporaryDirectory() as directory:
+            fake = Path(directory) / "briefcase"
+            fake.write_text("#!/usr/bin/env python3\nimport json,sys\n"
+                "r=json.loads(sys.stdin.readline())\n"
+                "print(json.dumps({'id':r['id'],'ok':True,'result':{'captured':True}}),flush=True)\n"
+                "print('failed during cleanup',file=sys.stderr,flush=True)\nsys.exit(7)\n")
+            fake.chmod(0o755)
+            server = task_evaluate.Served(fake, Path(directory), 5)
+            self.assertTrue(server("brief", {})["captured"])
+            server.process.wait(timeout=5)
+            with self.assertRaisesRegex(RuntimeError, "between requests.*code 7"):
+                server("agent_context", {})
+
+    def test_error_rows_and_arm_coverage_keep_every_authored_label(self):
+        scenarios = [{"id": "good", "task": "inspect", "required_paths": ["a"]},
+                     {"id": "failed", "task": "inspect", "required_paths": ["b", "c"]}]
+        def fail():
+            raise RuntimeError("process exited")
+        error = task_evaluate.guarded(scenarios[1], fail)
+        self.assertEqual(error["required_path_ranks"], {"b": None, "c": None})
+        self.assertEqual(error["unscored_required_paths"], ["b", "c"])
+        rows = [{"id": "good", "status": "pass", "selected_paths": ["a"],
+                 "harness_context": {"missing_required_paths": []}}, error]
+        scored = task_evaluate.coverage_metrics(scenarios, rows)
+        self.assertEqual((scored["authored_required_paths"], scored["error_required_paths"]), (3, 2))
+        self.assertIsNone(scored["selected_recall"])
+        self.assertEqual(scored["selected_recall_lower_bound"], 1 / 3)
+        self.assertFalse(scored["comparison_eligible"])
+        with self.assertRaisesRegex(ValueError, "exactly one"):
+            task_evaluate.coverage_metrics(scenarios, rows[:1])
+
+    def test_timing_failure_preserves_retrieval_but_blocks_comparison(self):
+        scenario = {"id": "x", "required_paths": ["a", "b"]}
+        rows = [{"id": "x", "status": "miss", "case_id": "task-case:x",
+                 "selected_paths": ["a"], "missing_paths": ["b"]}]
+        task_evaluate.adopt_serial_timings(rows, [{"id": "x", "status": "error", "error": "allocator failure"}])
+        self.assertEqual(rows[0]["status"], "miss")
+        self.assertEqual(rows[0]["missing_paths"], ["b"])
+        scored = task_evaluate.coverage_metrics([scenario], rows)
+        self.assertEqual(scored["selected_recall"], 0.5)
+        self.assertTrue(scored["complete_denominator"])
+        self.assertFalse(scored["comparison_eligible"])
+
+    def test_worker_backups_include_committed_wal_and_are_independent(self):
+        import sqlite3
+        with tempfile.TemporaryDirectory() as directory:
+            database = Path(directory) / "source.db"
+            with sqlite3.connect(database) as writer:
+                writer.execute("PRAGMA journal_mode=WAL")
+                writer.execute("CREATE TABLE evidence(value)")
+                writer.execute("INSERT INTO evidence VALUES(17)")
+                writer.commit()
+                pool = task_evaluate.WorkerPool(None, 2, lambda path: path, database)
+                try:
+                    first, second = pool.calls.get_nowait(), pool.calls.get_nowait()
+                    with sqlite3.connect(first) as a, sqlite3.connect(second) as b:
+                        self.assertEqual(a.execute("SELECT value FROM evidence").fetchone(), (17,))
+                        self.assertEqual(b.execute("SELECT value FROM evidence").fetchone(), (17,))
+                        a.execute("INSERT INTO evidence VALUES(23)"); a.commit()
+                        self.assertEqual(b.execute("SELECT count(*) FROM evidence").fetchone(), (1,))
+                finally:
+                    pool.close()
 
     def test_corruption_stalled_cursors_wrong_entries_and_budget_notices_fail_source_verification(self):
         changes = [

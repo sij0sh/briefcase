@@ -35,6 +35,37 @@ fn publish(ledger:&mut Ledger,root:&Path) {
 fn file(path:String,content:String)->(String,String) {(path,content)}
 
 #[test]
+fn exact_key_experiment_keeps_scope_authority_and_verified_witnesses() {
+    let f=Fixture::new(&[
+        file("apps/a/src/start.ts".into(),"headers.get('x-t3-special-delivery');\n".into()),
+        file("apps/a/src/unrelated-name.ts".into(),"headers.set('x-t3-special-delivery', token);\n".into()),
+        file("apps/b/src/collision.ts".into(),"headers.set('x-t3-special-delivery', different);\n".into()),
+    ]);
+    let args=json!({"task":"repair crash","target":"apps/a/src/start.ts","max_bytes":1048576});
+    let baseline=f.call("brief",args.clone());
+    let mut variant=args;variant["selection_variant"]=json!("exact_keys");
+    let result=f.call("brief",variant);
+    let all=f.call("page",json!({"report_id":result["case_id"],"section":"/candidates","limit":1000,"max_bytes":1048576}));
+    let candidate=rows(&all,"items").iter().find(|r|r["path"]=="apps/a/src/unrelated-name.ts").unwrap();
+    assert_eq!(candidate["selected"],true);
+    let signal=rows(candidate,"signals").iter().find(|s|s["kind"]=="exact_key_association").unwrap();
+    assert_eq!(signal["confidence"],"candidate");
+    assert_eq!(signal["provenance"]["authority"],"static_association");
+    assert_eq!(signal["provenance"]["scope"],"apps/a");
+    assert!(!rows(&all,"items").iter().any(|r| r["path"]=="apps/b/src/collision.ts"
+        && rows(r,"signals").iter().any(|s|s["kind"]=="exact_key_association")));
+    let explanation=f.call("explain",json!({"report_id":signal["provenance"]["report_id"],"ref":signal["provenance"]["ref"]}));
+    for w in rows(&explanation["entry"],"witnesses") {
+        let content=std::fs::read_to_string(f.root.join(w["path"].as_str().unwrap())).unwrap();
+        let range=&w["byte_range"];
+        assert_eq!(&content[range["start"].as_u64().unwrap() as usize..range["end"].as_u64().unwrap() as usize],"x-t3-special-delivery");
+    }
+    let old=f.call("page",json!({"report_id":baseline["case_id"],"section":"/candidates","limit":1000,"max_bytes":1048576}));
+    assert!(!rows(&old,"items").iter().any(|r|rows(r,"signals").iter().any(|s|s["kind"]=="exact_key_association")));
+    assert_ne!(result["outcome"],"complete");
+}
+
+#[test]
 fn duplicate_chunks_of_distractors_cannot_exhaust_lexical_discovery() {
     // 90 distractors × ~14 chunks each exceed a 1,000-chunk pool, and each
     // chunk outranks the single relevant mention.

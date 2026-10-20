@@ -6,6 +6,7 @@ pub(crate) mod case;
 mod completeness;
 mod duty;
 mod evidence;
+mod exact_keys;
 mod request;
 mod retrieval;
 mod trace;
@@ -124,7 +125,21 @@ struct Index {
     files: BTreeMap<String, Artifact>,
     entities: BTreeMap<String, Entity>,
     links: Vec<Link>,
+    /// Relationships evicted from the hot adjacency by the index limit,
+    /// loaded from the retained overflow report for traversal. Never
+    /// serialized into the retained index: `links` alone is the hot set
+    /// that `neighbors` scope and adjacency coverage describe.
+    #[serde(default, skip_serializing)]
+    overflow_links: Vec<Link>,
     coverage: Value,
+}
+impl Index {
+    /// Every retained relationship: hot adjacency plus its overflow.
+    /// Ranking traversal uses this so the hot limit stays a cache bound,
+    /// not a bound on what a case can discover.
+    fn traversal_links(&self) -> impl Iterator<Item = &Link> {
+        self.links.iter().chain(&self.overflow_links)
+    }
 }
 
 fn page_items(kind: &str, view: &str, items: &[Value], offset: usize, limit: usize) -> Value {

@@ -41,6 +41,7 @@ pub(super) const SELECTION_VARIANTS: &[&str] = &[
     "identifier_terms",
     "origin_fusion",
     "structural_reach",
+    "exact_keys",
 ];
 fn default_selection_variant() -> String {
     "baseline".into()

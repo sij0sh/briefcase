@@ -14,7 +14,7 @@ def key(value):
     return digest(json.dumps(value, sort_keys=True, separators=(",", ":")).encode())
 
 
-MODES = ("manifest_first", "exhaustive", "inventory_first", "excerpt_first")
+MODES = ("manifest_first", "exhaustive", "inventory_first", "excerpt_first", "structural_explore")
 
 
 def normalize_mode(mode):
@@ -82,13 +82,13 @@ class Investigation:
             # decides which sources are complete when the budget runs out.
             queue.insert(1 if front and queue else len(queue), {"id": action_id, **action})
 
-    def source(self, path, report, reference, offset=0):
+    def source(self, path, report, reference, offset=0, kind=None):
         if path in self.state.setdefault("sources", {}):
             return
         self.state["sources"][path] = {"report_id": report, "ref": reference, "ranges": [], "state": "queued"}
-        focused = self.state.get("mode") in ("inventory_first", "excerpt_first") or not self.state.get("verify_sources", True)
+        focused = self.state.get("mode") in ("inventory_first", "excerpt_first", "structural_explore") or not self.state.get("verify_sources", True)
         self.enqueue("explain", {"report_id": report, "ref": reference, "source_offset": offset if focused else 0},
-                     "excerpt" if focused else "source", path)
+                     kind or ("excerpt" if focused else "source"), path)
 
     def next_action(self):
         """Old policies preserve their order; new policies defer whole-file reads.
@@ -99,7 +99,13 @@ class Investigation:
         """
         queue = self.state["queue"]
         mode = self.state.get("mode")
-        if mode not in ("inventory_first", "excerpt_first"):
+        if mode == "structural_explore":
+            structural = [a for a in queue if a["kind"].startswith("structural_")]
+            ordinary = [a for a in queue if not a["kind"].startswith("structural_")]
+            if structural and (not ordinary or self.state.get("exploration_turn", 0) == 0):
+                return structural[0]
+            queue = ordinary
+        if mode not in ("inventory_first", "excerpt_first", "structural_explore"):
             return queue[0]
         inventories = [a for a in queue if a["kind"] not in ("source", "excerpt")]
         excerpts = [a for a in queue if a["kind"] == "excerpt"]
@@ -147,6 +153,14 @@ class Investigation:
             self.enqueue("inventory", {"case_id": report, "kind": "candidates", "offset": 0, "limit": 20}, "candidates")
         else:
             self.enqueue("page", {"report_id": report, "section": "/candidates", "offset": 0, "limit": 20}, "candidates")
+        if mode == "structural_explore":
+            self.state["exploration"] = {"root_limit": 4, "path_limit": 16, "roots": [], "paths": [],
+                "interpretation": "Bounded static associations, independent of authored labels; inspection does not assert support."}
+            self.enqueue("inventory", {"case_id": report, "kind": "candidates", "selected": False,
+                "graph_only": True, "limit": 16}, "structural_candidates")
+            for row in rows:
+                if row.get("path") and len(self.state["exploration"]["roots"]) < 4:
+                    self.structural_neighbors(row["path"])
         target = arguments.get("target")
         if target and target not in (".", "./", "/"):
             self.enqueue("neighbors", {"index_id": self.state["index_id"], "view": self.state["view_id"],
@@ -154,6 +168,23 @@ class Investigation:
         self.check_current()
         self.save()
         return self.state
+
+    def structural_neighbors(self, path):
+        exploration = self.state["exploration"]
+        if path in exploration["roots"] or len(exploration["roots"]) >= exploration["root_limit"]:
+            return
+        exploration["roots"].append(path)
+        self.enqueue("neighbors", {"index_id": self.state["index_id"], "view": self.state["view_id"],
+            "target": path, "direction": "both", "depth": 1, "relationship_scope": "all",
+            "predicate": "IMPORTS,REFERENCES,DEPENDS_ON,TESTS,READS_CONFIG,DECLARES_CONFIG_KEY", "limit": 8},
+            "structural_neighbors")
+
+    def structural_source(self, path, report, reference, offset=0):
+        exploration = self.state["exploration"]
+        if path in self.state["sources"] or len(exploration["paths"]) >= exploration["path_limit"]:
+            return
+        exploration["paths"].append(path)
+        self.source(path, report, reference, offset, kind="structural_excerpt")
 
     def check_current(self):
         # Control-plane reads must fit their pin fields even when the
@@ -207,7 +238,7 @@ class Investigation:
             return None
         action = self.next_action()
         args = {**action["arguments"], "max_bytes": self.state["budget"]}
-        if action["kind"] in ("source", "excerpt"):
+        if action["kind"] in ("source", "excerpt", "structural_excerpt"):
             args["source_bytes"] = min(4000, max(4, self.state["budget"] // 2))
         else:
             # Inventory pages must fit at least one row; the manifest budget
@@ -222,7 +253,7 @@ class Investigation:
         kind = action["kind"]
         if kind == "source":
             self.consume_source(action, result, event_id)
-        elif kind == "excerpt":
+        elif kind in ("excerpt", "structural_excerpt"):
             self.consume_source(action, result, event_id, excerpt=True)
         elif kind in ("roles", "required_roles"):
             if "entry" not in result:
@@ -248,7 +279,7 @@ class Investigation:
             if page.get("returned") != len(items):
                 raise ValueError("Page counts do not match delivered rows")
             next_offset = page.get("next_offset")
-            if next_offset is not None:
+            if next_offset is not None and not kind.startswith("structural_"):
                 if type(next_offset) is not int or next_offset != page["offset"] + len(items) or not items:
                     raise ValueError("Non-contiguous or stalled continuation")
                 continuation = result.get("continue_with")
@@ -264,6 +295,15 @@ class Investigation:
                 for index, row in enumerate(items, start=page["offset"]):
                     inventory.append(row["path"])
                     self.source(row["path"], report, row.get("source_ref", f"/candidates/{index}"), source_offset(row))
+            if kind == "structural_candidates":
+                report = result.get("fetch_source", {}).get("arguments", {}).get("report_id", self.state["case_id"])
+                for row in items:
+                    self.structural_source(row["path"], report, row["source_ref"], source_offset(row))
+            if kind == "structural_neighbors":
+                paths = sorted({p for row in items for p in row.get("from_files", []) + row.get("to_files", [])})
+                for path in paths:
+                    escaped = path.replace("~", "~0").replace("/", "~1")
+                    self.structural_source(path, self.state["index_id"], "/files/" + escaped)
             if kind in ("neighbors", "occurrences", "search"):
                 paths = set()
                 for row in items:
@@ -274,7 +314,10 @@ class Investigation:
                     escaped = path.replace("~", "~0").replace("/", "~1")
                     self.source(path, self.state["index_id"], "/files/" + escaped)
         self.state["queue"].remove(action)
-        if self.state.get("mode") == "excerpt_first":
+        if self.state.get("mode") == "structural_explore":
+            self.state["exploration_turn"] = (self.state.get("exploration_turn", 0) + 1) % 5
+        if (self.state.get("mode") == "excerpt_first" or
+                self.state.get("mode") == "structural_explore" and not kind.startswith("structural_")):
             self.state["excerpt_turn"] = (self.state.get("excerpt_turn", 0) + 1) % 5 if kind == "excerpt" else 1
         self.state["status"] = "open"
         self.save()
@@ -421,7 +464,8 @@ class Investigation:
 
 
 def run_bounded_investigation(call, directory, scenario, *, mode="manifest-first",
-                              max_calls=300, max_bytes=2 * 1024 * 1024, max_seconds=180, budget=8000):
+                              max_calls=300, max_bytes=2 * 1024 * 1024, max_seconds=180, budget=8000,
+                              compact_inventory=False, verify_sources=True):
     """Run one investigation under aggregate call/byte/time stopping limits.
 
     ``limit_reached`` names the first exhausted budget, or ``complete`` when
@@ -431,10 +475,21 @@ def run_bounded_investigation(call, directory, scenario, *, mode="manifest-first
     import time as _time
     stats = {"calls": 0, "bytes": 0}
 
+    class BudgetStop(Exception):
+        pass
+
     def counted(operation, arguments):
-        result = call(operation, arguments)
+        if stats["calls"] >= max_calls:
+            raise BudgetStop("calls")
+        if _time.monotonic() - started >= max_seconds:
+            raise BudgetStop("seconds")
+        if arguments.get("max_bytes", 1048576) > max_bytes - stats["bytes"]:
+            raise BudgetStop("bytes")
         stats["calls"] += 1
-        stats["bytes"] += len((json.dumps(result, ensure_ascii=False) + "\n").encode("utf-8"))
+        result = call(operation, arguments)
+        stats["bytes"] += len((json.dumps(result, ensure_ascii=False, separators=(",", ":")) + "\n").encode("utf-8"))
+        if stats["bytes"] > max_bytes:
+            raise ValueError("Server exceeded the requested aggregate response budget")
         return result
 
     started = _time.monotonic()
@@ -443,7 +498,7 @@ def run_bounded_investigation(call, directory, scenario, *, mode="manifest-first
     for name in ("target", "duty", "view", "depth", "max_files", "exclude_facets", "selection_variant"):
         if name in scenario:
             request[name] = scenario[name]
-    flow.start(request, budget, mode=mode)
+    flow.start(request, budget, mode=mode, compact_inventory=compact_inventory, verify_sources=verify_sources)
     limit = "complete"
     while flow.state["queue"]:
         if stats["calls"] >= max_calls:
@@ -452,7 +507,11 @@ def run_bounded_investigation(call, directory, scenario, *, mode="manifest-first
             limit = "bytes"; break
         if _time.monotonic() - started >= max_seconds:
             limit = "seconds"; break
-        flow.step()
+        try:
+            flow.step()
+        except BudgetStop as stop:
+            limit = str(stop)
+            break
     else:
         limit = "complete"
     if limit == "complete" and flow.state["queue"]:
@@ -464,6 +523,9 @@ def run_bounded_investigation(call, directory, scenario, *, mode="manifest-first
     return {"mode": normalize_mode(mode), "limit_reached": limit, "calls": stats["calls"],
             "bytes": stats["bytes"], "elapsed_seconds": round(_time.monotonic() - started, 3),
             "byte_limit_overshoot": max(0, stats["bytes"] - max_bytes),
+            "byte_accounting": "compact UTF-8 JSON result plus newline, excluding transport envelope",
+            "time_limit_overshoot": round(max(0, _time.monotonic() - started - max_seconds), 3),
+            "structural_exploration": flow.state.get("exploration"),
             "inspected_files": len(inspected),
             "digest_verified_files": len(verified),
             "digest_verified_required_paths": sorted(expected & verified),

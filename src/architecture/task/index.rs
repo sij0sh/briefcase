@@ -49,11 +49,32 @@ pub(super) fn retained(l: &Ledger, id: &str) -> Result<Option<Index>> {
     Ok(Some(ix))
 }
 
+/// Attach the retained overflow relationships for traversal. The hot
+/// `links` set and its serialized form stay exactly as retained; legacy
+/// indexes without a retained overflow keep an empty set and their
+/// explicit rebuild boundary.
+fn with_overflow(l: &Ledger, mut ix: Index) -> Result<Index> {
+    if ix.overflow_links.is_empty()
+        && ix.coverage["adjacency"]["overflow_report_id"].is_string()
+    {
+        ix.overflow_links = query_links(l, &ix, "overflow")?;
+        if crate::architecture::ledger::process_caches() {
+            PARSED.with(|p| {
+                let mut p = p.borrow_mut();
+                p.retain(|x| x.id != ix.id);
+                if p.len() >= 2 { p.remove(0); }
+                p.push(ix.clone());
+            });
+        }
+    }
+    Ok(ix)
+}
+
 pub(super) fn load(l: &Ledger, s: &Snapshot) -> Result<Index> {
     let id = cache_key(l,s)?;
     if let Some(ix) = retained(l,&id)? {
         require(ix.id == id && ix.source_view == s.view.id,"TASK","Mismatched task index")?;
-        return Ok(ix);
+        return with_overflow(l, ix);
     }
     let mut ix = build(l,s,id)?;
     // Retain large occurrence inventories once, never in each task or response.
@@ -70,7 +91,7 @@ pub(super) fn load(l: &Ledger, s: &Snapshot) -> Result<Index> {
         producer["limitation_count"]=json!(limitations);
     }
     l.save_report(&ix.id,&serde_json::to_value(&ix)?,&[])?;
-    Ok(ix)
+    with_overflow(l, ix)
 }
 
 /// Called at sync time. Task reads reuse the same content-addressed index.
@@ -324,7 +345,7 @@ fn build(l: &Ledger, s: &Snapshot, id: String) -> Result<Index> {
         "projection_check":"not_requested; durable source records and digest-verified bytes only",
         "propagation":{"iteration_limit":64,"feature_membership_complete":membership_complete,"file_associations_complete":ownership_complete},
         "uncovered":["dynamic dispatch and generated references", "unrecorded sessions", "runtime selection of configuration", "live installed files"]});
-    Ok(Index {id,source_view:v.id.clone(),retraction_epoch:v.retraction_watermark,files:s.files.clone(),entities,links:links.into_values().collect(),coverage})
+    Ok(Index {id,source_view:v.id.clone(),retraction_epoch:v.retraction_watermark,files:s.files.clone(),entities,links:links.into_values().collect(),overflow_links:vec![],coverage})
 }
 
 fn normalize_relative(path: &str, token: &str) -> Option<String> {
@@ -540,7 +561,7 @@ mod cache_tests {
         let mut ix=Index{id:"task-index:overflow-test".into(),source_view:"view:1".into(),retraction_epoch:l.retraction_epoch().unwrap(),
             files:["a.rs","b.rs"].into_iter().map(|p|(p.into(),Artifact{path:p.into(),artifact_id:format!("artifact:{p}"),
                 digest:"sha256:fixture".into(),role:"impl".into(),language:"rust".into(),bytes:0})).collect(),
-            entities:BTreeMap::new(),links:all.into_values().collect(),coverage:json!({"profile_views":[],
+            entities:BTreeMap::new(),links:all.into_values().collect(),overflow_links:vec![],coverage:json!({"profile_views":[],
                 "omitted_relationship_occurrences":2,"omitted_relationship_predicates":omitted})};
         assert_eq!(query_links(&l,&ix,"all").unwrap().len(),1);
         assert_eq!(adjacency_coverage(&ix)["state"],"legacy_overflow_unavailable");

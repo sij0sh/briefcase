@@ -963,6 +963,7 @@ mod tests {
                 },
             )]),
             links: vec![],
+            overflow_links: vec![],
             coverage: json!({}),
         };
         let paths = BTreeSet::from(["src/a.rs".into()]);

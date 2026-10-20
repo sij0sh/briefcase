@@ -15,7 +15,7 @@ def digest(raw):
 def implementation(root):
     root = Path(root).resolve()
     files = [root / name for name in ("Cargo.toml", "Cargo.lock")]
-    for name in ("src", "extensions", "contracts", "scripts", "tools", "tests"):
+    for name in ("src", "extensions", "contracts", "scripts", "tools", "tests", "examples"):
         files.extend(p for p in (root / name).rglob("*") if p.is_file()
                      and "__pycache__" not in p.parts and p.suffix != ".pyc")
     entries = [[p.relative_to(root).as_posix(), digest(p.read_bytes())]
@@ -79,7 +79,8 @@ class RunEvidence:
             stem.with_suffix(".json").write_text(json.dumps(record, indent=2) + "\n")
         return subprocess.CompletedProcess(command, result.returncode, stdout.decode("utf-8"), stderr.decode("utf-8", errors="replace"))
 
-    def record(self, command, request, reply, *, cwd=None, timeout=60, started_at, elapsed, state=None):
+    def record(self, command, request, reply, *, cwd=None, timeout=60, started_at, elapsed, state=None,
+               stderr=None, exit_code=None):
         """Retain one request/reply exchanged with a long-lived process."""
         with self.lock:
             self.sequence += 1
@@ -90,6 +91,12 @@ class RunEvidence:
                   "stdin_sha256": digest(stdin), "stdout_sha256": digest(stdout)}
         if state:
             record["state"] = state
+        if exit_code is not None:
+            record["exit_code"] = exit_code
+        if stderr is not None:
+            raw_errors = stderr.encode("utf-8")
+            stem.with_suffix(".stderr").write_bytes(raw_errors)
+            record["stderr_sha256"] = digest(raw_errors)
         stem.with_suffix(".stdin").write_bytes(stdin)
         stem.with_suffix(".stdout").write_bytes(stdout)
         stem.with_suffix(".json").write_text(json.dumps(record, indent=2) + "\n")

@@ -1,0 +1,554 @@
+{
+  "method": "priority3-evidence-oracles-v1",
+  "provenance": "Frozen 2026-10-20 before exact-key implementation or any round-4 retrieval measurement. Candidate modules sampled without replacement with random.Random(20261023), from 249 sorted .ts files >1500 bytes with a sibling .test.ts, excluding directories labelled by the T3 development set and held-out rounds 1-3. All first ten samples retained, including two modules in one package. Collaborators chosen from imports to reflect the task; collaborators may be previously observed. Author knew the feature proposals while writing descriptions. Tasks have no target anchor; oracle paths/passages/relationships remain scorer-only. This is a fresh split, not an independently blinded author. No resampling after seeing results.",
+  "scenarios": [
+    {
+      "id": "T3-P2R4-HO1-device-stream-readiness",
+      "passages": [
+        {
+          "id": "p1",
+          "path": "apps/mobile/src/features/devices/device-stream.browser.ts",
+          "pattern": "createDeviceStreamClient",
+          "source_sha256": "47ebad170dcdec60daec14f2c632faf184f3d41e52f875feee44f4318a6132c8",
+          "byte_range": {
+            "start": 11,
+            "end": 35
+          }
+        },
+        {
+          "id": "p2",
+          "path": "apps/mobile/src/features/devices/device-stream.browser.test.ts",
+          "pattern": "bridges\\ shared\\ first\\-frame\\ readiness,\\ image\\ failure,\\ and\\ a\\ successful\\ fresh\\ attempt\\ to\\ native",
+          "source_sha256": "3c796ce93b4b2325b557d528a7a8b589efef653badb1e887da4c549d97a9f18c",
+          "byte_range": {
+            "start": 2086,
+            "end": 2179
+          }
+        },
+        {
+          "id": "p3",
+          "path": "packages/client-runtime/src/device/stream.ts",
+          "pattern": "DeviceStreamStatus",
+          "source_sha256": "af98ec1aa00a0691e6910fddb0f281322972eed5f3aee10dc9db54494abfe366",
+          "byte_range": {
+            "start": 1645,
+            "end": 1663
+          }
+        }
+      ],
+      "relationships": [
+        {
+          "id": "r1",
+          "predicate": "IMPORTS",
+          "from_path": "apps/mobile/src/features/devices/device-stream.browser.ts",
+          "to_path": "packages/client-runtime/src/device/stream.ts",
+          "authority": "static_association"
+        }
+      ],
+      "claims": [
+        {
+          "id": "implementation-and-verification",
+          "text": "The described implementation and its authored verification evidence are available for inspection.",
+          "passages": [
+            "p1",
+            "p2",
+            "p3"
+          ],
+          "relationships": []
+        }
+      ],
+      "interpretation": "Passage identity and static import association oracles; this availability obligation is not a behavioral answer."
+    },
+    {
+      "id": "T3-P2R4-HO2-native-diff-registration",
+      "passages": [
+        {
+          "id": "p1",
+          "path": "apps/mobile/src/features/diffs/nativeReviewDiffSurface.ts",
+          "pattern": "isPendingNativeViewRegistration",
+          "source_sha256": "99ff4b3cb6f36df037472b69d9095faa8c6496b8c15b6b1c19a5cb0a1df25aa7",
+          "byte_range": {
+            "start": 6420,
+            "end": 6451
+          }
+        },
+        {
+          "id": "p2",
+          "path": "apps/mobile/src/features/diffs/nativeReviewDiffSurface.test.ts",
+          "pattern": "resolveNativeReviewDiffView",
+          "source_sha256": "b93aca2a4afe648cc43f4ebc409450f733a2329ef0eeaec1cc96ab5c3256a54d",
+          "byte_range": {
+            "start": 515,
+            "end": 542
+          }
+        },
+        {
+          "id": "p3",
+          "path": "apps/mobile/src/native/nativeViewResolutionError.ts",
+          "pattern": "NativeViewResolutionError",
+          "source_sha256": "b7e51bab6017bcc5ef3d4090b2547dd097c90962ddd948032547a82f45b09d0f",
+          "byte_range": {
+            "start": 55,
+            "end": 80
+          }
+        }
+      ],
+      "relationships": [
+        {
+          "id": "r1",
+          "predicate": "IMPORTS",
+          "from_path": "apps/mobile/src/features/diffs/nativeReviewDiffSurface.ts",
+          "to_path": "apps/mobile/src/native/nativeViewResolutionError.ts",
+          "authority": "static_association"
+        }
+      ],
+      "claims": [
+        {
+          "id": "implementation-and-verification",
+          "text": "The described implementation and its authored verification evidence are available for inspection.",
+          "passages": [
+            "p1",
+            "p2",
+            "p3"
+          ],
+          "relationships": []
+        }
+      ],
+      "interpretation": "Passage identity and static import association oracles; this availability obligation is not a behavioral answer."
+    },
+    {
+      "id": "T3-P2R4-HO3-muse-effort-picker",
+      "passages": [
+        {
+          "id": "p1",
+          "path": "packages/provider-muse/src/server/modelCatalog.ts",
+          "pattern": "resolveMuseReasoningEffort",
+          "source_sha256": "0f6fe9234fbcb7a5781d9b83cdc08fffcff1e0e79e90e744efcd092470786412",
+          "byte_range": {
+            "start": 3225,
+            "end": 3251
+          }
+        },
+        {
+          "id": "p2",
+          "path": "packages/provider-muse/src/server/modelCatalog.test.ts",
+          "pattern": "Muse\\ model\\ catalog",
+          "source_sha256": "bfbc1ed2b6a5c805101e3d8bcd92fb6b84d4e3fd97c3febad7851797063436e6",
+          "byte_range": {
+            "start": 1055,
+            "end": 1073
+          }
+        },
+        {
+          "id": "p3",
+          "path": "packages/provider-muse/src/server/sdk.ts",
+          "pattern": "MuseSdkHost",
+          "source_sha256": "39b4f6041eaa2b26af2123252f05382ce1ac80e48f2b8a533b08d9dda682a78c",
+          "byte_range": {
+            "start": 694,
+            "end": 705
+          }
+        }
+      ],
+      "relationships": [
+        {
+          "id": "r1",
+          "predicate": "IMPORTS",
+          "from_path": "packages/provider-muse/src/server/modelCatalog.ts",
+          "to_path": "packages/provider-muse/src/server/sdk.ts",
+          "authority": "static_association"
+        }
+      ],
+      "claims": [
+        {
+          "id": "implementation-and-verification",
+          "text": "The described implementation and its authored verification evidence are available for inspection.",
+          "passages": [
+            "p1",
+            "p2",
+            "p3"
+          ],
+          "relationships": []
+        }
+      ],
+      "interpretation": "Passage identity and static import association oracles; this availability obligation is not a behavioral answer."
+    },
+    {
+      "id": "T3-P2R4-HO4-notification-response-navigation",
+      "passages": [
+        {
+          "id": "p1",
+          "path": "apps/mobile/src/features/agent-awareness/notificationNavigation.ts",
+          "pattern": "consumeLastAgentNotificationResponse",
+          "source_sha256": "cdf0f35e248f3c510bbabe7346f86b2d71cffc2070e1a0d0a7e0807dd576d475",
+          "byte_range": {
+            "start": 427,
+            "end": 463
+          }
+        },
+        {
+          "id": "p2",
+          "path": "apps/mobile/src/features/agent-awareness/notificationNavigation.test.ts",
+          "pattern": "consumeLastAgentNotificationResponse",
+          "source_sha256": "fcf104d8c1ac0d4e0ead10792689d144eaf5588cd0f0332c8f78548a23002ce9",
+          "byte_range": {
+            "start": 144,
+            "end": 180
+          }
+        },
+        {
+          "id": "p3",
+          "path": "apps/mobile/src/features/agent-awareness/notificationResponseConsumer.ts",
+          "pattern": "NotificationNavigationError",
+          "source_sha256": "23e63cee1a63c3a40a44a78cc7751d0b775bf10790f27f6fc73d27b6de23489e",
+          "byte_range": {
+            "start": 119,
+            "end": 146
+          }
+        }
+      ],
+      "relationships": [
+        {
+          "id": "r1",
+          "predicate": "IMPORTS",
+          "from_path": "apps/mobile/src/features/agent-awareness/notificationNavigation.ts",
+          "to_path": "apps/mobile/src/features/agent-awareness/notificationResponseConsumer.ts",
+          "authority": "static_association"
+        }
+      ],
+      "claims": [
+        {
+          "id": "implementation-and-verification",
+          "text": "The described implementation and its authored verification evidence are available for inspection.",
+          "passages": [
+            "p1",
+            "p2",
+            "p3"
+          ],
+          "relationships": []
+        }
+      ],
+      "interpretation": "Passage identity and static import association oracles; this availability obligation is not a behavioral answer."
+    },
+    {
+      "id": "T3-P2R4-HO5-delayed-native-dismissal",
+      "passages": [
+        {
+          "id": "p1",
+          "path": "apps/mobile/src/native/workspace-stack-projection.ts",
+          "pattern": "nativeStackPopAction",
+          "source_sha256": "6579f6e9be3f28dc37359241f784ced0cea6cc6981658d95ae003a8f2b6e6394",
+          "byte_range": {
+            "start": 1768,
+            "end": 1788
+          }
+        },
+        {
+          "id": "p2",
+          "path": "apps/mobile/src/native/workspace-stack-projection.test.ts",
+          "pattern": "workspace\\ router\\ projection",
+          "source_sha256": "eae68de422a6e412f42a1320b0c2a5936a454052d95ac2c87f4ebfd17c2e5006",
+          "byte_range": {
+            "start": 1457,
+            "end": 1484
+          }
+        }
+      ],
+      "relationships": [
+        {
+          "id": "r1",
+          "predicate": "IMPORTS",
+          "from_path": "apps/mobile/src/native/workspace-stack-projection.test.ts",
+          "to_path": "apps/mobile/src/native/workspace-stack-projection.ts",
+          "authority": "static_association"
+        }
+      ],
+      "claims": [
+        {
+          "id": "implementation-and-verification",
+          "text": "The described implementation and its authored verification evidence are available for inspection.",
+          "passages": [
+            "p1",
+            "p2"
+          ],
+          "relationships": []
+        }
+      ],
+      "interpretation": "Passage identity and static import association oracles; this availability obligation is not a behavioral answer."
+    },
+    {
+      "id": "T3-P2R4-HO6-mobile-diff-page-refresh",
+      "passages": [
+        {
+          "id": "p1",
+          "path": "apps/mobile/src/features/pull-requests/pullRequestDiffPages.ts",
+          "pattern": "retainPullRequestDiffPage",
+          "source_sha256": "e7874493c4a3346f154e7de998263f30979c17ce8cb21029ae1d5db4df471650",
+          "byte_range": {
+            "start": 371,
+            "end": 396
+          }
+        },
+        {
+          "id": "p2",
+          "path": "apps/mobile/src/features/pull-requests/pullRequestDiffPages.test.ts",
+          "pattern": "paged\\ mobile\\ pull\\ request\\ diffs",
+          "source_sha256": "7f45840fe8a742af51d334ab5a8d3476bcbd972cfb903ab4fd1dad2c2086ba78",
+          "byte_range": {
+            "start": 509,
+            "end": 540
+          }
+        },
+        {
+          "id": "p3",
+          "path": "apps/mobile/src/features/review/reviewModel.ts",
+          "pattern": "ReviewSectionKind",
+          "source_sha256": "6f7ad28463583529f518144e61c84f61dd3f950df215c9363e82be6a9959bf9a",
+          "byte_range": {
+            "start": 438,
+            "end": 455
+          }
+        }
+      ],
+      "relationships": [
+        {
+          "id": "r1",
+          "predicate": "IMPORTS",
+          "from_path": "apps/mobile/src/features/pull-requests/pullRequestDiffPages.ts",
+          "to_path": "apps/mobile/src/features/review/reviewModel.ts",
+          "authority": "static_association"
+        }
+      ],
+      "claims": [
+        {
+          "id": "implementation-and-verification",
+          "text": "The described implementation and its authored verification evidence are available for inspection.",
+          "passages": [
+            "p1",
+            "p2",
+            "p3"
+          ],
+          "relationships": []
+        }
+      ],
+      "interpretation": "Passage identity and static import association oracles; this availability obligation is not a behavioral answer."
+    },
+    {
+      "id": "T3-P2R4-HO7-relay-environment-sections",
+      "passages": [
+        {
+          "id": "p1",
+          "path": "apps/mobile/src/features/connection/environmentSections.ts",
+          "pattern": "relayManagedEnvironmentIds",
+          "source_sha256": "6783a9d6df60629b699a33a59d367d5a8ab4056bd79c4f1af925f5cc56eb2538",
+          "byte_range": {
+            "start": 925,
+            "end": 951
+          }
+        },
+        {
+          "id": "p2",
+          "path": "apps/mobile/src/features/connection/environmentSections.test.ts",
+          "pattern": "relayManagedEnvironmentIds",
+          "source_sha256": "b3d831e60f24521a9d3c12efce41f05267ec249343a235677745d4b5852fd419",
+          "byte_range": {
+            "start": 279,
+            "end": 305
+          }
+        },
+        {
+          "id": "p3",
+          "path": "apps/mobile/src/state/remote-runtime-types.ts",
+          "pattern": "EnvironmentRuntimeState",
+          "source_sha256": "e02cd9143edf0ca048a55c9a7f759ce5c7cb2b88448b2928dbaf4294d9023c30",
+          "byte_range": {
+            "start": 185,
+            "end": 208
+          }
+        }
+      ],
+      "relationships": [
+        {
+          "id": "r1",
+          "predicate": "IMPORTS",
+          "from_path": "apps/mobile/src/features/connection/environmentSections.ts",
+          "to_path": "apps/mobile/src/state/remote-runtime-types.ts",
+          "authority": "static_association"
+        }
+      ],
+      "claims": [
+        {
+          "id": "implementation-and-verification",
+          "text": "The described implementation and its authored verification evidence are available for inspection.",
+          "passages": [
+            "p1",
+            "p2",
+            "p3"
+          ],
+          "relationships": []
+        }
+      ],
+      "interpretation": "Passage identity and static import association oracles; this availability obligation is not a behavioral answer."
+    },
+    {
+      "id": "T3-P2R4-HO8-apns-provider-token-reuse",
+      "passages": [
+        {
+          "id": "p1",
+          "path": "infra/relay/src/agentActivity/ApnsProviderTokens.ts",
+          "pattern": "quantizedApnsJwtIssuedAt",
+          "source_sha256": "03480224a0108c6a870046710019813fb5dfd3fd3b45321e8d72f08f4f85805b",
+          "byte_range": {
+            "start": 1631,
+            "end": 1655
+          }
+        },
+        {
+          "id": "p2",
+          "path": "infra/relay/src/agentActivity/ApnsProviderTokens.test.ts",
+          "pattern": "ApnsProviderTokens",
+          "source_sha256": "7c2ef786ee6207f639a5e1bb36af28d605006d354d1660d33057df982782b79a",
+          "byte_range": {
+            "start": 341,
+            "end": 359
+          }
+        },
+        {
+          "id": "p3",
+          "path": "infra/relay/src/agentActivity/apnsJwt.ts",
+          "pattern": "ApnsJwtEncodingError",
+          "source_sha256": "60c10b7cd41918e12e4f79e43299b9e6c937275ddcf46681152fdfb42a362d71",
+          "byte_range": {
+            "start": 523,
+            "end": 543
+          }
+        }
+      ],
+      "relationships": [
+        {
+          "id": "r1",
+          "predicate": "IMPORTS",
+          "from_path": "infra/relay/src/agentActivity/ApnsProviderTokens.ts",
+          "to_path": "infra/relay/src/agentActivity/apnsJwt.ts",
+          "authority": "static_association"
+        }
+      ],
+      "claims": [
+        {
+          "id": "implementation-and-verification",
+          "text": "The described implementation and its authored verification evidence are available for inspection.",
+          "passages": [
+            "p1",
+            "p2",
+            "p3"
+          ],
+          "relationships": []
+        }
+      ],
+      "interpretation": "Passage identity and static import association oracles; this availability obligation is not a behavioral answer."
+    },
+    {
+      "id": "T3-P2R4-HO9-mobile-stack-merge-scope",
+      "passages": [
+        {
+          "id": "p1",
+          "path": "apps/mobile/src/features/pull-requests/pullRequestStack.ts",
+          "pattern": "pullRequestStackMerge",
+          "source_sha256": "7075e202c3cf95e42249944fa6918f03276afaed119a6579a1126a4a64463ff9",
+          "byte_range": {
+            "start": 204,
+            "end": 225
+          }
+        },
+        {
+          "id": "p2",
+          "path": "apps/mobile/src/features/pull-requests/pullRequestStack.test.ts",
+          "pattern": "mobile\\ stack\\ merge\\ scope",
+          "source_sha256": "c3a11a02588377ced063f438c005b0b1de33d4cccd990a9c17f45743098c8cbf",
+          "byte_range": {
+            "start": 1150,
+            "end": 1174
+          }
+        }
+      ],
+      "relationships": [
+        {
+          "id": "r1",
+          "predicate": "IMPORTS",
+          "from_path": "apps/mobile/src/features/pull-requests/pullRequestStack.test.ts",
+          "to_path": "apps/mobile/src/features/pull-requests/pullRequestStack.ts",
+          "authority": "static_association"
+        }
+      ],
+      "claims": [
+        {
+          "id": "implementation-and-verification",
+          "text": "The described implementation and its authored verification evidence are available for inspection.",
+          "passages": [
+            "p1",
+            "p2"
+          ],
+          "relationships": []
+        }
+      ],
+      "interpretation": "Passage identity and static import association oracles; this availability obligation is not a behavioral answer."
+    },
+    {
+      "id": "T3-P2R4-HO10-desktop-window-ipc",
+      "passages": [
+        {
+          "id": "p1",
+          "path": "apps/desktop/src/ipc/methods/window.ts",
+          "pattern": "getWindowFullscreenState",
+          "source_sha256": "004175e4297a641754703a3b7151d3aac87d4483dbdd4d6b290f148a9b461b7e",
+          "byte_range": {
+            "start": 3258,
+            "end": 3282
+          }
+        },
+        {
+          "id": "p2",
+          "path": "apps/desktop/src/ipc/methods/window.test.ts",
+          "pattern": "getLocalEnvironmentBootstraps",
+          "source_sha256": "2264b3ef74ee9fe35b6a1df2874bc98dbbea8e19e2a8ba06f34176daf44297c4",
+          "byte_range": {
+            "start": 1216,
+            "end": 1245
+          }
+        },
+        {
+          "id": "p3",
+          "path": "apps/desktop/src/ipc/DesktopIpc.ts",
+          "pattern": "DesktopIpcInvokeEvent",
+          "source_sha256": "7108d227886cf00c4cd28bee999ad8d7c0f29472f1b6d6e334621207190a73e1",
+          "byte_range": {
+            "start": 221,
+            "end": 242
+          }
+        }
+      ],
+      "relationships": [
+        {
+          "id": "r1",
+          "predicate": "IMPORTS",
+          "from_path": "apps/desktop/src/ipc/methods/window.ts",
+          "to_path": "apps/desktop/src/ipc/DesktopIpc.ts",
+          "authority": "static_association"
+        }
+      ],
+      "claims": [
+        {
+          "id": "implementation-and-verification",
+          "text": "The described implementation and its authored verification evidence are available for inspection.",
+          "passages": [
+            "p1",
+            "p2",
+            "p3"
+          ],
+          "relationships": []
+        }
+      ],
+      "interpretation": "Passage identity and static import association oracles; this availability obligation is not a behavioral answer."
+    }
+  ]
+}

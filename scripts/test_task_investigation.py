@@ -165,6 +165,63 @@ class InvestigationTests(unittest.TestCase):
         self.flow.add_query({"operation": "occurrences", "arguments": {"text": "save"}})
         self.drain()
 
+    def test_protected_structural_queue_recovers_a_non_candidate_and_resumes(self):
+        class StructuralProtocol(Protocol):
+            def __call__(self, op, args):
+                if op == "inventory":
+                    self.calls.append((op, copy.deepcopy(args)))
+                    self.assert_filter = args.get("graph_only") is True and args.get("selected") is False
+                    return {**self.page([{"path": "src/consumer.rs", "source_ref": "/files/src~1consumer.rs"}], args, op),
+                            "fetch_source": {"arguments": {"report_id": "task-index:one"}}}
+                result = super().__call__(op, args)
+                if op == "agent_context":
+                    result["files"][0]["ref"] = "/files/src~1a.rs"
+                return result
+        protocol = StructuralProtocol()
+        with tempfile.TemporaryDirectory() as directory:
+            flow = Investigation(protocol, directory)
+            flow.start({"task": "inspect"}, mode="structural-explore", verify_sources=False)
+            self.assertEqual(flow.next_action()["kind"], "structural_candidates")
+            flow.step()
+            # The protected action does not advance the ordinary excerpt phase.
+            self.assertNotIn("excerpt_turn", flow.state)
+            self.assertEqual(flow.next_action()["kind"], "roles")
+            flow.step()
+            self.assertEqual(flow.state["excerpt_turn"], 1)
+            self.assertEqual(flow.next_action()["kind"], "excerpt")
+            for _ in range(4):
+                flow.step()
+            state = json.loads((Path(directory) / "state.json").read_text())
+            flow = Investigation(protocol, directory, state)
+            for _ in range(60):
+                if not flow.state["queue"]:
+                    break
+                flow.step()
+            self.assertTrue(protocol.assert_filter)
+            self.assertIn("src/consumer.rs", flow.state["sources"])
+            self.assertEqual(flow.state["sources"]["src/consumer.rs"]["inspection_state"], "inspected_pinned_range")
+            self.assertNotIn("src/consumer.rs", protocol.paths)
+            exploration = flow.state["exploration"]
+            self.assertLessEqual(len(exploration["roots"]), 4)
+            self.assertLessEqual(len(exploration["paths"]), 16)
+            self.assertTrue(any(op == "neighbors" and args.get("relationship_scope") == "all" for op, args in protocol.calls))
+
+    def test_bounded_investigation_never_spends_the_last_oversized_response(self):
+        from task_investigation import run_bounded_investigation
+        protocol = Protocol()
+        original = protocol
+        def padded(op, args):
+            response = original(op, args)
+            if op == "worktree":
+                response["padding"] = "x" * 35000
+            return response
+        with tempfile.TemporaryDirectory() as directory:
+            result = run_bounded_investigation(padded, directory, {"id": "x", "task": "inspect", "required_paths": ["src/a.rs"]},
+                max_calls=100, max_bytes=70000)
+            self.assertEqual(result["limit_reached"], "bytes")
+            self.assertEqual(result["byte_limit_overshoot"], 0)
+            self.assertLessEqual(result["bytes"], 70000)
+
 
 class ManifestFirstTests(unittest.TestCase):
     def protocol_with_manifest(self):

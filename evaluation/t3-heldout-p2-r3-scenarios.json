@@ -1,0 +1,113 @@
+{
+ "provenance": "Priority 2 round-3 held-out T3 set, authored 2026-10-20 before any round-3 measurement on it. It replaces the round-2 set (seed 20261021), whose baseline saturated at 20/20 and therefore had no headroom to prove a gain; that set is retained only as saturation evidence. Modules here were drawn by random.Random(20261022) from 606 impl files that have a sibling .test.ts(x), are >1500 bytes, and lie outside every directory of the development set and both earlier held-out sets; the first 10 sampled were used without replacement. Required paths are the module, its test, and one import-adjacent collaborator whose role the task describes without naming it, except two scenarios where the module has no relative collaborator. Authoring bias: the author knew the relations under test (binding references, overflow-aware traversal) while writing; collaborators are import-adjacent by construction, which favors structural relations. No target is given for any task. Pre-registered gate rule: the gate is met only if, on this set, a variant or the binding baseline beats both the old-database baseline and its same-database baseline by at least 2 net selected required paths with at least one newly passing scenario, zero errors, and zero false-complete outcomes.",
+ "scenarios": [
+  {
+   "id": "T3-P2R3-HO1-file-preview-annotations",
+   "task": "Find the workspace file preview that distinguishes an inaccessible workspace from an inaccessible file while preserving error messages from older servers, and keeps a comment annotation attached to its lines when the underlying viewer remaps an anchor line. Include the annotation range logic it relies on and the tests.",
+   "duty": "debug",
+   "required_paths": [
+    "apps/web/src/components/files/FilePreviewPanel.tsx",
+    "apps/web/src/components/files/FilePreviewPanel.test.ts",
+    "apps/web/src/components/files/fileCommentAnnotations.ts"
+   ],
+   "required_facts": []
+  },
+  {
+   "id": "T3-P2R3-HO2-ssh-password-prompts",
+   "task": "Explain how remote shell connections ask for passwords: the recognized prompt shapes, the helper descriptor used to ask outside the terminal, and the error type that carries failures back to the caller. Include the tests.",
+   "duty": "explain",
+   "required_paths": [
+    "packages/ssh/src/auth.ts",
+    "packages/ssh/src/auth.test.ts",
+    "packages/ssh/src/errors.ts"
+   ],
+   "required_facts": []
+  },
+  {
+   "id": "T3-P2R3-HO3-project-file-loader",
+   "task": "Find the loader that reads project files for the server, including the typed load failure it raises when a file cannot be used, and its tests.",
+   "duty": "explain",
+   "required_paths": [
+    "apps/server/src/project/T3ProjectFileLoader.ts",
+    "apps/server/src/project/T3ProjectFileLoader.test.ts"
+   ],
+   "required_facts": []
+  },
+  {
+   "id": "T3-P2R3-HO4-favicon-thumbnail-cache",
+   "task": "Find the mobile cache that shrinks oversized project icon encodings, deletes its temporary thumbnail files, releases a decoded image when its request was canceled, and rejects an image the native decoder did not actually downsize. Include the mobile database it attaches to and the tests.",
+   "duty": "debug",
+   "required_paths": [
+    "apps/mobile/src/lib/projectFaviconDatabaseCache.ts",
+    "apps/mobile/src/lib/projectFaviconDatabaseCache.test.ts",
+    "apps/mobile/src/persistence/mobile-database.ts"
+   ],
+   "required_facts": []
+  },
+  {
+   "id": "T3-P2R3-HO5-desktop-main-window",
+   "task": "Review the desktop main window: it leaves fullscreen before concealing a pending quit, restores saved bounds only when they fit a connected display, and recognizes only same-origin renderer navigations. Include the window wrapper it builds on and the tests.",
+   "duty": "review",
+   "required_paths": [
+    "apps/desktop/src/window/DesktopWindow.ts",
+    "apps/desktop/src/window/DesktopWindow.test.ts",
+    "apps/desktop/src/electron/ElectronWindow.ts"
+   ],
+   "required_facts": []
+  },
+  {
+   "id": "T3-P2R3-HO6-preview-automation-broker",
+   "task": "Find the broker that serves preview automation invocations for the server's tool surface, including the invocation context it threads through each call, and its tests.",
+   "duty": "explain",
+   "required_paths": [
+    "apps/server/src/mcp/PreviewAutomationBroker.ts",
+    "apps/server/src/mcp/PreviewAutomationBroker.test.ts",
+    "apps/server/src/mcp/McpInvocationContext.ts"
+   ],
+   "required_facts": []
+  },
+  {
+   "id": "T3-P2R3-HO7-machine-kind-detection",
+   "task": "Explain how the server decides what kind of machine it runs on: marketing names and model identifiers on one platform, firmware virtualization markers preferred over chassis type on another, without mistaking one vendor's physical hardware for a virtual machine. Include the command runner it probes through and the tests.",
+   "duty": "explain",
+   "required_paths": [
+    "apps/server/src/environment/ServerEnvironmentMachine.ts",
+    "apps/server/src/environment/ServerEnvironmentMachine.test.ts",
+    "apps/server/src/processRunner.ts"
+   ],
+   "required_facts": []
+  },
+  {
+   "id": "T3-P2R3-HO8-html-preview-proxy",
+   "task": "Find the proxy that fetches remote content for HTML previews while never reaching this machine or its local networks, including translated and tunneled address forms that would otherwise smuggle a local address past the check. Include its tests.",
+   "duty": "review",
+   "required_paths": [
+    "apps/server/src/htmlRender/publicProxy.ts",
+    "apps/server/src/htmlRender/publicProxy.test.ts"
+   ],
+   "required_facts": []
+  },
+  {
+   "id": "T3-P2R3-HO9-backend-instance-pool",
+   "task": "Find the desktop pool that registers and reuses backend instances under stable identities, refusing a duplicate registration, together with the per-instance manager it delegates lifecycle to. Include the tests.",
+   "duty": "extend",
+   "required_paths": [
+    "apps/desktop/src/backend/DesktopBackendPool.ts",
+    "apps/desktop/src/backend/DesktopBackendPool.test.ts",
+    "apps/desktop/src/backend/DesktopBackendManager.ts"
+   ],
+   "required_facts": []
+  },
+  {
+   "id": "T3-P2R3-HO10-azure-source-control",
+   "task": "Find one hosted source-control provider integration: how it discovers repositories and serves pull-request operations by driving the vendor command-line tool it wraps. Include the wrapper and the tests.",
+   "duty": "explain",
+   "required_paths": [
+    "packages/source-control-azure-devops/src/server/AzureDevOpsSourceControlProvider.ts",
+    "packages/source-control-azure-devops/src/server/AzureDevOpsSourceControlProvider.test.ts",
+    "packages/source-control-azure-devops/src/server/AzureDevOpsCli.ts"
+   ],
+   "required_facts": []
+  }
+ ]
+}

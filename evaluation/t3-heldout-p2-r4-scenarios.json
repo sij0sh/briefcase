@@ -1,0 +1,136 @@
+{
+  "method": "scale-priority2-round4",
+  "date": "2026-10-20",
+  "provenance": "Frozen 2026-10-20 before exact-key implementation or any round-4 retrieval measurement. Candidate modules sampled without replacement with random.Random(20261023), from 249 sorted .ts files >1500 bytes with a sibling .test.ts, excluding directories labelled by the T3 development set and held-out rounds 1-3. All first ten samples retained, including two modules in one package. Collaborators chosen from imports to reflect the task; collaborators may be previously observed. Author knew the feature proposals while writing descriptions. Tasks have no target anchor; oracle paths/passages/relationships remain scorer-only. This is a fresh split, not an independently blinded author. No resampling after seeing results.",
+  "selection": {
+    "seed": 20261023,
+    "eligible": 249,
+    "paths": [
+      "apps/mobile/src/features/devices/device-stream.browser.ts",
+      "apps/mobile/src/features/diffs/nativeReviewDiffSurface.ts",
+      "packages/provider-muse/src/server/modelCatalog.ts",
+      "apps/mobile/src/features/agent-awareness/notificationNavigation.ts",
+      "apps/mobile/src/native/workspace-stack-projection.ts",
+      "apps/mobile/src/features/pull-requests/pullRequestDiffPages.ts",
+      "apps/mobile/src/features/connection/environmentSections.ts",
+      "infra/relay/src/agentActivity/ApnsProviderTokens.ts",
+      "apps/mobile/src/features/pull-requests/pullRequestStack.ts",
+      "apps/desktop/src/ipc/methods/window.ts"
+    ]
+  },
+  "gate": {
+    "exact_keys": "At least two net additional selected required paths and one newly passing scenario against baseline, no errors, no false-complete outcomes; no promotion from saturation.",
+    "exploration": "At equal calls/response bytes/time, add inspected required paths and witness coverage beyond the manifest; no authored paths or witness offsets enter the policy.",
+    "defaults": "All new policies remain opt-in unless their held-out gate is met."
+  },
+  "scenarios": [
+    {
+      "id": "T3-P2R4-HO1-device-stream-readiness",
+      "task": "Explain how the mobile embedded device screen viewer bridges first-frame readiness and image failures to the native app, and how a fresh connection attempt recovers. Include the shared stream client and tests.",
+      "duty": "explain",
+      "required_paths": [
+        "apps/mobile/src/features/devices/device-stream.browser.ts",
+        "apps/mobile/src/features/devices/device-stream.browser.test.ts",
+        "packages/client-runtime/src/device/stream.ts"
+      ],
+      "required_facts": []
+    },
+    {
+      "id": "T3-P2R4-HO2-native-diff-registration",
+      "task": "Review how the mobile native review diff view handles an unavailable view manager or a registration race, and which native draw events it accepts. Include the native resolution error type and tests.",
+      "duty": "review",
+      "required_paths": [
+        "apps/mobile/src/features/diffs/nativeReviewDiffSurface.ts",
+        "apps/mobile/src/features/diffs/nativeReviewDiffSurface.test.ts",
+        "apps/mobile/src/native/nativeViewResolutionError.ts"
+      ],
+      "required_facts": []
+    },
+    {
+      "id": "T3-P2R4-HO3-muse-effort-picker",
+      "task": "Explain how the Muse provider builds its reasoning-effort picker from advertised model metadata, supplies fallbacks for older hosts, and normalizes a saved effort before dispatch. Include the SDK host and tests.",
+      "duty": "explain",
+      "required_paths": [
+        "packages/provider-muse/src/server/modelCatalog.ts",
+        "packages/provider-muse/src/server/modelCatalog.test.ts",
+        "packages/provider-muse/src/server/sdk.ts"
+      ],
+      "required_facts": []
+    },
+    {
+      "id": "T3-P2R4-HO4-notification-response-navigation",
+      "task": "Explain how mobile agent notification taps navigate to a thread without navigating twice when initial and listener responses name the same notification. Include how the initial response is consumed and failures are reported, and tests.",
+      "duty": "explain",
+      "required_paths": [
+        "apps/mobile/src/features/agent-awareness/notificationNavigation.ts",
+        "apps/mobile/src/features/agent-awareness/notificationNavigation.test.ts",
+        "apps/mobile/src/features/agent-awareness/notificationResponseConsumer.ts"
+      ],
+      "required_facts": []
+    },
+    {
+      "id": "T3-P2R4-HO5-delayed-native-dismissal",
+      "task": "Explain how mobile workspace navigation ignores delayed native dismissal callbacks after a JavaScript pop or replacement, and preserves a screen pushed while an earlier dismissal finishes. Include tests.",
+      "duty": "explain",
+      "required_paths": [
+        "apps/mobile/src/native/workspace-stack-projection.ts",
+        "apps/mobile/src/native/workspace-stack-projection.test.ts"
+      ],
+      "required_facts": []
+    },
+    {
+      "id": "T3-P2R4-HO6-mobile-diff-page-refresh",
+      "task": "Explain how paged mobile pull request diffs discard later cursors after an earlier page changes, combine parsed file statistics, and reuse parsed pages. Include the shared review model parser and tests.",
+      "duty": "explain",
+      "required_paths": [
+        "apps/mobile/src/features/pull-requests/pullRequestDiffPages.ts",
+        "apps/mobile/src/features/pull-requests/pullRequestDiffPages.test.ts",
+        "apps/mobile/src/features/review/reviewModel.ts"
+      ],
+      "required_facts": []
+    },
+    {
+      "id": "T3-P2R4-HO7-relay-environment-sections",
+      "task": "Explain how mobile connection settings separates local backends, saved relay-managed environments and available cloud environments without suppressing a cloud entry merely because a direct backend shares its identity. Include the connection summary type and tests.",
+      "duty": "explain",
+      "required_paths": [
+        "apps/mobile/src/features/connection/environmentSections.ts",
+        "apps/mobile/src/features/connection/environmentSections.test.ts",
+        "apps/mobile/src/state/remote-runtime-types.ts"
+      ],
+      "required_facts": []
+    },
+    {
+      "id": "T3-P2R4-HO8-apns-provider-token-reuse",
+      "task": "Explain how the relay reuses Apple push provider tokens, quantizes issue time across isolates, and keys its local signing cache. Include the signing helper and tests.",
+      "duty": "explain",
+      "required_paths": [
+        "infra/relay/src/agentActivity/ApnsProviderTokens.ts",
+        "infra/relay/src/agentActivity/ApnsProviderTokens.test.ts",
+        "infra/relay/src/agentActivity/apnsJwt.ts"
+      ],
+      "required_facts": []
+    },
+    {
+      "id": "T3-P2R4-HO9-mobile-stack-merge-scope",
+      "task": "Review how mobile pull request stack merges include only unmerged layers up through the selected request, reject closed or draft dependencies and missing revisions, and avoid carrying saved offline revisions into a merge. Include tests.",
+      "duty": "review",
+      "required_paths": [
+        "apps/mobile/src/features/pull-requests/pullRequestStack.ts",
+        "apps/mobile/src/features/pull-requests/pullRequestStack.test.ts"
+      ],
+      "required_facts": []
+    },
+    {
+      "id": "T3-P2R4-HO10-desktop-window-ipc",
+      "task": "Review the desktop window IPC methods for querying fullscreen state, picking project favicons and pasting plain text. Include the IPC method wrapper and tests.",
+      "duty": "review",
+      "required_paths": [
+        "apps/desktop/src/ipc/methods/window.ts",
+        "apps/desktop/src/ipc/methods/window.test.ts",
+        "apps/desktop/src/ipc/DesktopIpc.ts"
+      ],
+      "required_facts": []
+    }
+  ]
+}

@@ -792,7 +792,7 @@ pub(super) fn project_scope(
 pub(super) fn expand(ix: &Index, r: &Request, seed: &Seed, candidates: &mut Candidates) -> Value {
     let mut neighbors = BTreeMap::<String, BTreeSet<String>>::new();
     let mut key_neighbors = BTreeMap::<&str, BTreeSet<&str>>::new();
-    for e in &ix.links {
+    for e in ix.traversal_links() {
         if !link_allowed(e, seed) {
             continue;
         }
@@ -836,7 +836,7 @@ pub(super) fn expand(ix: &Index, r: &Request, seed: &Seed, candidates: &mut Cand
     let reach = r.selection_variant == "structural_reach";
     for depth in 1..=r.depth {
         let (mut next_paths, mut next_keys) = (BTreeSet::new(), BTreeSet::new());
-        for e in &ix.links {
+        for e in ix.traversal_links() {
             if !link_allowed(e, seed) {
                 continue;
             }
@@ -976,12 +976,11 @@ pub(super) fn expand(ix: &Index, r: &Request, seed: &Seed, candidates: &mut Cand
             .map(|c| c.path.clone())
             .collect();
         let keys: BTreeSet<_> = ix
-            .links
-            .iter()
+            .traversal_links()
             .filter(|e| e.predicate == "READS_CONFIG" && !readers.is_disjoint(&e.from_files))
             .map(|e| e.to.clone())
             .collect();
-        for e in ix.links.iter().filter(|e| {
+        for e in ix.traversal_links().filter(|e| {
             link_allowed(e, seed) && e.predicate == "DECLARES_CONFIG_KEY" && keys.contains(&e.to)
         }) {
             for path in &e.from_files {
@@ -1021,7 +1020,7 @@ pub(super) fn selection_policy(r: &Request) -> Value {
     json!({"method":match r.selection_variant.as_str() {"baseline"=>if r.duty.delivery_cycle().is_empty(){"evidence_rank"}else{"duty_roles_v1"},
             "role_diverse"=>"role_diverse_v1","reserved_floor"=>"reserved_floor_v1","multi_query"=>"multi_query_v1",
             "linked_diversity"=>"linked_diversity_v1","combined"=>"combined_v1","docs_disabled"=>"docs_disabled_v1",
-            "identifier_terms"=>"identifier_terms_v1","origin_fusion"=>"origin_fusion_v1","structural_reach"=>"structural_reach_v1",_=>"unknown"},
+            "identifier_terms"=>"identifier_terms_v1","origin_fusion"=>"origin_fusion_v1","structural_reach"=>"structural_reach_v1","exact_keys"=>"exact_keys_v1",_=>"unknown"},
         "variant":r.selection_variant,"cycle":r.duty.delivery_cycle(),"anchors":"exact anchors first",
         "minimum_score":MIN_SCORE,"reserved_floor":12,
         "rank_semantics":"candidates.rank is evidence rank; selected slice rank is delivery order"})
@@ -1163,7 +1162,7 @@ pub(super) fn rank(ix: &Index, r: &Request, candidates: Candidates) -> Vec<Candi
         .collect();
     let reach = r.selection_variant == "structural_reach";
     let links: BTreeMap<&str, &Link> = if r.selection_variant == "origin_fusion" {
-        ix.links.iter().map(|link| (link.id.as_str(), link)).collect()
+        ix.traversal_links().map(|link| (link.id.as_str(), link)).collect()
     } else {
         BTreeMap::new()
     };
@@ -1326,6 +1325,7 @@ mod tests {
             files,
             entities: BTreeMap::new(),
             links: vec![link],
+            overflow_links: vec![],
             coverage: json!({}),
         }
     }
@@ -1800,6 +1800,36 @@ mod tests {
         // A distinct origin in the same facet keeps the facet independent.
         candidate.signals.push(signal("dependency", "REFERENCES_ARTIFACT", 30, "retained_relationship", 1, Some(&plan.id), json!({})));
         assert_eq!(fused_score(&mut candidate, &links), 95 + 40 + 40 + 16);
+    }
+    #[test]
+    fn overflow_only_binding_link_reaches_a_candidate() {
+        let mut ix = ix();
+        ix.links.clear();
+        ix.overflow_links = vec![Link::new(
+            "REFERENCES", "a::f", "b::g", "evidence",
+            "retained_assertion; symbol_binding",
+            vec!["assertion:overflow".into()], vec![],
+            BTreeSet::from(["src/a.rs".into()]),
+            BTreeSet::from(["src/b.rs".into()]),
+        ).unwrap()];
+        let request = super::super::request::parse(&json!({"task":"repair","target":"src/a.rs"}))
+            .unwrap().0;
+        let seed = super::super::trace::seed(&ix, "src/a.rs", true);
+        let mut candidates = Candidates::new();
+        contribute(&mut candidates, "src/a.rs",
+            signal("lexical", "retained_text", 100, "candidate", 0, None, json!({})));
+        expand(&ix, &request, &seed, &mut candidates);
+        let reached = candidates.get("src/b.rs")
+            .expect("overflow binding edge must reach its target file");
+        assert!(reached.signals.iter().any(|s| s.kind == "REFERENCES"
+            && s.provenance["basis"] == "retained_assertion; symbol_binding"));
+        // Same edge absent from both sets reaches nothing.
+        ix.overflow_links.clear();
+        let mut candidates = Candidates::new();
+        contribute(&mut candidates, "src/a.rs",
+            signal("lexical", "retained_text", 100, "candidate", 0, None, json!({})));
+        expand(&ix, &request, &seed, &mut candidates);
+        assert!(!candidates.contains_key("src/b.rs"));
     }
     fn variant_ix() -> (Index, Candidates) {
         let mut ix = ix();

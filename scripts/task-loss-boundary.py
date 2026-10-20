@@ -9,6 +9,7 @@ import hashlib
 import importlib.util
 import json
 from pathlib import Path
+import sqlite3
 
 from run_evidence import RunEvidence, atomic_json, provenance
 from task_investigation import normalize_mode, run_bounded_investigation
@@ -48,7 +49,10 @@ def main():
         parser.error("Use distinct supported modes and a positive worker count")
     if work.exists():
         parser.error("--work must be a new directory")
-    limits = baseline["investigation_limits"]
+    limits = dict(baseline["investigation_limits"])
+    # Reports use the descriptive verification field; the driver argument is
+    # verify_sources. Older reports omit both optional policy settings.
+    limits["verify_sources"] = limits.pop("verification", True)
     budget = baseline["inputs"]["manifest_bytes"]
     if not budget or baseline["inputs"].get("validation_error") or baseline.get("errors"):
         parser.error("Baseline must have valid pinned inputs and manifest measurements without errors")
@@ -69,15 +73,12 @@ def main():
     # WorkerPool copies only when workers>1. Force copying even in serial so
     # queries can retain reports without writing to the frozen DB.
     import tempfile
-    import subprocess
-    # Keep copies on the source filesystem where reflinks can share pages;
-    # large databases should not be materialized repeatedly on /tmp tmpfs.
+    # Keep snapshots off /tmp tmpfs. SQLite backup includes committed WAL
+    # state atomically; copying the DB and WAL separately is not consistent.
     with tempfile.TemporaryDirectory(prefix="databases-", dir=work) as directory:
         copy = Path(directory) / "briefcase.db"
-        for suffix in ("", "-wal"):
-            source = Path(str(database) + suffix)
-            if source.exists():
-                subprocess.run(["cp", "--reflink=auto", str(source), str(copy) + suffix], check=True)
+        with sqlite3.connect(database.as_uri() + "?mode=ro", uri=True) as source, sqlite3.connect(copy) as destination:
+            source.backup(destination)
         pool = evaluation.WorkerPool(make_call(copy), args.workers, make_call, copy)
         try:
             def investigate(call, scenario, mode):

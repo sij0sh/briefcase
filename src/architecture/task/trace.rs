@@ -217,6 +217,9 @@ pub(super) fn build(l: &Ledger, s: &Snapshot, ix: &Index, r: &Request) -> Result
         );
     }
     let mut graph_coverage = retrieval::expand(ix, r, &seed, &mut candidates);
+    if r.selection_variant == "exact_keys" && r.enabled("dependency") {
+        graph_coverage["exact_key_discovery"] = exact_keys::discover(l, s, ix, &seed, &mut candidates)?;
+    }
     let mut work=graph_coverage.as_object_mut().unwrap().remove("remaining_work").unwrap_or(json!([])).as_array().cloned().unwrap_or_default();
     work.extend(omitted_join_starters);
     work.extend(join_coverage.as_object_mut().unwrap().remove("remaining_work").unwrap_or(json!([])).as_array().cloned().unwrap_or_default());
@@ -505,6 +508,7 @@ mod tests {
                     &["src/b.rs"],
                 ),
             ],
+            overflow_links: vec![],
             coverage: json!({}),
         }
     }
