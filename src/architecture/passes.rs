@@ -144,13 +144,17 @@ fn dependencies(
     }
     let mut dependency_manifests = Vec::new();
     let mut normalized_dependencies = Vec::new();
+    // One index for every pair: per-pair scans of all assertions made this
+    // pass quadratic in bundle size. The loop only appends rows.
+    let at = knowledge::Positions::of(b, &["assertions", "evidence_refs", "artifacts", "entity_versions"]);
+    let containment = knowledge::containment(b);
     for ((from, to), mut supports) in groups {
         supports.sort();
         supports.dedup();
-        let sources = knowledge::sources(b, payloads, &supports)?;
+        let sources = knowledge::sources_in(b, &at, payloads, &supports)?;
         let mut artifacts: Vec<_> = sources.iter().map(|s| s.artifact_id.clone()).collect();
         // Native navigation can depend on the target body as well as the importer.
-        let target_content = knowledge::module_source(b, payloads, &to)?;
+        let target_content = knowledge::module_source_in(b, &at, payloads, &to, &containment)?;
         if let Some(s) = &target_content {
             artifacts.push(s.artifact_id.clone());
         }

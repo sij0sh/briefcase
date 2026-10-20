@@ -15,6 +15,33 @@ pub fn row<'a>(b: &'a Value, family: &str, id: &str) -> Result<&'a Value> {
         .find(|r| r["id"] == id)
         .ok_or_else(|| format!("UNKNOWN_REFERENCE: Missing {family} {id}").into())
 }
+/// Row positions by id for repeated lookups within one pass. Bundle tables
+/// only grow while a pass runs, so a stale or missing position falls back to
+/// the scan in `row`; the empty index is exactly `row`.
+#[derive(Default)]
+pub struct Positions(BTreeMap<(&'static str, String), usize>);
+impl Positions {
+    pub fn of(b: &Value, families: &[&'static str]) -> Self {
+        let mut index = BTreeMap::new();
+        for &family in families {
+            for (i, r) in rows(b, family).iter().enumerate() {
+                index.entry((family, text(r, "id"))).or_insert(i);
+            }
+        }
+        Self(index)
+    }
+    pub fn row<'a>(&self, b: &'a Value, family: &'static str, id: &str) -> Result<&'a Value> {
+        if let Some(r) = self
+            .0
+            .get(&(family, id.to_owned()))
+            .and_then(|&i| rows(b, family).get(i))
+            .filter(|r| r["id"] == id)
+        {
+            return Ok(r);
+        }
+        row(b, family, id)
+    }
+}
 pub fn merge(b: &mut Value, other: &Value) -> Result<()> {
     for family in contracts::TABLES {
         // Index once per table instead of scanning per row. Collision verdicts
@@ -135,25 +162,25 @@ pub fn claim_predicate(
     Ok(id)
 }
 
-pub fn support_closure(b: &Value, roots: &[String]) -> Result<Vec<String>> {
+fn support_closure(b: &Value, at: &Positions, roots: &[String]) -> Result<Vec<String>> {
     let mut todo = roots.to_vec();
     let mut seen = BTreeSet::new();
     while let Some(id) = todo.pop() {
         if !seen.insert(id.clone()) {
             continue;
         }
-        let a = row(b, "assertions", &id)?;
+        let a = at.row(b, "assertions", &id)?;
         todo.extend(strings(&a["supports"]));
         if a["class"] == "derived" {
             todo.extend(strings(
-                &row(b, "derivations", &text(&a["origin"], "derivation_id"))?
+                &at.row(b, "derivations", &text(&a["origin"], "derivation_id"))?
                     ["input_assertion_ids"],
             ));
         }
         if a["class"] == "claim" {
-            let inf = row(b, "inferences", &text(&a["origin"], "inference_id"))?;
+            let inf = at.row(b, "inferences", &text(&a["origin"], "inference_id"))?;
             todo.extend(strings(
-                &row(b, "input_packets", &text(inf, "packet_id"))?["assertion_ids"],
+                &at.row(b, "input_packets", &text(inf, "packet_id"))?["assertion_ids"],
             ));
         }
     }
@@ -170,15 +197,18 @@ pub struct Source {
     pub text: String,
 }
 pub fn sources(b: &Value, payloads: &Payloads, roots: &[String]) -> Result<Vec<Source>> {
+    sources_in(b, &Positions::default(), payloads, roots)
+}
+pub fn sources_in(b: &Value, at: &Positions, payloads: &Payloads, roots: &[String]) -> Result<Vec<Source>> {
     let mut out = BTreeMap::new();
-    for id in support_closure(b, roots)? {
-        let a = row(b, "assertions", &id)?;
+    for id in support_closure(b, at, roots)? {
+        let a = at.row(b, "assertions", &id)?;
         for eid in strings(&a["evidence_ref_ids"]) {
-            let er = row(b, "evidence_refs", &eid)?;
+            let er = at.row(b, "evidence_refs", &eid)?;
             if er["locator"]["kind"] != "span" {
                 continue;
             }
-            let ar = row(b, "artifacts", &text(er, "artifact_id"))?;
+            let ar = at.row(b, "artifacts", &text(er, "artifact_id"))?;
             let Some(bytes) = payloads.get(&text(ar, "id")) else {
                 continue;
             };
@@ -218,23 +248,45 @@ pub fn sources(b: &Value, payloads: &Payloads, roots: &[String]) -> Result<Vec<S
 /// Only an entire retained module body qualifies for exact content movement.
 /// A declaration in its parent file is not the module's implementation.
 pub fn module_source(b: &Value, payloads: &Payloads, module: &str) -> Result<Option<Source>> {
-    let entity = row(b, "entity_versions", module)?;
+    module_source_in(b, &Positions::default(), payloads, module, &containment(b))
+}
+/// Evidence CONTAINS assertion ids by contained entity, for repeated
+/// `module_source_in` lookups without rescanning every assertion.
+pub fn containment(b: &Value) -> BTreeMap<String, Vec<(String, Vec<String>)>> {
+    let mut index: BTreeMap<String, Vec<(String, Vec<String>)>> = BTreeMap::new();
+    for a in rows(b, "assertions") {
+        if a["class"] == "evidence" && a["proposition"]["predicate"] == "CONTAINS" {
+            if let Some(object) = a["proposition"]["object"]["entity_version_id"].as_str() {
+                index
+                    .entry(object.to_owned())
+                    .or_default()
+                    .push((text(a, "id"), strings(&a["evidence_ref_ids"])));
+            }
+        }
+    }
+    index
+}
+pub fn module_source_in(
+    b: &Value,
+    at: &Positions,
+    payloads: &Payloads,
+    module: &str,
+    containment: &BTreeMap<String, Vec<(String, Vec<String>)>>,
+) -> Result<Option<Source>> {
+    let entity = at.row(b, "entity_versions", module)?;
     let Some(er) = entity["source_evidence_ref_id"].as_str() else {
         return Ok(None);
     };
-    let ids: Vec<_> = rows(b, "assertions")
-        .iter()
-        .filter(|a| {
-            a["class"] == "evidence"
-                && a["proposition"]["predicate"] == "CONTAINS"
-                && a["proposition"]["object"]["entity_version_id"] == module
-                && strings(&a["evidence_ref_ids"]).iter().any(|id| id == er)
-        })
-        .map(|a| text(a, "id"))
+    let ids: Vec<_> = containment
+        .get(module)
+        .into_iter()
+        .flatten()
+        .filter(|(_, refs)| refs.iter().any(|id| id == er))
+        .map(|(id, _)| id.clone())
         .collect();
     // Whole-file binding also supplies retrieval routing and inference packets.
     // Inline modules cannot establish exact file movement.
-    Ok(sources(b, payloads, &ids)?
+    Ok(sources_in(b, at, payloads, &ids)?
         .into_iter()
         .filter(|s| {
             super::source::code_extension(&s.path).is_some()

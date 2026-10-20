@@ -6,6 +6,9 @@ use regex::Regex;
 const INDEX_SOURCES:&[&[u8]]=&[include_bytes!("mod.rs"),include_bytes!("evidence.rs"),
     include_bytes!("index.rs"),include_bytes!("producers.rs"),include_bytes!("../source.rs"),include_bytes!("../retained_source.rs"),include_bytes!("../rust.rs")];
 fn implementation_digest(sources:&[&[u8]]) -> String {identity::bytes_digest(&sources.concat())}
+/// Guarantee scope marking syntactic TS binding references; the index keeps
+/// these links distinct from compiler-resolved REFERENCES.
+pub(crate) const BINDING_SCOPE:&str="imported binding uses resolved syntactically through import and re-export chains";
 
 thread_local! {
     /// Merged-bundle digest per (ledger stamp, joined views); long-lived processes only.
@@ -52,7 +55,7 @@ pub(super) fn load(l: &Ledger, s: &Snapshot) -> Result<Index> {
         require(ix.id == id && ix.source_view == s.view.id,"TASK","Mismatched task index")?;
         return Ok(ix);
     }
-    let mut ix = build(s,id)?;
+    let mut ix = build(l,s,id)?;
     // Retain large occurrence inventories once, never in each task or response.
     for producer in ix.coverage["producer_boundaries"].as_array_mut().unwrap() {
         let unresolved=producer.as_object_mut().unwrap().remove("unresolved").unwrap_or(json!([]));
@@ -87,11 +90,12 @@ pub(super) fn summary(ix:&Index) -> Value {
             p["count"].as_u64().unwrap_or(rows(p,"unresolved").len() as u64)).sum::<u64>(),
         "unresolved_bindings":rows(&ix.coverage,"unresolved_bindings").len(),
         "omitted_relationship_occurrences":ix.coverage["omitted_relationship_occurrences"],
+        "adjacency":adjacency_coverage(ix),
         "propagation":ix.coverage["propagation"],
         "details":{"operation":"page","arguments":{"report_id":ix.id,"section":"/coverage/producer_boundaries","offset":0,"limit":20}}})
 }
 
-fn build(s: &Snapshot, id: String) -> Result<Index> {
+fn build(l: &Ledger, s: &Snapshot, id: String) -> Result<Index> {
     let v = &s.view;
     let mut entities = BTreeMap::<String,Entity>::new();
     let mut by_id = BTreeMap::<String,String>::new();
@@ -144,6 +148,10 @@ fn build(s: &Snapshot, id: String) -> Result<Index> {
     }
     let artifact_paths:BTreeMap<_,_>=rows(&v.bundle,"artifacts").iter().map(|a|(text(a,"id"),text(a,"path"))).collect();
     let evidence_paths:BTreeMap<_,_>=rows(&v.bundle,"evidence_refs").iter().filter_map(|r|artifact_paths.get(&text(r,"artifact_id")).map(|p|(text(r,"id"),p.clone()))).collect();
+    // Syntactic TS binding references are kept distinct from compiler-resolved
+    // REFERENCES so retrieval can treat them as import-derived association.
+    let binding_runs:BTreeSet<_>=rows(&v.bundle,"runs").iter().filter(|r|rows(&r["coverage"],"guarantees").iter()
+        .any(|g|g["predicate"]=="REFERENCES" && g["scope"]==BINDING_SCOPE)).map(|r|text(r,"id")).collect();
     let mut links = BTreeMap::new();
     for a in &assertions {
         let p = &a["proposition"];
@@ -163,7 +171,8 @@ fn build(s: &Snapshot, id: String) -> Result<Index> {
             support_files.clone()
         } else {entities[from].files.clone()};
         let to_files=entities.get(&to).map(|e|e.files.clone()).unwrap_or_default();
-        let mut link=Link::new(&predicate,from,&to,&text(a,"class"),"retained_assertion",
+        let binding=predicate=="REFERENCES" && binding_runs.contains(&text(&a["origin"],"run_id"));
+        let mut link=Link::new(&predicate,from,&to,&text(a,"class"),if binding {"retained_assertion; symbol_binding"} else {"retained_assertion"},
             vec![text(a,"id")],vec![],from_files.clone(),to_files.clone())?;
         link.value=value;
         link.support_files=support_files;
@@ -171,7 +180,8 @@ fn build(s: &Snapshot, id: String) -> Result<Index> {
         if ["IMPORTS","REFERENCES","CALLS_STATIC","DEPENDS_ON"].contains(&predicate.as_str()) {
             for test in from_files.iter().filter(|p|s.files.get(*p).is_some_and(|f|f.role == "test")) {
                 for implementation in to_files.iter().filter(|p|s.files.get(*p).is_some_and(|f|f.role == "impl")) {
-                    let link = Link::new("TESTS",test,implementation,"derived",&format!("test_{predicate}; static association, not executed coverage"),
+                    let basis=if binding {"SYMBOL_BINDING"} else {predicate.as_str()};
+                    let link = Link::new("TESTS",test,implementation,"derived",&format!("test_{basis}; static association, not executed coverage"),
                         vec![text(a,"id")],vec![],BTreeSet::from([test.clone()]),BTreeSet::from([implementation.clone()]))?;
                     insert_link(&mut links,link);
                 }
@@ -281,7 +291,15 @@ fn build(s: &Snapshot, id: String) -> Result<Index> {
         if let Some(e)=entities.get(&edge.to) {edge.to_files=e.files.clone();}
     }
     // Ownership propagation above sees every structural link before the limit applies.
-    let omitted=limit_links(&mut links,RELATIONSHIP_LIMIT);
+    let (omitted,overflow)=partition_links(&mut links,RELATIONSHIP_LIMIT);
+    let overflow_count=overflow.len();
+    let overflow_report=if overflow.is_empty() {None} else {
+        let doc=json!({"kind":"relationship_overflow","index_id":id,"view_id":v.id,
+            "pinned_views":s.profiles.iter().chain(s.evidence_views.iter()).map(|p|p.id.clone()).collect::<Vec<_>>(),
+            "retraction_epoch":v.retraction_watermark,"items":overflow});
+        let report=identity::id("task-overflow",&doc)?;
+        l.save_report(&report,&doc,&[])?;Some(report)
+    };
     let captured_languages: BTreeSet<_> = s.files.values().map(|f|f.language.clone()).filter(|l|l != "text").collect();
     let analyzed_languages: BTreeSet<_> = rows(&v.bundle,"entity_versions").iter().filter(|e|e["kind"] == "module")
         .map(|e|text(e,"language")).filter(|l|!l.is_empty() && l != "none").collect();
@@ -301,6 +319,8 @@ fn build(s: &Snapshot, id: String) -> Result<Index> {
         "semantic_coverage":v.diagnostics["coverage"],
         "producer_boundaries":s.profiles.iter().chain(s.evidence_views.iter()).map(|p|json!({"view_id":p.id,"scope":p.scope,
             "unresolved":rows(&p.bundle,"unresolved_references"),"limitations":p.diagnostics["limitations"]})).collect::<Vec<_>>(),"relationship_limit":RELATIONSHIP_LIMIT,"omitted_relationship_occurrences":omitted.values().sum::<usize>(),"omitted_relationship_predicates":omitted,"relationships":"retained eligible assertions and labelled exact-text derivations; no inferred feature ownership",
+        "adjacency":{"state":"retained","hot_relationships":links.len(),"overflow_relationships":overflow_count,
+            "total_relationships":links.len()+overflow_count,"overflow_report_id":overflow_report},
         "projection_check":"not_requested; durable source records and digest-verified bytes only",
         "propagation":{"iteration_limit":64,"feature_membership_complete":membership_complete,"file_associations_complete":ownership_complete},
         "uncovered":["dynamic dispatch and generated references", "unrecorded sessions", "runtime selection of configuration", "live installed files"]});
@@ -439,15 +459,43 @@ const RELATIONSHIP_LIMIT:usize=100000;
 /// Bound the index by retrieval value, not insertion order: a large joined
 /// profile otherwise fills the limit with file-to-symbol structure and evicts
 /// every later exact-text, test and configuration link. Ties break by id.
-fn limit_links(links:&mut BTreeMap<String,Link>,limit:usize)->BTreeMap<String,usize> {
+fn partition_links(links:&mut BTreeMap<String,Link>,limit:usize)->(BTreeMap<String,usize>,Vec<Link>) {
     let mut omitted=BTreeMap::new();
-    if links.len()<=limit {return omitted;}
+    let mut overflow=vec![];
+    if links.len()<=limit {return (omitted,overflow);}
     let mut ranked:Vec<_>=links.values().map(|l|(std::cmp::Reverse(super::retrieval::facet(&l.predicate).map_or(0,|(_,w)|w)),l.id.clone())).collect();
     ranked.sort();
     for (_,id) in ranked.into_iter().skip(limit) {
-        if let Some(link)=links.remove(&id) {*omitted.entry(link.predicate).or_insert(0usize)+=1;}
+        if let Some(link)=links.remove(&id) {*omitted.entry(link.predicate.clone()).or_insert(0usize)+=1;overflow.push(link);}
     }
-    omitted
+    overflow.sort_by(|a,b|a.id.cmp(&b.id));
+    (omitted,overflow)
+}
+
+/// Old index pins retain their original scope. Never imply a discarded legacy
+/// tail can be recovered by paging that old index.
+pub(super) fn adjacency_coverage(ix:&Index)->Value {
+    if ix.coverage["adjacency"].is_object() {return ix.coverage["adjacency"].clone();}
+    let missing=ix.coverage["omitted_relationship_occurrences"].as_u64().unwrap_or(0);
+    json!({"state":if missing==0 {"retained"} else {"legacy_overflow_unavailable"},
+        "hot_relationships":ix.links.len(),"overflow_relationships":missing,
+        "remediation":if missing>0 {json!("Build a new index from the pinned retained source using neighbors with view and no index_id. The old index and its cursors remain unchanged.")} else {Value::Null}})
+}
+
+pub(super) fn query_links(l:&Ledger,ix:&Index,scope:&str)->Result<Vec<Link>> {
+    require(["hot","all","overflow"].contains(&scope),"ARGUMENTS","relationship_scope must be hot, all or overflow")?;
+    let mut links=if scope=="overflow" {vec![]} else {ix.links.clone()};
+    if scope!="hot" {
+        if let Some(id)=ix.coverage["adjacency"]["overflow_report_id"].as_str() {
+            let doc=l.report(id)?;
+            require(identity::id("task-overflow",&doc)?==id && doc["index_id"]==ix.id && doc["view_id"]==ix.source_view,
+                "DIGEST","Relationship overflow differs from its pinned index")?;
+            links.extend(serde_json::from_value::<Vec<Link>>(doc["items"].clone())?);
+        } else if scope=="overflow" && ix.coverage["omitted_relationship_occurrences"].as_u64().unwrap_or(0)>0 {
+            return Err("TASK: Legacy index overflow was not retained; rebuild from its pinned source view without index_id".into());
+        }
+    }
+    Ok(links)
 }
 
 #[cfg(test)]
@@ -469,10 +517,48 @@ mod cache_tests {
             let link=Link::new(predicate,from,to,"derived","test",vec![],vec![],BTreeSet::from([from.into()]),BTreeSet::from([to.into()])).unwrap();
             insert_link(&mut links,link);
         }
-        assert!(limit_links(&mut links.clone(),4).is_empty());
-        let omitted=limit_links(&mut links,2);
+        assert!(partition_links(&mut links.clone(),4).0.is_empty());
+        let (omitted,overflow)=partition_links(&mut links,2);
+        assert_eq!(overflow.len(),2);
         let kept:BTreeSet<_>=links.values().map(|l|l.predicate.as_str()).collect();
         assert_eq!(kept,BTreeSet::from(["TESTS","REFERENCES_ARTIFACT"]));
         assert_eq!(omitted,BTreeMap::from([("DECLARES".to_string(),1),("UNWEIGHTED".to_string(),1)]));
+    }
+
+    #[test]
+    fn overflow_adjacency_and_explanations_are_queryable_without_mutating_hot_or_legacy_pins() {
+        let temp=tempfile::tempdir().unwrap();
+        let l=Ledger::open(&temp.path().join("evidence.db")).unwrap();
+        let mut all=BTreeMap::new();
+        for (predicate,to) in [("TESTS","b.rs"),("DECLARES","a.rs#one"),("CONTAINS","a.rs#two")] {
+            let link=Link::new(predicate,"a.rs",to,"derived","fixture",vec![],vec![],
+                BTreeSet::from(["a.rs".into()]),BTreeSet::from(["b.rs".into()])).unwrap();
+            all.insert(link.id.clone(),link);
+        }
+        let (omitted,overflow)=partition_links(&mut all,1);
+        let overflow_link=overflow[0].id.clone();
+        let mut ix=Index{id:"task-index:overflow-test".into(),source_view:"view:1".into(),retraction_epoch:l.retraction_epoch().unwrap(),
+            files:["a.rs","b.rs"].into_iter().map(|p|(p.into(),Artifact{path:p.into(),artifact_id:format!("artifact:{p}"),
+                digest:"sha256:fixture".into(),role:"impl".into(),language:"rust".into(),bytes:0})).collect(),
+            entities:BTreeMap::new(),links:all.into_values().collect(),coverage:json!({"profile_views":[],
+                "omitted_relationship_occurrences":2,"omitted_relationship_predicates":omitted})};
+        assert_eq!(query_links(&l,&ix,"all").unwrap().len(),1);
+        assert_eq!(adjacency_coverage(&ix)["state"],"legacy_overflow_unavailable");
+        assert!(query_links(&l,&ix,"overflow").is_err());
+        let doc=json!({"kind":"relationship_overflow","index_id":ix.id,"view_id":ix.source_view,
+            "retraction_epoch":ix.retraction_epoch,"pinned_views":[],"items":overflow});
+        let report=identity::id("task-overflow",&doc).unwrap();l.save_report(&report,&doc,&[]).unwrap();
+        ix.coverage["adjacency"]=json!({"state":"retained","overflow_report_id":report});
+        l.save_report(&ix.id,&serde_json::to_value(&ix).unwrap(),&[]).unwrap();
+        let first=super::super::queries::neighbors(&l,&json!({"index_id":ix.id,"target":"a.rs","limit":1})).unwrap();
+        assert_eq!(first["page"]["total"],3);
+        let next=crate::architecture::reports::page(&l,&first["continue_with"]["arguments"]).unwrap();
+        assert_eq!(next["page"]["offset"],1);
+        let hot=super::super::queries::neighbors(&l,&json!({"index_id":ix.id,"target":"a.rs","relationship_scope":"hot"})).unwrap();
+        assert_eq!(hot["page"]["total"],1);
+        let proof=super::super::queries::explain(&l,&json!({"index_id":ix.id,"link_id":overflow_link})).unwrap();
+        assert_eq!(proof["link"]["id"],overflow_link);
+        assert_eq!(l.report(&ix.id).unwrap()["links"].as_array().unwrap().len(),1);
+        assert_eq!(query_links(&l,&ix,"overflow").unwrap().len(),2);
     }
 }

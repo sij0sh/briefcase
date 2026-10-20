@@ -836,6 +836,7 @@ fn apply_one(o: &SyncOptions, _lock: &WriterLock, started: Instant, slot:Option<
                 project: profile.project.clone(),
                 timeout: remaining.min(Duration::from_secs(600)),
                 calls: profile.calls,
+                references: false,
             },
         )? {
             return Ok(configuration_result(
@@ -902,6 +903,7 @@ fn apply_one(o: &SyncOptions, _lock: &WriterLock, started: Instant, slot:Option<
                 project: profile.project.clone(),
                 timeout: analysis_timeout,
                 calls: profile.calls,
+                references: false,
             },
         ),
     };

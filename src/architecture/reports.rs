@@ -62,7 +62,9 @@ pub fn page(l:&Ledger,a:&Value) -> Result<Value> {
         // thousands of them would itself exhaust the graph response budget.
         ["/links","/coverage/producer_boundaries","/coverage/unresolved_bindings","/coverage/analysis_profiles","/coverage/languages","/coverage/profile_views"]
             .into_iter().filter(|p|doc.pointer(p).is_some_and(Value::is_array)).map(str::to_owned).collect()
-    } else {match doc["kind"].as_str() {Some("case")=>task::case::sections(&doc),Some("brief")=>task::report_sections(&doc),_=>report_sections(&doc)}};
+    } else {match doc["kind"].as_str() {Some("case")=>task::case::sections(&doc),Some("brief")=>task::report_sections(&doc),
+        Some("relationship_proof")=>{let mut sections=report_sections(&doc);sections.extend(super::contracts::strings(&doc["page_sections"]));sections},
+        _=>report_sections(&doc)}};
     if section.is_empty() {
         section=if doc["enumerator"].is_string()||doc["items"].is_array() {"/items".into()}
             else if doc["response"].is_object(){"/response/results".into()}
@@ -85,6 +87,9 @@ pub fn page(l:&Ledger,a:&Value) -> Result<Value> {
         "index_id":doc["index_id"],"available_sections":sections,"pinned_views":doc["pinned_views"],"items":&items[offset..end],
         "historical_packet":doc["retraction_epoch"].as_u64().or(doc["provenance"]["retraction_epoch"].as_u64())!=Some(l.retraction_epoch()?),
         "current_retraction_epoch":l.retraction_epoch()?});
+    if doc["kind"]=="task_inventory" {
+        for key in ["case_id","inventory_kind","filters","fetch_source","interpretation","coverage"] {out[key]=doc[key].clone();}
+    }
     delivery(&mut out,id,&section,offset,items.len(),limit);
     Ok(out)
 }
@@ -179,4 +184,22 @@ fn load_report(l:&Ledger,id:&str) -> Result<std::rc::Rc<Value>> {
     let doc=std::rc::Rc::new(l.report(id)?);
     INDEX_DOCS.with(|d|{let mut d=d.borrow_mut(); if d.len()>=2 {d.remove(0);} d.push((id.into(),doc.clone()));});
     Ok(doc)
+}
+
+#[cfg(test)]
+mod proof_pages {
+    use super::*;
+    #[test]
+    fn large_proof_arrays_have_exact_registered_nested_pages() {
+        let temp=tempfile::tempdir().unwrap();let ledger=Ledger::open(&temp.path().join("proof.db")).unwrap();
+        let section="/assertions/0/derivation/input_assertion_ids";
+        let doc=json!({"kind":"relationship_proof","retraction_epoch":ledger.retraction_epoch().unwrap(),
+            "page_sections":[section],"assertions":[{"derivation":{"input_assertion_ids":["a","b","c"]}}]});
+        let id=identity::id("task-proof",&doc).unwrap();ledger.save_report(&id,&doc,&[]).unwrap();
+        let first=page(&ledger,&json!({"report_id":id,"section":section,"limit":1})).unwrap();
+        assert_eq!(first["items"],json!(["a"]));assert_eq!(first["page"]["total"],3);
+        let second=page(&ledger,&first["continue_with"]["arguments"]).unwrap();
+        assert_eq!(second["items"],json!(["b"]));assert_eq!(second["page"]["offset"],1);
+        assert_eq!(ledger.report(&id).unwrap(),doc);
+    }
 }

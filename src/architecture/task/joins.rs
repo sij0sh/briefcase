@@ -77,6 +77,7 @@ pub(super) fn discover(
     let mut considered = 0;
     let mut omitted_paths = 0;
     let mut omitted_requests = 0;
+    let mut remaining_work=vec![];
     // Foreign recordings are filtered before the bound, so other repositories'
     // sessions cannot exhaust this repository's discovery budget.
     let repository = rows(&s.view.bundle, "snapshots")
@@ -121,6 +122,10 @@ pub(super) fn discover(
             }
             omitted_requests += summary["omitted_requests"].as_u64().unwrap_or(0)
                 + u64::from(summary["omitted_request_bytes"].as_u64().unwrap_or(0) > 0);
+            if summary["omitted_requests"].as_u64().unwrap_or(0)>0 || summary["omitted_request_bytes"].as_u64().unwrap_or(0)>0 {
+                remaining_work.push(json!({"kind":"session_requests","target":view,"status":"available",
+                    "reason":"session_summary_bound","action":{"operation":"session_events","arguments":{"session":view,"kind":"user_message"}}}));
+            }
             let mut touches = BTreeMap::<String, &Value>::new();
             for event in rows(&summary, "activities") {
                 let path = text(&event["path"], "path");
@@ -155,6 +160,11 @@ pub(super) fn discover(
                     path.clone(),
                 )
             });
+            for (path,event) in touches.iter().skip(64) {
+                remaining_work.push(json!({"kind":"session_path","target":path,"session_view":view,"event_id":event["id"],
+                    "status":"available","reason":"session_path_limit",
+                    "action":{"operation":"session_files","arguments":{"session":view}}}));
+            }
             for (path, event) in touches.into_iter().take(64) {
                 hints.push(json!({"path":path,"facet":"sessions","kind":event["kind"],
                     "strength":(if event["kind"]=="file_edit_confirmed" {60} else {40})/fanout as u64,
@@ -172,6 +182,9 @@ pub(super) fn discover(
         "foreign_session_publications":publications.len()-local.len(),"session_discovery_limit":SESSION_LIMIT,"sessions_considered":considered,
         "omitted_session_publications":omitted_sessions.len(),
         "continue_with":omitted_sessions.iter().take(16).map(|view|json!({"operation":"session_files","arguments":{"session":view}})).collect::<Vec<_>>(),
+        "remaining_work":remaining_work.into_iter().chain(omitted_sessions.iter().map(|view|json!({"kind":"session_publication",
+            "target":view,"status":"available","reason":"session_publication_limit",
+            "action":{"operation":"session_files","arguments":{"session":view}}}))).collect::<Vec<_>>(),
         "omitted_session_paths":omitted_paths,"omitted_or_truncated_requests":omitted_requests}),
     ))
 }

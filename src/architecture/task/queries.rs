@@ -88,10 +88,13 @@ pub fn occurrences(l: &Ledger, a: &Value) -> Result<Value> {
 /// Exhaustive forward/reverse adjacency over the retained task index.
 pub fn neighbors(l: &Ledger, a: &Value) -> Result<Value> {
     let target = a["target"].as_str().ok_or("ARGUMENTS: target is required")?;
-    let ix=if let Some(id)=a["index_id"].as_str() {load_index(l,id)?} else {
+    let mut ix=if let Some(id)=a["index_id"].as_str() {load_index(l,id)?} else {
         let s=Snapshot::load_with(l,a["view"].as_str().unwrap_or("latest"),a)?;index::load(l,&s)?
     };
     if a["index_id"].is_string() {require(a["view"].as_str().is_none_or(|v|v=="latest" || v==ix.source_view),"ARGUMENTS","view differs from retained index pin")?;}
+    let coverage=index::summary(&ix);
+    let scope=a["relationship_scope"].as_str().unwrap_or("all");
+    ix.links=index::query_links(l,&ix,scope)?;
     let (status,mut keys,files) = trace::resolve(&ix,target,true);
     let direct_touchpoint = ix.links.iter().any(|e|e.from == target || e.to == target);
     if status == "unresolved" && direct_touchpoint {keys.insert(target.into());}
@@ -114,14 +117,16 @@ pub fn neighbors(l: &Ledger, a: &Value) -> Result<Value> {
     let mut result = page_items("neighbors",&ix.source_view,&items,offset,limit);
     result["resolution"] = json!({"status":status,"candidates":keys});
     result["target"] = json!(target);
-    result["coverage"] = index::summary(&ix);
+    result["coverage"] = coverage;
+    result["relationship_scope"]=json!(scope);
     result["index_id"] = json!(ix.id);
     result["pinned_views"]=ix.coverage["profile_views"].clone();
     result["historical_index"]=json!(ix.retraction_epoch!=l.retraction_epoch()?);
     result["index_retraction_epoch"]=json!(ix.retraction_epoch);
     result["continue_with"] = json!({"operation":"neighbors","arguments":{"view":ix.source_view,"index_id":ix.id,"target":target,
-        "direction":direction,"predicate":a["predicate"],"depth":depth,"offset":offset.saturating_add(rows(&result,"items").len()),"limit":limit}});
-    crate::architecture::reports::pin_enumerator(l,&mut result,"neighbors",a)?;
+        "direction":direction,"predicate":a["predicate"],"relationship_scope":scope,"depth":depth,"offset":offset.saturating_add(rows(&result,"items").len()),"limit":limit}});
+    let mut recipe=a.clone();recipe["relationship_scope"]=json!(scope);
+    crate::architecture::reports::pin_enumerator(l,&mut result,"neighbors",&recipe)?;
     Ok(result)
 }
 
@@ -138,7 +143,8 @@ pub fn explain(l:&Ledger,a:&Value) -> Result<Value> {
     let id=a["index_id"].as_str().ok_or("ARGUMENTS: index_id is required")?;
     let link_id=a["link_id"].as_str().ok_or("ARGUMENTS: link_id is required")?;
     let ix=load_index(l,id)?;
-    let edge=ix.links.iter().find(|e|e.id==link_id).ok_or("TASK: Unknown relationship in this index")?;
+    let links=index::query_links(l,&ix,"all")?;
+    let edge=links.iter().find(|e|e.id==link_id).ok_or("TASK: Unknown relationship in this index")?;
     let limit=a["limit"].as_u64().unwrap_or(20) as usize;
     require((1..=1000).contains(&limit),"ARGUMENTS","limit must be 1..1000")?;
     let offset=a["offset"].as_u64().unwrap_or(0) as usize;
@@ -170,9 +176,39 @@ pub fn explain(l:&Ledger,a:&Value) -> Result<Value> {
             }
         }
     }
-    Ok(json!({"kind":"explain","index_id":id,"link_id":link_id,"link":edge,"view_id":ix.source_view,"pinned_views":ix.coverage["profile_views"],
+    let mut result=json!({"kind":"explain","index_id":id,"link_id":link_id,"link":edge,"view_id":ix.source_view,"pinned_views":ix.coverage["profile_views"],
         "observation_reports":edge.report_ids.iter().map(|id|l.report(id)).collect::<Result<Vec<_>>>()?,
         "witnesses":witnesses,"assertions":assertions.into_values().collect::<Vec<_>>(),"current_retraction_epoch":l.retraction_epoch()?,
         "historical_index":ix.retraction_epoch!=l.retraction_epoch()?,"offset":offset,"omitted_witnesses":edge.witnesses.len().saturating_sub(offset.saturating_add(limit)),
-        "omitted_assertions":edge.assertion_ids.len().saturating_sub(offset.saturating_add(limit))}))
+        "omitted_assertions":edge.assertion_ids.len().saturating_sub(offset.saturating_add(limit))});
+    // A derivation can depend on an entire analysis run. Retain that exact
+    // proof and page its large arrays instead of making the relationship
+    // impossible to explain under the maximum response budget.
+    let mut arrays=vec![];
+    for (i,record) in rows(&result,"assertions").iter().enumerate() {
+        for container in ["derivation","declaration_record","assertion"] {
+            if let Some(object)=record[container].as_object() {
+                for (key,value) in object {
+                    if value.is_array() && serde_json::to_vec(value)?.len()>4096 {
+                        arrays.push((i,container.to_owned(),key.clone(),value.as_array().unwrap().len()));
+                    }
+                }
+            }
+        }
+    }
+    if !arrays.is_empty() {
+        let mut proof=result.clone();proof["kind"]=json!("relationship_proof");proof["retraction_epoch"]=json!(ix.retraction_epoch);
+        proof["page_sections"]=json!(arrays.iter().map(|(i,container,key,_)|format!("/assertions/{i}/{container}/{}",key.replace('~',"~0").replace('/',"~1"))).collect::<Vec<_>>());
+        let report=identity::id("task-proof",&proof)?;l.save_report(&report,&proof,&[])?;
+        let mut pages=vec![];
+        for (i,container,key,count) in arrays {
+            result["assertions"][i][&container].as_object_mut().unwrap().remove(&key);
+            result["assertions"][i]["omitted_provenance_arrays"][format!("{container}/{key}")]=json!(count);
+            let escaped=key.replace('~',"~0").replace('/',"~1");
+            pages.push(json!({"section":format!("/assertions/{i}/{container}/{escaped}"),"items":count,
+                "continue_with":crate::architecture::reports::continuation(&report,&format!("/assertions/{i}/{container}/{escaped}"),0,100)}));
+        }
+        result["proof_report_id"]=json!(report);result["provenance_pages"]=json!(pages);
+    }
+    Ok(result)
 }

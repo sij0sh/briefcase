@@ -25,6 +25,8 @@ pub struct Unit {
     pub start: usize,
     pub end: usize,
     pub text: String,
+    /// Identifier components of the path and text, for the identifier representation only.
+    pub parts: Option<(String, String)>,
 }
 
 pub(crate) fn configuration() -> Value {
@@ -40,6 +42,53 @@ pub(crate) fn configuration() -> Value {
 /// checks. A check must never look for a differently keyed recall projection.
 pub(crate) fn index_configuration(include_evaluation: bool) -> Result<String> {
     identity::digest(&json!({"configuration":configuration(),"include_evaluation":include_evaluation}))
+}
+
+/// The identifier representation is a separate projection over the same units:
+/// original path/body plus their compound-identifier components.
+pub(crate) fn identifier_configuration() -> Value {
+    let mut c = configuration();
+    c["representation"] = json!("briefcase-retained-source-recall-v1+identifier-components-v1");
+    c["identifier_components"] = json!("lower/upper, acronym/word and digit/upper boundaries of tokens with at least two components; originals retained");
+    c["ranking"] = json!("fts5-bm25(path=2,body=1,path_parts=2,body_parts=1)");
+    c
+}
+fn identifier_index_configuration() -> Result<String> {
+    identity::digest(&json!({"configuration":identifier_configuration(),"include_evaluation":false}))
+}
+
+/// Lowercase components of compound identifiers, space separated. FTS5
+/// unicode61 already separates `_`, `-` and `.`; this adds the case
+/// boundaries it cannot see (`RunFinalizationService`, `HTTPServer`,
+/// `v2Adapter`). Single-component tokens add nothing.
+pub(crate) fn identifier_parts(text: &str) -> String {
+    let mut out = String::new();
+    for token in text.split(|c: char| !c.is_alphanumeric()) {
+        let chars: Vec<char> = token.chars().collect();
+        let mut parts = vec![];
+        let mut start = 0;
+        for i in 1..chars.len() {
+            let (a, b) = (chars[i - 1], chars[i]);
+            let next_lower = chars.get(i + 1).is_some_and(|c| c.is_lowercase());
+            if b.is_uppercase()
+                && (a.is_lowercase() || a.is_ascii_digit() || (a.is_uppercase() && next_lower))
+            {
+                parts.push(&chars[start..i]);
+                start = i;
+            }
+        }
+        if start == 0 {
+            continue;
+        }
+        parts.push(&chars[start..]);
+        for part in parts {
+            if !out.is_empty() {
+                out.push(' ');
+            }
+            out.extend(part.iter().flat_map(|c| c.to_lowercase()));
+        }
+    }
+    out
 }
 
 /// Line-aligned byte ranges of at most `MAX_CHUNK_BYTES`; longer lines split
@@ -170,13 +219,25 @@ fn session_hits(l: &Ledger, text_query: &str) -> Result<(Vec<Value>, usize, bool
 pub fn ensure_index(l: &Ledger, v: &View) -> Result<(String, u64)> {
     ensure_index_with_policy(l, v, false)
 }
+/// Build the identifier representation (see `identifier_parts`) when absent.
+pub(crate) fn ensure_identifier_index(l: &Ledger, v: &View) -> Result<(String, u64)> {
+    build_index(l, v, identifier_index_configuration()?, false, true)
+}
 fn ensure_index_with_policy(l: &Ledger, v: &View, include_evaluation: bool) -> Result<(String, u64)> {
+    build_index(l, v, index_configuration(include_evaluation)?, include_evaluation, false)
+}
+fn build_index(
+    l: &Ledger,
+    v: &View,
+    config: String,
+    include_evaluation: bool,
+    identifier_components: bool,
+) -> Result<(String, u64)> {
     require(
         v.scope == "source",
         "SCOPE",
         "Recall reads a source capture",
     )?;
-    let config = index_configuration(include_evaluation)?;
     if let Some(count) = l.recall_ready(&v.id, &config)? {
         return Ok((config, count));
     }
@@ -197,14 +258,19 @@ fn ensure_index_with_policy(l: &Ledger, v: &View, include_evaluation: bool) -> R
         let Ok(source) = std::str::from_utf8(bytes) else {
             continue;
         };
+        let path = text(a, "path");
+        let path_parts = identifier_components.then(|| identifier_parts(&path));
         for (start, end) in chunks(source) {
             units.push(Unit {
                 artifact_id: id.clone(),
-                path: text(a, "path"),
+                path: path.clone(),
                 source_kind: text(a, "source_kind"),
                 start,
                 end,
                 text: source[start..end].to_owned(),
+                parts: path_parts
+                    .clone()
+                    .map(|p| (p, identifier_parts(&source[start..end]))),
             });
         }
     }
@@ -525,6 +591,17 @@ fn recall_unbounded_with_policy(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn identifier_components_split_camel_acronym_and_digit_boundaries_only() {
+        assert_eq!(
+            identifier_parts("getUserID parseHTTPResponse v2Adapter snake_case plain URL"),
+            "get user id parse http response v2 adapter"
+        );
+        assert_eq!(identifier_parts("CommandPolicy.ts"), "command policy");
+        assert_eq!(identifier_parts("lower only_words"), "");
+        assert_ne!(index_configuration(false).unwrap(), identifier_index_configuration().unwrap());
+    }
 
     #[test]
     fn recall_index_identity_includes_the_evaluation_policy() {

@@ -23,6 +23,9 @@ pub struct ScanOptions {
     pub project: String,
     pub timeout: Duration,
     pub calls: bool,
+    /// Workspace partitions only: resolve identifier uses of imported
+    /// bindings to their declaring definition (syntactic REFERENCES).
+    pub references: bool,
 }
 impl Default for ScanOptions {
     fn default() -> Self {
@@ -37,6 +40,7 @@ impl Default for ScanOptions {
             project: "tsconfig.json".into(),
             timeout: Duration::from_secs(60),
             calls: false,
+            references: false,
         }
     }
 }
@@ -130,9 +134,11 @@ fn node_adapter_mode(
         .iter()
         .map(|(p, b)| Ok((p, std::str::from_utf8(b)?)))
         .collect::<Result<_>>()?;
-    let input = serde_json::to_vec(
-        &json!({"schema_version":"1.0","project":options.project,"files":files,"mode":mode}),
-    )?;
+    let mut request = json!({"schema_version":"1.0","project":options.project,"files":files,"mode":mode});
+    if options.references && workspace(options) {
+        request["references"] = json!(true);
+    }
+    let input = serde_json::to_vec(&request)?;
     // Keep Node selection and environment filtering language-specific.
     let mut command = Command::new(&options.node);
     command
@@ -141,7 +147,14 @@ fn node_adapter_mode(
         .env_remove("NODE_OPTIONS")
         .env_remove("NODE_PATH")
         .current_dir(temp.path());
-    let out = identity::parse(&native_host::run(command, &input, deadline)?.stdout)?;
+    // Workspace partitions bound files, definitions, imports and references
+    // row by row; their total can exceed the default output limit.
+    let output = if workspace(options) {
+        native_host::run_with_stdout_limit(command, &input, deadline, WORKSPACE_STDOUT_LIMIT)?
+    } else {
+        native_host::run(command, &input, deadline)?
+    };
+    let out = identity::parse(&output.stdout)?;
     require(
         out["schema_version"] == "1.0"
             && out
@@ -154,6 +167,7 @@ fn node_adapter_mode(
     Ok(out)
 }
 const WORKSPACE_ADAPTER: &[u8] = include_bytes!("typescript_workspace.cjs");
+const WORKSPACE_STDOUT_LIMIT: u64 = 256 * 1024 * 1024;
 /// `workspace` (every retained tsconfig.json) or a comma list of configs selects
 /// partitioned, module-level analysis; calls are classified, never resolved.
 pub(crate) fn workspace(options: &ScanOptions) -> bool {
@@ -256,8 +270,19 @@ pub fn produce(
         "syntax",
         "none",
     )?;
+    let reference_run = if options.references && partitioned {
+        let unresolved = out["workspace"]["references"]["unresolved_targets"].as_u64().unwrap_or(0) as usize;
+        let attempted = rows(&out, "references").len() + unresolved;
+        Some(run(&mut b, &ctx, &config_id, &json!({"attempted":attempted,"completed":attempted,
+            "unsupported_count":strings(&out["omitted"]).len() + rows(&out, "diagnostics").len(),
+            "unresolved_count":unresolved,"resolution_complete":false,
+            "guarantees":[{"predicate":"REFERENCES","kind":"syntax_only","scope":super::task::BINDING_SCOPE}]}))?)
+    } else {
+        None
+    };
     let mut modules = BTreeMap::new();
     let mut functions = BTreeMap::new();
+    let mut symbols = BTreeMap::new();
     for m in rows(&out, "modules") {
         let path = text(m, "path");
         let language = text(m, "language");
@@ -345,8 +370,9 @@ pub fn produce(
                 None,
             )?;
             if d["callable"] == true {
-                functions.insert(key, id);
+                functions.insert(key.clone(), id.clone());
             }
+            symbols.insert(key, id);
         }
     }
     for (predicate, sites, rid) in [
@@ -388,6 +414,38 @@ pub fn produce(
             )?;
         }
     }
+    // One assertion per (enclosing definition or module, target definition):
+    // a syntactic binding use, never a call or behavioral dependency.
+    if let Some(rid) = &reference_run {
+        for r in rows(&out, "references") {
+            let path = text(r, "path");
+            let (Some(to), Some(from)) = (
+                symbols.get(&text(r, "target")),
+                r["caller"]
+                    .as_str()
+                    .map_or(modules.get(&path), |caller| symbols.get(caller)),
+            ) else {
+                continue;
+            };
+            let er = rust::evidence(
+                &mut b,
+                &path,
+                r["start"].as_u64().unwrap() as usize,
+                r["end"].as_u64().unwrap() as usize,
+            )?;
+            rust::assertion(
+                &mut b,
+                &ctx,
+                "evidence",
+                from,
+                "REFERENCES",
+                knowledge::target(to),
+                json!({"run_id":rid}),
+                vec![er],
+                Some(json!({"status":"resolved","method":"syntax","candidate_ids":[to]})),
+            )?;
+        }
+    }
     for u in rows(&out, "unresolved")
         .iter()
         .filter(|u| u["predicate"] == "IMPORTS" || resolve_calls)
@@ -424,7 +482,7 @@ pub fn produce(
         },
     ));
     super::declarations::apply(&mut b, &c, &ctx, &provider, &mut limitations)?;
-    let diagnostics = json!({"requested_analyses":json!({"dependencies":true,"static_calls":options.calls,"data":false}),"capture":c.metadata(),"provider":producer,"coverage":imports,"call_coverage":if resolve_calls {calls}else{Value::Null},"workspace":out["workspace"],
+    let diagnostics = json!({"requested_analyses":json!({"dependencies":true,"static_calls":options.calls,"binding_references":reference_run.is_some(),"data":false}),"capture":c.metadata(),"provider":producer,"coverage":imports,"call_coverage":if resolve_calls {calls}else{Value::Null},"workspace":out["workspace"],
         "compiler_diagnostics":out["diagnostics"],"omitted_source_files":out["omitted"],
         "limitations":limitations,"correspondence_artifact_id":witness,"exclusions":c.exclusions});
     Prepared::seal(b, payloads, generation, diagnostics)

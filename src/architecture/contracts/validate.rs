@@ -64,6 +64,17 @@ fn validate_contexts(b: &Value, ix: &Index, payloads: &Payloads) -> Result<()> {
             ix.context(&r["context"])?;
         }
     }
+    // Built once: per-entity scans of every assertion and snapshot file made
+    // this check quadratic in bundle size.
+    let bound: BTreeSet<(String, String)> = rows(b, "assertions")
+        .iter()
+        .filter(|a| a["class"] == "evidence")
+        .flat_map(|a| {
+            let object = text(&a["proposition"]["object"], "entity_version_id");
+            strings(&a["evidence_ref_ids"]).into_iter().map(move |e| (object.clone(), e))
+        })
+        .collect();
+    let mut snapshot_files: BTreeMap<String, BTreeSet<(String, String)>> = BTreeMap::new();
     for entity in rows(b, "entity_versions")
         .iter()
         .filter(|e| !e["source_evidence_ref_id"].is_null())
@@ -76,20 +87,23 @@ fn validate_contexts(b: &Value, ix: &Index, payloads: &Payloads) -> Result<()> {
             "Module source binding needs a source context",
         )?;
         let snapshot = ix.field("snapshots", &entity["context"], "snapshot_id")?;
-        require(
+        let files = snapshot_files.entry(text(snapshot, "id")).or_insert_with(|| {
             rows(snapshot, "files")
                 .iter()
-                .any(|f| f["path"] == artifact["path"] && f["digest"] == artifact["digest"]),
+                .filter(|f| f["path"].is_string() && f["digest"].is_string())
+                .map(|f| (text(f, "path"), text(f, "digest")))
+                .collect()
+        });
+        require(
+            artifact["path"].is_string()
+                && artifact["digest"].is_string()
+                && files.contains(&(text(artifact, "path"), text(artifact, "digest"))),
             "SCOPE",
             "Entity source binding outside snapshot",
         )?;
         require(
-            rows(b, "assertions").iter().any(|a| {
-                a["class"] == "evidence"
-                    && a["proposition"]["object"]["entity_version_id"] == entity["id"]
-                    && strings(&a["evidence_ref_ids"])
-                        .contains(&text(entity, "source_evidence_ref_id"))
-            }),
+            entity["id"].is_string()
+                && bound.contains(&(text(entity, "id"), text(entity, "source_evidence_ref_id"))),
             "ORIGIN",
             "Entity source binding lacks a retained structure assertion",
         )?;

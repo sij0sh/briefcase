@@ -74,6 +74,7 @@ impl Ledger {
           CREATE TABLE IF NOT EXISTS recall_units (id INTEGER PRIMARY KEY, view_id TEXT NOT NULL, configuration TEXT NOT NULL, artifact_id TEXT NOT NULL REFERENCES records(id), path TEXT NOT NULL, source_kind TEXT NOT NULL, start_byte INTEGER NOT NULL, end_byte INTEGER NOT NULL);
           CREATE INDEX IF NOT EXISTS recall_units_view ON recall_units(view_id,configuration);
           CREATE VIRTUAL TABLE IF NOT EXISTS recall_fts USING fts5(unit_id UNINDEXED, view_id UNINDEXED, configuration UNINDEXED, path, body);
+          CREATE VIRTUAL TABLE IF NOT EXISTS recall_parts_fts USING fts5(unit_id UNINDEXED, view_id UNINDEXED, configuration UNINDEXED, path, body, path_parts, body_parts);
           CREATE TABLE IF NOT EXISTS history_commits (oid TEXT PRIMARY KEY, configuration TEXT NOT NULL, parents TEXT NOT NULL, author TEXT NOT NULL, timestamp INTEGER NOT NULL, message TEXT NOT NULL, files_total INTEGER NOT NULL);
           CREATE TABLE IF NOT EXISTS history_changes (oid TEXT NOT NULL REFERENCES history_commits(oid) ON DELETE CASCADE, ordinal INTEGER NOT NULL, path TEXT NOT NULL, old_path TEXT, status TEXT NOT NULL, patch TEXT NOT NULL, truncated INTEGER NOT NULL, PRIMARY KEY(oid,ordinal));
           CREATE TABLE IF NOT EXISTS history_units (id INTEGER PRIMARY KEY, oid TEXT NOT NULL REFERENCES history_commits(oid) ON DELETE CASCADE, path TEXT NOT NULL, text TEXT NOT NULL);

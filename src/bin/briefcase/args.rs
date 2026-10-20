@@ -53,6 +53,10 @@ pub(crate) struct TypeScript {
     pub(crate) node: PathBuf,
     #[arg(long)]
     pub(crate) typescript_compiler: Option<PathBuf>,
+    /// Workspace partitions: resolve identifier uses of imported bindings to
+    /// their declaring definitions as syntactic REFERENCES.
+    #[arg(long)]
+    pub(crate) symbol_references: bool,
 }
 impl TypeScript {
     pub(crate) fn options(self, timeout: u64, calls: bool) -> typescript::ScanOptions {
@@ -61,6 +65,7 @@ impl TypeScript {
             project: self.project,
             timeout: Duration::from_secs(timeout),
             calls,
+            references: self.symbol_references,
             ..Default::default()
         };
         if let Some(compiler) = self.typescript_compiler {

@@ -478,9 +478,10 @@ pub(super) fn assess(
     if ix.coverage["omitted_relationship_occurrences"]
         .as_u64()
         .unwrap_or(0)
-        > 0
+        > 0 && ix.coverage["assembly_relationship_scope"]!="all"
     {
-        not_covered.push(Gap::new(GapArea::RelationshipIndex,json!({"reason":"Relationship index bound was reached; reverse/forward results do not cover omitted occurrences.",
+        not_covered.push(Gap::new(GapArea::RelationshipIndex,json!({"reason":"Initial task assembly uses bounded hot adjacency. Query all retained relationships with neighbors; legacy overflow may require a new index.",
+            "adjacency":super::index::adjacency_coverage(ix),
             "omitted_occurrences":ix.coverage["omitted_relationship_occurrences"]})));
     }
     if ix.coverage["propagation"]["feature_membership_complete"] == false

@@ -37,6 +37,10 @@ pub(super) const SELECTION_VARIANTS: &[&str] = &[
     "linked_diversity",
     "combined",
     "docs_disabled",
+    // Priority 2 experiments; each changes one stage and keeps baseline selection.
+    "identifier_terms",
+    "origin_fusion",
+    "structural_reach",
 ];
 fn default_selection_variant() -> String {
     "baseline".into()

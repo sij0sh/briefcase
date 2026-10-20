@@ -4,6 +4,10 @@
 // relative paths. Named imports follow syntactic re-export chains to the
 // declaring module. Calls are classified, never resolved. Output is bounded by
 // whole files; anything not analyzed is listed, never implied covered.
+// With `references`, identifier uses of imported bindings (and namespace
+// members) resolve syntactically to their declaring top-level definition:
+// one occurrence per (enclosing definition or module, target, kind). A
+// reference is a binding use, never a call or a runtime guarantee.
 'use strict';
 const path = require('node:path').posix;
 
@@ -11,6 +15,7 @@ const MAX_FILES = 20000;
 const MAX_DEFINITIONS = 131072;
 const MAX_IMPORTS = 131072;
 const MAX_CHAIN = 8;
+const MAX_REFERENCES = 262144;
 const CONDITIONS = ['types', 'import', 'module', 'default', 'require', 'node'];
 const EXTENSIONS = ['.ts', '.tsx', '.mts', '.cts', '.d.ts', '.js', '.jsx', '.mjs', '.cjs'];
 
@@ -179,22 +184,33 @@ module.exports = ({ ts, request, files, system, root, relative, isCode, compiler
     const sf = ts.createSourceFile(fileName, files.get(fileName), ts.ScriptTarget.Latest, true,
       /\.tsx$|\.jsx$/.test(fileName) ? ts.ScriptKind.TSX : undefined);
     const defs = [];
-    const table = { local: new Set(), reexports: new Map(), stars: [], bindings: new Map() };
+    const table = { local: new Set(), reexports: new Map(), stars: [], bindings: new Map(),
+      namespaces: new Map(), keys: new Map(), owners: new Map() };
     for (const n of sf.statements) {
       const named = n.name && ts.isIdentifier(n.name) && (ts.isFunctionDeclaration(n) || ts.isClassDeclaration(n)
         || ts.isInterfaceDeclaration(n) || ts.isTypeAliasDeclaration(n) || ts.isEnumDeclaration(n) || ts.isModuleDeclaration(n));
       if (named) {
-        defs.push({ ...span(sf, n), key: `${relative(fileName)}::${n.name.text}#${byte(sf, n.getStart(sf))}`,
+        const key = `${relative(fileName)}::${n.name.text}#${byte(sf, n.getStart(sf))}`;
+        defs.push({ ...span(sf, n), key,
           callable: ts.isFunctionDeclaration(n) && !!n.body && !sf.isDeclarationFile, kind: ts.SyntaxKind[n.kind] });
-        if (exported(n)) table.local.add((ts.getCombinedModifierFlags(n) & ts.ModifierFlags.Default) ? 'default' : n.name.text);
+        const isDefault = (ts.getCombinedModifierFlags(n) & ts.ModifierFlags.Default) !== 0;
+        if (exported(n)) table.local.add(isDefault ? 'default' : n.name.text);
+        if (!table.keys.has(n.name.text)) table.keys.set(n.name.text, key);
+        if (isDefault) table.keys.set('default', key);
+        table.owners.set(n, key);
       } else if (ts.isVariableStatement(n)) {
         for (const d of n.declarationList.declarations) {
           if (!ts.isIdentifier(d.name)) continue;
-          defs.push({ ...span(sf, d), key: `${relative(fileName)}::${d.name.text}#${byte(sf, d.getStart(sf))}`,
-            callable: false, kind: 'VariableDeclaration' });
+          const key = `${relative(fileName)}::${d.name.text}#${byte(sf, d.getStart(sf))}`;
+          defs.push({ ...span(sf, d), key, callable: false, kind: 'VariableDeclaration' });
           if (exported(n)) table.local.add(d.name.text);
+          if (!table.keys.has(d.name.text)) table.keys.set(d.name.text, key);
+          table.owners.set(d, key);
         }
-      } else if (ts.isExportAssignment(n)) table.local.add('default');
+      } else if (ts.isExportAssignment(n)) {
+        table.local.add('default');
+        if (ts.isIdentifier(n.expression)) table.defaultLocal = n.expression.text;
+      }
       else if (ts.isExportDeclaration(n) && !n.moduleSpecifier && n.exportClause && ts.isNamedExports(n.exportClause)) {
         for (const e of n.exportClause.elements) {
           table.reexports.set(e.name.text, { local: (e.propertyName || e.name).text });
@@ -267,6 +283,8 @@ module.exports = ({ ts, request, files, system, root, relative, isCode, compiler
             if (c.name) table.bindings.set(c.name.text, { target: r.target, name: 'default' });
             if (c.namedBindings && ts.isNamedImports(c.namedBindings)) {
               for (const e of c.namedBindings.elements) table.bindings.set(e.name.text, { target: r.target, name: (e.propertyName || e.name).text });
+            } else if (c.namedBindings && ts.isNamespaceImport(c.namedBindings)) {
+              table.namespaces.set(c.namedBindings.name.text, r.target);
             }
           }
         }
@@ -279,7 +297,10 @@ module.exports = ({ ts, request, files, system, root, relative, isCode, compiler
   for (const table of tables.values()) {
     for (const [name, r] of table.reexports) {
       if (r.local && !table.local.has(r.local) && table.bindings.has(r.local)) table.reexports.set(name, table.bindings.get(r.local));
-      else if (r.local) { table.reexports.delete(name); table.local.add(name); }
+      else if (r.local) {
+        table.reexports.delete(name); table.local.add(name);
+        if (table.keys.has(r.local) && !table.keys.has(name)) table.keys.set(name, table.keys.get(r.local));
+      }
     }
   }
   const declaring = (file, name, depth = 0, visited = new Set()) => {
@@ -307,6 +328,117 @@ module.exports = ({ ts, request, files, system, root, relative, isCode, compiler
       for (const name of names) {
         const found = declaring(target, name);
         if (found && found !== target) { const before = imports.length; edge(sf, n, found, n.moduleSpecifier.text, 'reexport'); counts.reexport_edges += imports.length - before; }
+      }
+    }
+  }
+
+  // Binding references: identifier uses of an imported name, resolved through
+  // the same re-export chain to a top-level definition key.
+  const references = [];
+  const referenceCounts = { by_kind: dict(), occurrences: 0, unresolved_targets: 0, shadowed: 0 };
+  let referenceBound = false;
+  if (request.references) {
+    // Same chain as `declaring`, tracking renames such as `export { a as b }`.
+    const definitionKey = (file, name, depth = 0, visited = new Set()) => {
+      const table = tables.get(file);
+      if (!table || depth > MAX_CHAIN || visited.has(file)) return null;
+      visited.add(file);
+      if (table.local.has(name)) {
+        const local = name === 'default' && table.defaultLocal ? table.defaultLocal : name;
+        return table.keys.get(local) || null;
+      }
+      const r = table.reexports.get(name);
+      if (r) return r.module ? null : definitionKey(r.target, r.name, depth + 1, visited);
+      for (const star of table.stars) {
+        const found = name !== 'default' && definitionKey(star, name, depth + 1, visited);
+        if (found) return found;
+      }
+      return null;
+    };
+    const RANK = { type: 0, value: 1, extends: 2, implements: 3 };
+    const declared = (n, names) => {
+      const add = b => {
+        if (!b) return;
+        if (ts.isIdentifier(b)) names.add(b.text);
+        else if (ts.isObjectBindingPattern(b) || ts.isArrayBindingPattern(b)) for (const e of b.elements) if (!ts.isOmittedExpression(e)) add(e.name);
+      };
+      if (ts.isFunctionLike(n)) { for (const p of n.parameters || []) add(p.name); if (n.name && !ts.isSourceFile(n.parent) && ts.isIdentifier(n.name)) names.add(n.name.text); }
+      const statements = ts.isBlock(n) || ts.isModuleBlock(n) || ts.isCaseClause(n) || ts.isDefaultClause(n) ? n.statements : null;
+      for (const st of statements || []) {
+        if (ts.isVariableStatement(st)) for (const d of st.declarationList.declarations) add(d.name);
+        else if ((ts.isFunctionDeclaration(st) || ts.isClassDeclaration(st) || ts.isEnumDeclaration(st)) && st.name) names.add(st.name.text);
+      }
+      if ((ts.isForStatement(n) || ts.isForInStatement(n) || ts.isForOfStatement(n)) && n.initializer && ts.isVariableDeclarationList(n.initializer)) {
+        for (const d of n.initializer.declarations) add(d.name);
+      }
+      if (ts.isCatchClause(n) && n.variableDeclaration) add(n.variableDeclaration.name);
+    };
+    const isDeclarationName = n => {
+      const p = n.parent;
+      if (!p) return true;
+      if (ts.isImportSpecifier(p) || ts.isImportClause(p) || ts.isNamespaceImport(p) || ts.isExportSpecifier(p) || ts.isImportEqualsDeclaration(p)) return true;
+      if ((ts.isPropertyAccessExpression(p) || ts.isQualifiedName(p)) && (p.name === n || p.right === n)) return true;
+      if (p.name === n && (ts.isPropertyAssignment(p) || ts.isPropertyDeclaration(p) || ts.isPropertySignature(p) || ts.isMethodDeclaration(p)
+        || ts.isMethodSignature(p) || ts.isGetAccessor(p) || ts.isSetAccessor(p) || ts.isEnumMember(p) || ts.isBindingElement(p)
+        || ts.isVariableDeclaration(p) || ts.isParameter(p) || ts.isFunctionDeclaration(p) || ts.isClassDeclaration(p)
+        || ts.isInterfaceDeclaration(p) || ts.isTypeAliasDeclaration(p) || ts.isJsxAttribute(p) || ts.isTypeParameterDeclaration(p))) return true;
+      if (ts.isBindingElement(p) && p.propertyName === n) return true;
+      return false;
+    };
+    const kindOf = n => {
+      let typed = false;
+      for (let a = n.parent, child = n; a && !ts.isSourceFile(a); child = a, a = a.parent) {
+        if (ts.isHeritageClause(a)) return a.token === ts.SyntaxKind.ImplementsKeyword ? 'implements' : 'extends';
+        if (ts.isTypeNode(a) && !ts.isExpressionWithTypeArguments(a)) typed = true;
+        if (ts.isTypeQueryNode(a)) typed = false;
+        if (ts.isStatement(a) || ts.isClassElement(a) || ts.isTypeElement(a)) break;
+      }
+      return typed ? 'type' : 'value';
+    };
+    for (const [fileName, sf] of sources) {
+      const table = tables.get(fileName);
+      if (!table.bindings.size && !table.namespaces.size) continue;
+      const pairs = new Map();
+      const note = (n, owner, target, kind) => {
+        referenceCounts.occurrences += 1;
+        const subject = owner || '';
+        const key = `${subject}\0${target}`;
+        const prior = pairs.get(key);
+        if (!prior) pairs.set(key, { ...span(sf, n), caller: owner, target, kind, occurrences: 1 });
+        else { prior.occurrences += 1; if (RANK[kind] > RANK[prior.kind]) Object.assign(prior, span(sf, n), { kind }); }
+      };
+      const visit = (n, owner, shadow) => {
+        const own = table.owners.get(n) || owner;
+        let scope = shadow;
+        if (!ts.isSourceFile(n)) {
+          const names = new Set();
+          declared(n, names);
+          if (names.size) { scope = new Set(shadow); for (const name of names) scope.add(name); }
+        }
+        if (ts.isIdentifier(n) && !isDeclarationName(n)) {
+          const binding = table.bindings.get(n.text);
+          if (binding) {
+            if (scope.has(n.text)) referenceCounts.shadowed += 1;
+            else {
+              const target = definitionKey(binding.target, binding.name);
+              if (target) note(n, own, target, kindOf(n)); else referenceCounts.unresolved_targets += 1;
+            }
+          }
+        } else if ((ts.isPropertyAccessExpression(n) || ts.isQualifiedName(n))) {
+          const left = ts.isPropertyAccessExpression(n) ? n.expression : n.left;
+          const right = ts.isPropertyAccessExpression(n) ? n.name : n.right;
+          if (ts.isIdentifier(left) && ts.isIdentifier(right) && table.namespaces.has(left.text) && !scope.has(left.text)) {
+            const target = definitionKey(table.namespaces.get(left.text), right.text);
+            if (target) note(right, own, target, kindOf(n)); else referenceCounts.unresolved_targets += 1;
+          }
+        }
+        ts.forEachChild(n, c => visit(c, own, scope));
+      };
+      visit(sf, null, new Set());
+      for (const r of pairs.values()) {
+        if (references.length >= MAX_REFERENCES) { referenceBound = true; break; }
+        references.push(r);
+        bump(referenceCounts.by_kind, r.kind);
       }
     }
   }
@@ -365,11 +497,14 @@ module.exports = ({ ts, request, files, system, root, relative, isCode, compiler
     emit: false };
   process.stdout.write(JSON.stringify({ schema_version: '1.0', provider, workspace: {
       partitions: partitions.map(({ config, status, reason, degraded, message, root_files, references }) => ({ config, status, reason, degraded, message, root_files, references })),
-      bounds: { max_files: MAX_FILES, max_definitions: MAX_DEFINITIONS, max_imports: MAX_IMPORTS, import_bound_reached: importBound },
-      bounded: importBound || omittedByBound.length > 0 || omitted.some(o => o.reason === 'file_bound'),
+      bounds: { max_files: MAX_FILES, max_definitions: MAX_DEFINITIONS, max_imports: MAX_IMPORTS, import_bound_reached: importBound,
+        ...(request.references ? { max_references: MAX_REFERENCES, reference_bound_reached: referenceBound } : {}) },
+      bounded: importBound || referenceBound || omittedByBound.length > 0 || omitted.some(o => o.reason === 'file_bound'),
       import_resolution: counts, omitted_by_reason: omittedReasons, call_constructs: constructs,
+      references: request.references ? { ...referenceCounts, emitted: references.length,
+        method: 'syntactic binding resolution through imports, namespace members and re-export chains; shadowing by enclosing parameters and block declarations; no type checker' } : 'not_requested',
       calls: 'not_resolved: workspace mode classifies call constructs and resolves none' },
     modules: [...moduleSet].sort().map(p => ({ path: relative(p), end: Buffer.byteLength(files.get(p)),
       analyzed: sources.has(p), language: /\.[cm]?jsx?$/.test(p) ? 'javascript' : 'typescript' })),
-    definitions, imports, calls: [], unresolved, diagnostics, omitted: omitted.map(o => o.path) }));
+    definitions, imports, references, calls: [], unresolved, diagnostics, omitted: omitted.map(o => o.path) }));
 };

@@ -30,10 +30,12 @@ impl Ledger {
         {
             return Ok(count);
         }
-        tx.execute(
-            "DELETE FROM recall_fts WHERE view_id=? AND configuration=?",
-            [view, configuration],
-        )?;
+        for table in ["recall_fts", "recall_parts_fts"] {
+            tx.execute(
+                &format!("DELETE FROM {table} WHERE view_id=? AND configuration=?"),
+                [view, configuration],
+            )?;
+        }
         tx.execute(
             "DELETE FROM recall_units WHERE view_id=? AND configuration=?",
             [view, configuration],
@@ -42,6 +44,9 @@ impl Ledger {
             let mut unit = tx.prepare("INSERT INTO recall_units(view_id,configuration,artifact_id,path,source_kind,start_byte,end_byte) VALUES(?,?,?,?,?,?,?)")?;
             let mut fts = tx.prepare(
                 "INSERT INTO recall_fts(unit_id,view_id,configuration,path,body) VALUES(?,?,?,?,?)",
+            )?;
+            let mut parts = tx.prepare(
+                "INSERT INTO recall_parts_fts(unit_id,view_id,configuration,path,body,path_parts,body_parts) VALUES(?,?,?,?,?,?,?)",
             )?;
             for u in units {
                 unit.execute(params![
@@ -54,7 +59,14 @@ impl Ledger {
                     u.end as i64
                 ])?;
                 let id = tx.last_insert_rowid();
-                fts.execute(params![id, view, configuration, u.path, u.text])?;
+                // An identifier representation keeps the original text and
+                // adds compound-identifier components in separate columns.
+                match &u.parts {
+                    Some((path_parts, body_parts)) => parts.execute(params![
+                        id, view, configuration, u.path, u.text, path_parts, body_parts
+                    ])?,
+                    None => fts.execute(params![id, view, configuration, u.path, u.text])?,
+                };
             }
         }
         tx.execute(
@@ -98,20 +110,28 @@ impl Ledger {
     /// Every matching source file once, ordered by its best unit. Chunk-level
     /// candidate bounds cannot be exhausted by duplicate chunks of one file.
     /// Returns (path, best unit) for all matched files of one view.
+    /// With `identifier_parts`, matches the separate identifier representation;
+    /// components carry the same path/body weights as the original columns.
     pub(crate) fn recall_files(
         &self,
         view: &str,
         configuration: &str,
         expression: &str,
+        identifier_parts: bool,
     ) -> Result<Vec<(String, i64)>> {
-        let mut s = self.db.prepare(
+        let (table, weights) = if identifier_parts {
+            ("recall_parts_fts", "0,0,0,2.0,1.0,2.0,1.0")
+        } else {
+            ("recall_fts", "0,0,0,2.0,1.0")
+        };
+        let mut s = self.db.prepare(&format!(
             "WITH m AS MATERIALIZED (SELECT f.path AS path,f.unit_id AS unit,
-                 bm25(recall_fts,0,0,0,2.0,1.0) AS score,f.rowid AS r FROM recall_fts f
-               WHERE recall_fts MATCH ?1 AND f.view_id=?2 AND f.configuration=?3)
+                 bm25({table},{weights}) AS score,f.rowid AS r FROM {table} f
+               WHERE {table} MATCH ?1 AND f.view_id=?2 AND f.configuration=?3)
              SELECT path,unit FROM (SELECT path,unit,score,r,
                  ROW_NUMBER() OVER (PARTITION BY path ORDER BY score,r) AS n FROM m)
-             WHERE n=1 ORDER BY score,r",
-        )?;
+             WHERE n=1 ORDER BY score,r"
+        ))?;
         let rows = s
             .query_map(params![expression, view, configuration], |r| Ok((r.get(0)?, r.get(1)?)))?
             .collect::<rusqlite::Result<Vec<_>>>()?;

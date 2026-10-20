@@ -19,12 +19,14 @@ mod joins;
 mod producers;
 mod queries;
 mod worktree;
+mod continuation;
+pub use continuation::{inventory,expand_case};
 pub use worktree::worktree;
 
 pub use agent::agent_context;
 pub(crate) use brief::table_paths as report_sections;
 pub use brief::{brief, page};
-pub(crate) use index::precompute;
+pub(crate) use index::{precompute, BINDING_SCOPE};
 pub use findings::compare as compare_findings;
 pub use queries::{explain, neighbors, occurrences};
 

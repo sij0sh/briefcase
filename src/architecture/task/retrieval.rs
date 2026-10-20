@@ -54,7 +54,7 @@ pub(super) struct Candidate {
     pub source_ref: String,
 }
 impl Candidate {
-    fn new(path: &str) -> Self {
+    pub(super) fn new(path: &str) -> Self {
         Self {
             path: path.into(),
             rank: 0,
@@ -146,26 +146,48 @@ fn is_import_signal(s: &Signal) -> bool {
     let basis = s.provenance["basis"].as_str().unwrap_or_default();
     match s.kind.as_str() {
         "IMPORTS" | "DEPENDS_ON" => basis == "retained_assertion",
-        "TESTS" => basis.starts_with("test_IMPORTS;") || basis.starts_with("test_DEPENDS_ON;"),
+        // A syntactic binding use connects files that already import each other.
+        "REFERENCES" => basis == "retained_assertion; symbol_binding",
+        "TESTS" => ["test_IMPORTS;", "test_DEPENDS_ON;", "test_SYMBOL_BINDING;"]
+            .iter()
+            .any(|prefix| basis.starts_with(prefix)),
         _ => false,
     }
 }
-/// Import structure corroborates task relevance but cannot exceed it: an
-/// import-derived signal is capped at the candidate's own lexical or anchor
-/// strength. Uncapped strength stays in provenance.
-fn corroborate(candidate: &mut Candidate) {
-    let ceiling = candidate
-        .signals
+fn is_binding_signal(s: &Signal) -> bool {
+    let basis = s.provenance["basis"].as_str().unwrap_or_default();
+    basis == "retained_assertion; symbol_binding" || basis.starts_with("test_SYMBOL_BINDING;")
+}
+/// Strongest lexical or anchor strength: the task relevance a file has on its own.
+fn own_relevance(signals: &[Signal]) -> u64 {
+    signals
         .iter()
         .filter(|s| ["lexical", "anchors"].contains(&s.facet.as_str()))
         .map(|s| s.strength)
         .max()
-        .unwrap_or(0);
+        .unwrap_or(0)
+}
+/// Import structure corroborates task relevance but cannot exceed it: an
+/// import-derived signal is capped at the candidate's own lexical or anchor
+/// strength. Uncapped strength stays in provenance. With `structural_reach`,
+/// a one-hop binding use from a task-relevant origin may carry that origin's
+/// relevance instead; relevance never compounds past one symbol hop.
+fn corroborate(candidate: &mut Candidate, reach: bool) {
+    let ceiling = own_relevance(&candidate.signals);
     for s in candidate.signals.iter_mut().filter(|s| is_import_signal(s)) {
+        let origin = if reach && is_binding_signal(s) {
+            s.provenance["origin_relevance"].as_u64().unwrap_or(0)
+        } else {
+            0
+        };
+        let ceiling = ceiling.max(origin);
         if s.strength > ceiling {
             if let Some(provenance) = s.provenance.as_object_mut() {
                 provenance.insert("uncapped_strength".into(), json!(s.strength));
-                provenance.insert("cap".into(), json!("task_relevance_ceiling"));
+                provenance.insert(
+                    "cap".into(),
+                    json!(if origin > 0 { "origin_relevance_ceiling" } else { "task_relevance_ceiling" }),
+                );
             }
             s.strength = ceiling;
         }
@@ -174,6 +196,55 @@ fn corroborate(candidate: &mut Candidate) {
         .signals
         .sort_by_key(|s| (std::cmp::Reverse(s.strength), s.facet.clone(), s.via_link.clone()));
     candidate.score = facet_score(&candidate.signals);
+}
+/// Structural relationships between one file pair share an origin: an import,
+/// the binding uses it enables and a test association derived from either are
+/// one observation, not independent facets.
+fn signal_origin(s: &Signal, links: &BTreeMap<&str, &Link>) -> String {
+    let Some(link) = s.via_link.as_deref().and_then(|id| links.get(id)) else {
+        return format!("{}:{}", s.facet, s.kind);
+    };
+    let structural = ["IMPORTS", "REFERENCES", "CALLS_STATIC", "DEPENDS_ON"].contains(&link.predicate.as_str())
+        || link.predicate == "TESTS" && link.basis.starts_with("test_");
+    if structural {
+        let pair: BTreeSet<_> = link.from_files.iter().chain(&link.to_files).collect();
+        format!("pair:{}", pair.into_iter().cloned().collect::<Vec<_>>().join("\0"))
+    } else if !link.assertion_ids.is_empty() {
+        let mut ids = link.assertion_ids.clone();
+        ids.sort();
+        format!("assertions:{}", ids.join(","))
+    } else {
+        format!("link:{}", link.id)
+    }
+}
+/// Facet score where a facet whose every positive signal shares an origin with
+/// a stronger counted facet adds only the facet bonus, not its strength.
+fn fused_score(candidate: &mut Candidate, links: &BTreeMap<&str, &Link>) -> u64 {
+    let mut facets = BTreeMap::<String, (u64, BTreeSet<String>)>::new();
+    for s in candidate.signals.iter().filter(|s| s.strength > 0) {
+        let entry = facets.entry(s.facet.clone()).or_default();
+        entry.0 = entry.0.max(s.strength);
+        entry.1.insert(signal_origin(s, links));
+    }
+    let mut order: Vec<_> = facets.into_iter().collect();
+    order.sort_by_key(|(facet, (strength, _))| (std::cmp::Reverse(*strength), facet.clone()));
+    let (mut counted, mut correlated) = (BTreeSet::new(), BTreeSet::new());
+    let (mut score, mut independent) = (0, 0u64);
+    for (facet, (strength, origins)) in order {
+        if !counted.is_empty() && origins.is_subset(&counted) {
+            correlated.insert(facet);
+        } else {
+            score += strength;
+            independent += 1;
+            counted.extend(origins);
+        }
+    }
+    for s in candidate.signals.iter_mut().filter(|s| correlated.contains(&s.facet)) {
+        if let Some(provenance) = s.provenance.as_object_mut() {
+            provenance.insert("correlated_origin".into(), json!(true));
+        }
+    }
+    score + independent.saturating_sub(1) * 8 + correlated.len() as u64 * 8
 }
 fn signal(
     facet: &str,
@@ -344,14 +415,24 @@ pub(super) fn discover(
     }
     let mut lexical = vec![];
     let (query_terms, omitted_terms) = term_plan(&r.task);
+    // The identifier experiment changes only the lexical representation;
+    // terms, admission and scoring stay those of the baseline.
+    let identifier_parts = r.selection_variant == "identifier_terms";
     let mut coverage = json!({"enabled":r.enabled("lexical"),"method":"distinct_file_fts","candidate_limit":LEXICAL_FILE_LIMIT,
+        "representation":if identifier_parts {"identifier_components"} else {"original_tokens"},
         "candidate_unit":"file","query_terms":query_terms,"omitted_terms":omitted_terms,
         "candidate_limit_reached":false,"omitted_candidates":0,"matched_files":0,"state":"not_queried"});
     if r.enabled("lexical") && !query_terms.is_empty() {
         let terms = query_terms;
-        let (configuration, _) = crate::architecture::search::ensure_index(l, &s.view)?;
+        let (configuration, _) = if identifier_parts {
+            crate::architecture::search::ensure_identifier_index(l, &s.view)?
+        } else {
+            crate::architecture::search::ensure_index(l, &s.view)?
+        };
         let matched_files = match source::fts_expression(&terms.join(" ")) {
-            Some(expression) => l.recall_files(&s.view.id, &configuration, &expression)?,
+            Some(expression) => {
+                l.recall_files(&s.view.id, &configuration, &expression, identifier_parts)?
+            }
             None => vec![],
         };
         // Every matched file stays reachable in rank order. Only the first
@@ -377,60 +458,7 @@ pub(super) fn discover(
         coverage["candidate_limit_reached"] = json!(total > LEXICAL_FILE_LIMIT);
         coverage["omitted_candidates"] = json!(total.saturating_sub(LEXICAL_FILE_LIMIT));
         coverage["continue_with"] = delivered["continue_with"].clone();
-        let paths: Vec<_> = rows(&delivered, "items")
-            .iter()
-            .map(|hit| text(hit, "path"))
-            .collect();
-        s.contents.load(
-            &s.files,
-            &paths.iter().map(String::as_str).collect::<Vec<_>>(),
-        )?;
-        for hit in rows(&delivered, "items") {
-            let path = text(hit, "path");
-            let rank = hit["rank"].as_u64().unwrap_or(1000);
-            let content = s.content(&path)?.unwrap_or("");
-            let matched = matches(content, &terms);
-            let path_matches = matches(&path, &terms);
-            let strength = (70 * 8 / (rank + 7)
-                + ((matched * 18) / terms.len().max(1)) as u64
-                + (path_matches.min(3) * 12) as u64)
-                .min(110);
-            let (start, end) = (
-                hit["byte_range"]["start"].as_u64().unwrap_or(0) as usize,
-                hit["byte_range"]["end"].as_u64().unwrap_or(0) as usize,
-            );
-            let first = 1 + content.as_bytes()[..start.min(content.len())]
-                .iter()
-                .filter(|b| **b == b'\n')
-                .count();
-            let last = first
-                + content
-                    .get(start..end)
-                    .unwrap_or("")
-                    .trim_end_matches('\n')
-                    .matches('\n')
-                    .count();
-            let span =
-                json!({"byte_range":hit["byte_range"],"line_range":{"start":first,"end":last}});
-            contribute(
-                &mut candidates,
-                &path,
-                signal(
-                    "lexical",
-                    "retained_text",
-                    strength,
-                    "candidate",
-                    0,
-                    None,
-                    json!({"report_id":delivered["report_id"],"rank":rank,"matched_terms":matched}),
-                ),
-            );
-            if let Some(candidate) = candidates.get_mut(&path) {
-                candidate.spans.push(span.clone());
-            }
-            lexical.push(json!({"path":path,"rank":rank,"strength":strength,"span":span,
-                "search_report_id":delivered["report_id"],"basis":"retained text retrieval hint; no implementation membership established"}));
-        }
+        admit_lexical(s, &terms, rows(&delivered, "items"), &delivered["report_id"], &mut candidates, &mut lexical)?;
     }
     if ["multi_query", "combined"].contains(&r.selection_variant.as_str()) {
         multi_query_hints(s, r, &mut candidates);
@@ -439,6 +467,67 @@ pub(super) fn discover(
         claim_hints(s, ix, r, &mut candidates);
     }
     Ok((candidates, lexical, coverage))
+}
+
+/// Admit an explicit batch from the pinned lexical inventory using the same
+/// scoring and localization as initial discovery. Reading a page alone never admits it.
+pub(super) fn admit_lexical(s:&Snapshot, terms:&[String], hits:&[Value], report_id:&Value,
+    candidates:&mut Candidates, lexical:&mut Vec<Value>)->Result<()> {
+    let paths: Vec<_> = hits
+        .iter()
+        .map(|hit| text(hit, "path"))
+        .collect();
+    s.contents.load(
+        &s.files,
+        &paths.iter().map(String::as_str).collect::<Vec<_>>(),
+    )?;
+    for hit in hits {
+        let path = text(hit, "path");
+        let rank = hit["rank"].as_u64().unwrap_or(1000);
+        let content = s.content(&path)?.unwrap_or("");
+        let matched = matches(content, terms);
+        let path_matches = matches(&path, terms);
+        let strength = (70 * 8 / (rank + 7)
+            + ((matched * 18) / terms.len().max(1)) as u64
+            + (path_matches.min(3) * 12) as u64)
+            .min(110);
+        let (start, end) = (
+            hit["byte_range"]["start"].as_u64().unwrap_or(0) as usize,
+            hit["byte_range"]["end"].as_u64().unwrap_or(0) as usize,
+        );
+        let first = 1 + content.as_bytes()[..start.min(content.len())]
+            .iter()
+            .filter(|b| **b == b'\n')
+            .count();
+        let last = first
+            + content
+                .get(start..end)
+                .unwrap_or("")
+                .trim_end_matches('\n')
+                .matches('\n')
+                .count();
+        let span =
+            json!({"byte_range":hit["byte_range"],"line_range":{"start":first,"end":last}});
+        contribute(
+            candidates,
+            &path,
+            signal(
+                "lexical",
+                "retained_text",
+                strength,
+                "candidate",
+                0,
+                None,
+                json!({"report_id":report_id,"rank":rank,"matched_terms":matched}),
+            ),
+        );
+        if let Some(candidate) = candidates.get_mut(&path) {
+            candidate.spans.push(span.clone());
+        }
+        lexical.push(json!({"path":path,"rank":rank,"strength":strength,"span":span,
+            "search_report_id":report_id,"basis":"retained text retrieval hint; no implementation membership established"}));
+    }
+    Ok(())
 }
 
 /// Package root for diversity: the first two path segments, or the first
@@ -744,6 +833,7 @@ pub(super) fn expand(ix: &Index, r: &Request, seed: &Seed, candidates: &mut Cand
     );
     let mut frontier_keys = seed.candidates.clone();
     let (mut visited_paths, mut visited_keys) = (frontier_paths.clone(), frontier_keys.clone());
+    let reach = r.selection_variant == "structural_reach";
     for depth in 1..=r.depth {
         let (mut next_paths, mut next_keys) = (BTreeSet::new(), BTreeSet::new());
         for e in &ix.links {
@@ -816,6 +906,19 @@ pub(super) fn expand(ix: &Index, r: &Request, seed: &Seed, candidates: &mut Cand
                 if strength < 12 {
                     continue;
                 }
+                let mut provenance = json!({"index_id":ix.id,"class":e.class,"basis":e.basis,"hub_degree":degree,"hub_penalty":hub_penalty});
+                if reach && depth == 1
+                    && (e.basis == "retained_assertion; symbol_binding" || e.basis.starts_with("test_SYMBOL_BINDING;"))
+                {
+                    let relevance = origin
+                        .iter()
+                        .filter(|p| frontier_paths.contains(*p))
+                        .filter_map(|p| candidates.get(p))
+                        .map(|c| own_relevance(&c.signals))
+                        .max()
+                        .unwrap_or(0);
+                    provenance["origin_relevance"] = json!(relevance);
+                }
                 for path in target.iter().filter(|p| ix.files.contains_key(*p)) {
                     contribute(
                         candidates,
@@ -827,7 +930,7 @@ pub(super) fn expand(ix: &Index, r: &Request, seed: &Seed, candidates: &mut Cand
                             "retained_relationship",
                             depth,
                             Some(&e.id),
-                            json!({"index_id":ix.id,"class":e.class,"basis":e.basis,"hub_degree":degree,"hub_penalty":hub_penalty}),
+                            provenance.clone(),
                         ),
                     );
                     if facet != "structure" && strength >= 32 && !visited_paths.contains(path) {
@@ -856,7 +959,14 @@ pub(super) fn expand(ix: &Index, r: &Request, seed: &Seed, candidates: &mut Cand
     let coverage = json!({"depth_limit":r.depth,"starter_limit":8,"eligible_starters":eligible_starters,
         "omitted_starters":omitted_starters.len(),"unexpanded_frontier_files":frontier.len(),"unexpanded_frontier_keys":frontier_keys.len(),
         "frontier_examples":frontier.iter().take(GRAPH_CONTINUATIONS).collect::<Vec<_>>(),
-        "continue_with":resume(frontier.into_iter().chain(omitted_starters).collect()),
+        "continue_with":resume(frontier.iter().cloned().chain(omitted_starters.iter().cloned()).collect()),
+        "remaining_work":frontier.iter().map(|path|("graph_frontier",path))
+            .chain(frontier_keys.iter().map(|key|("graph_frontier_key",key)))
+            .chain(omitted_starters.iter().map(|path|("graph_starter",path)))
+            .map(|(kind,target)|json!({"kind":kind,"target":target,"status":"available",
+                "reason":if kind=="graph_starter" {"starter_limit"} else {"depth_limit"},
+                "action":{"operation":"neighbors","arguments":{"index_id":ix.id,"view":ix.source_view,
+                    "target":target,"direction":"both","depth":1,"relationship_scope":"all"}}})).collect::<Vec<_>>(),
         "semantics":"Unexpanded frontier and omitted starters are retrieval bounds, not absence; each continuation is an exhaustive neighbors read."});
     // A narrow, explicit config-key join still works for depth-one duties.
     if r.enabled("dependency") {
@@ -910,7 +1020,8 @@ pub(super) fn link_allowed(link: &Link, seed: &Seed) -> bool {
 pub(super) fn selection_policy(r: &Request) -> Value {
     json!({"method":match r.selection_variant.as_str() {"baseline"=>if r.duty.delivery_cycle().is_empty(){"evidence_rank"}else{"duty_roles_v1"},
             "role_diverse"=>"role_diverse_v1","reserved_floor"=>"reserved_floor_v1","multi_query"=>"multi_query_v1",
-            "linked_diversity"=>"linked_diversity_v1","combined"=>"combined_v1","docs_disabled"=>"docs_disabled_v1",_=>"unknown"},
+            "linked_diversity"=>"linked_diversity_v1","combined"=>"combined_v1","docs_disabled"=>"docs_disabled_v1",
+            "identifier_terms"=>"identifier_terms_v1","origin_fusion"=>"origin_fusion_v1","structural_reach"=>"structural_reach_v1",_=>"unknown"},
         "variant":r.selection_variant,"cycle":r.duty.delivery_cycle(),"anchors":"exact anchors first",
         "minimum_score":MIN_SCORE,"reserved_floor":12,
         "rank_semantics":"candidates.rank is evidence rank; selected slice rank is delivery order"})
@@ -1050,8 +1161,17 @@ pub(super) fn rank(ix: &Index, r: &Request, candidates: Candidates) -> Vec<Candi
         .into_values()
         .filter(|c| ix.files.contains_key(&c.path))
         .collect();
+    let reach = r.selection_variant == "structural_reach";
+    let links: BTreeMap<&str, &Link> = if r.selection_variant == "origin_fusion" {
+        ix.links.iter().map(|link| (link.id.as_str(), link)).collect()
+    } else {
+        BTreeMap::new()
+    };
     for candidate in &mut ranked {
-        corroborate(candidate);
+        corroborate(candidate, reach);
+        if !links.is_empty() {
+            candidate.score = fused_score(candidate, &links);
+        }
         candidate.role = Some(ix.files[&candidate.path].role.clone());
         if r.duty
             .policy()
@@ -1630,6 +1750,56 @@ mod tests {
         let capped = b.signals.iter().find(|s| s.kind == "IMPORTS").unwrap();
         assert_eq!(capped.strength, 30);
         assert_eq!(capped.provenance["uncapped_strength"], 80);
+    }
+    #[test]
+    fn binding_reach_carries_one_hop_origin_relevance_and_baseline_keeps_the_cap() {
+        let binding = |kind: &str, basis: &str, origin: u64| {
+            signal("dependency", kind, 80, "retained_relationship", 1, Some("link:bind"),
+                json!({"basis":basis,"origin_relevance":origin}))
+        };
+        let mut reached = Candidate::new("src/a.rs");
+        reached.signals = vec![binding("REFERENCES", "retained_assertion; symbol_binding", 46)];
+        let mut baseline = reached.clone();
+        corroborate(&mut reached, true);
+        corroborate(&mut baseline, false);
+        assert_eq!((reached.score, baseline.score), (46, 0));
+        assert_eq!(reached.signals[0].provenance["cap"], "origin_relevance_ceiling");
+        // A compiler-resolved REFERENCES is not import-derived; a plain import
+        // never borrows origin relevance.
+        let mut other = Candidate::new("src/b.rs");
+        other.signals = vec![binding("REFERENCES", "retained_assertion", 0), binding("IMPORTS", "retained_assertion", 46)];
+        corroborate(&mut other, true);
+        assert_eq!(other.score, 80);
+        let mut test = Candidate::new("src/a.test.rs");
+        test.signals = vec![signal("tests", "TESTS", 100, "retained_relationship", 1, Some("link:t"),
+            json!({"basis":"test_SYMBOL_BINDING; static association, not executed coverage","origin_relevance":40}))];
+        corroborate(&mut test, true);
+        assert_eq!(test.score, 40);
+    }
+    #[test]
+    fn common_origin_facets_add_only_the_facet_bonus() {
+        let pair = BTreeSet::from(["src/a.rs".to_owned()]);
+        let other = BTreeSet::from(["src/b.rs".to_owned()]);
+        let calls = Link::new("CALLS_STATIC", "a::f", "b::g", "evidence", "retained_assertion",
+            vec!["assertion:1".into()], vec![], pair.clone(), other.clone()).unwrap();
+        let imports = Link::new("IMPORTS", "a", "b", "evidence", "retained_assertion",
+            vec!["assertion:2".into()], vec![], pair.clone(), other.clone()).unwrap();
+        let plan = Link::new("REFERENCES_ARTIFACT", "doc.md", "src/b.rs", "derived", "path_token",
+            vec![], vec![], BTreeSet::from(["doc.md".to_owned()]), other.clone()).unwrap();
+        let links: BTreeMap<&str, &Link> = [&calls, &imports, &plan].into_iter().map(|l| (l.id.as_str(), l)).collect();
+        let mut candidate = Candidate::new("src/b.rs");
+        candidate.signals = vec![
+            signal("execution", "CALLS_STATIC", 95, "retained_relationship", 1, Some(&calls.id), json!({})),
+            signal("dependency", "IMPORTS", 40, "retained_relationship", 1, Some(&imports.id), json!({})),
+            signal("lexical", "retained_text", 40, "candidate", 0, None, json!({})),
+        ];
+        assert_eq!(facet_score(&candidate.signals), 95 + 40 + 40 + 16);
+        assert_eq!(fused_score(&mut candidate, &links), 95 + 40 + 8 + 8);
+        let correlated = candidate.signals.iter().find(|s| s.kind == "IMPORTS").unwrap();
+        assert_eq!(correlated.provenance["correlated_origin"], true);
+        // A distinct origin in the same facet keeps the facet independent.
+        candidate.signals.push(signal("dependency", "REFERENCES_ARTIFACT", 30, "retained_relationship", 1, Some(&plan.id), json!({})));
+        assert_eq!(fused_score(&mut candidate, &links), 95 + 40 + 40 + 16);
     }
     fn variant_ix() -> (Index, Candidates) {
         let mut ix = ix();

@@ -196,7 +196,10 @@ pub(super) fn build(l: &Ledger, s: &Snapshot, ix: &Index, r: &Request) -> Result
             .filter(|path| retrieval::path_allowed(path, &seed))
             .cloned(),
     );
-    let (hints, join_coverage) = joins::discover(l, s, r, &initial)?;
+    let omitted_join_starters:Vec<_>=strong.iter().skip(8).map(|c|json!({"kind":"join_starter","target":c.path,
+        "status":"available","reason":"initial_join_starter_limit",
+        "action":{"operation":"expand_case","arguments":{"paths":[c.path]}}})).collect();
+    let (hints, mut join_coverage) = joins::discover(l, s, r, &initial)?;
     for hint in hints {
         let path = text(&hint, "path");
         retrieval::contribute(
@@ -213,9 +216,23 @@ pub(super) fn build(l: &Ledger, s: &Snapshot, ix: &Index, r: &Request) -> Result
             },
         );
     }
-    let graph_coverage = retrieval::expand(ix, r, &seed, &mut candidates);
+    let mut graph_coverage = retrieval::expand(ix, r, &seed, &mut candidates);
+    let mut work=graph_coverage.as_object_mut().unwrap().remove("remaining_work").unwrap_or(json!([])).as_array().cloned().unwrap_or_default();
+    work.extend(omitted_join_starters);
+    work.extend(join_coverage.as_object_mut().unwrap().remove("remaining_work").unwrap_or(json!([])).as_array().cloned().unwrap_or_default());
+    let work_report=crate::architecture::reports::retain_items(l,json!({"kind":"discovery_work","index_id":ix.id,
+        "view_id":ix.source_view,"pinned_views":ix.coverage["profile_views"],"items":work}),0)?;
+    graph_coverage["remaining_work"]=json!({"report_id":work_report["report_id"],"count":work.len(),
+        "continue_with":crate::architecture::reports::continuation(work_report["report_id"].as_str().unwrap(),"/items",0,100)});
     retrieval::localize(s, r, &mut candidates)?;
     let candidates = retrieval::rank(ix, r, candidates);
+    finish(l,s,ix,r,seed,candidates,lexical_candidates,lexical_coverage,join_coverage,graph_coverage)
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(super) fn finish(l:&Ledger,s:&Snapshot,ix:&Index,r:&Request,seed:Seed,
+    candidates:Vec<retrieval::Candidate>,lexical_candidates:Vec<Value>,lexical_coverage:Value,
+    join_coverage:Value,graph_coverage:Value)->Result<Trace> {
     let project_scope = retrieval::project_scope(s, r, &seed, &candidates);
     let paths: BTreeSet<_> = candidates
         .iter()

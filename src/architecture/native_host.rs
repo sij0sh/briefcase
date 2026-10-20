@@ -123,12 +123,23 @@ pub(crate) struct SystemProcessRunner;
 
 impl ProcessRunner for SystemProcessRunner {
     fn run(&self, cmd: Command, input: &[u8], deadline: Instant) -> Result<Output> {
-        run_system(cmd, input, deadline)
+        run_system(cmd, input, deadline, STDOUT_LIMIT)
     }
 }
 
 pub(crate) fn run(cmd: Command, input: &[u8], deadline: Instant) -> Result<Output> {
     SystemProcessRunner.run(cmd, input, deadline)
+}
+
+/// For an adapter whose own row bounds imply more output than the default
+/// limit; the limit is still explicit and enforced while the process runs.
+pub(crate) fn run_with_stdout_limit(
+    cmd: Command,
+    input: &[u8],
+    deadline: Instant,
+    stdout_limit: u64,
+) -> Result<Output> {
+    run_system(cmd, input, deadline, stdout_limit.max(STDOUT_LIMIT))
 }
 
 /// Preserve timeout identity across the boxed error boundary.
@@ -143,7 +154,7 @@ fn check_deadline(deadline: Instant, message: &str) -> Result<()> {
     Ok(())
 }
 
-fn run_system(mut cmd: Command, input: &[u8], deadline: Instant) -> Result<Output> {
+fn run_system(mut cmd: Command, input: &[u8], deadline: Instant, stdout_limit: u64) -> Result<Output> {
     // All callers, including language-specific launchers, get the same
     // process-group cleanup without changing their environment policy.
     #[cfg(unix)]
@@ -167,7 +178,7 @@ fn run_system(mut cmd: Command, input: &[u8], deadline: Instant) -> Result<Outpu
     };
     let status = loop {
         require(
-            std::fs::metadata(&stdout)?.len() <= STDOUT_LIMIT
+            std::fs::metadata(&stdout)?.len() <= stdout_limit
                 && std::fs::metadata(&stderr)?.len() <= STDERR_LIMIT,
             "ANALYZER",
             "Native analyzer output exceeded byte limits",
@@ -182,13 +193,13 @@ fn run_system(mut cmd: Command, input: &[u8], deadline: Instant) -> Result<Outpu
     // Stop surviving subprocesses before checking and reading final output.
     drop(process);
     require(
-        std::fs::metadata(&stdout)?.len() <= STDOUT_LIMIT
+        std::fs::metadata(&stdout)?.len() <= stdout_limit
             && std::fs::metadata(&stderr)?.len() <= STDERR_LIMIT,
         "ANALYZER",
         "Native analyzer output exceeded byte limits",
     )?;
     let output = Output {
-        stdout: read_output(&stdout, STDOUT_LIMIT)?,
+        stdout: read_output(&stdout, stdout_limit)?,
         stderr: read_output(&stderr, STDERR_LIMIT)?,
     };
     require(
