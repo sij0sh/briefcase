@@ -108,14 +108,17 @@ impl Ledger {
             |r| r.get(0),
         )?)
     }
+    /// Validators are namespaced by the prefix before their first `:`; a new
+    /// version evicts only stale verdicts of its own family.
     pub(crate) fn record_validation(&self, digest: &str, validator: &str) -> Result<()> {
         self.db.execute(
-            "INSERT OR IGNORE INTO validation_cache(digest,validator) VALUES(?,?)",
+            "INSERT OR REPLACE INTO validation_cache(digest,validator) VALUES(?,?)",
             params![digest, validator],
         )?;
+        let family = validator.split(':').next().unwrap_or(validator);
         self.db.execute(
-            "DELETE FROM validation_cache WHERE validator!=?",
-            [validator],
+            "DELETE FROM validation_cache WHERE validator!=?1 AND substr(validator,1,length(?2)+1)=?2||':'",
+            params![validator, family],
         )?;
         Ok(())
     }
@@ -139,6 +142,52 @@ impl Ledger {
             "SELECT body FROM executions WHERE view_id=? AND json_extract(body,'$.operation')='sync-static-calls' AND json_extract(body,'$.input_key')=? ORDER BY id DESC LIMIT 1",
             params![view,input_key],|row|row.get(0)).optional()?;
         body.map(|raw|identity::parse(raw.as_bytes()).map(|value|value["result"].clone())).transpose()
+    }
+    /// Inputs that can change a summary derived from an immutable view: its
+    /// source overlays and, with `projections`, the retraction epoch, the
+    /// current projection rows with their graph counts, and the index tables'
+    /// newest rowids (a cheap guard; query paths still verify in full).
+    pub(crate) fn view_summary_key(&self, view_id: &str, projections: bool) -> Result<String> {
+        let mut s = self.db.prepare("SELECT overlay_id FROM view_overlays WHERE view_id=? ORDER BY overlay_id")?;
+        let overlays = s.query_map([view_id], |r| r.get::<_, String>(0))?.collect::<rusqlite::Result<Vec<_>>>()?;
+        let mut key = json!({"view_id":view_id,"overlays":overlays});
+        if projections {
+            let mut s = self.db.prepare(
+                "SELECT p.id,p.kind,p.generation,p.watermark,length(p.body),
+                   (SELECT COUNT(*) FROM graph g WHERE g.projection_id=p.id),
+                   (SELECT COALESCE(MAX(rowid),0) FROM search),
+                   (SELECT COALESCE(MAX(rowid),0) FROM retrieval_units),
+                   (SELECT COALESCE(MAX(rowid),0) FROM retrieval_fts)
+                 FROM projections p JOIN views v ON v.id=p.view_id AND v.projection_generation=p.generation
+                 WHERE p.view_id=? ORDER BY p.kind")?;
+            let rows = s.query_map([view_id], |r| Ok(json!([r.get::<_,String>(0)?,r.get::<_,String>(1)?,r.get::<_,u64>(2)?,
+                r.get::<_,u64>(3)?,r.get::<_,u64>(4)?,r.get::<_,u64>(5)?,r.get::<_,u64>(6)?,r.get::<_,u64>(7)?,r.get::<_,u64>(8)?])))?
+                .collect::<rusqlite::Result<Vec<_>>>()?;
+            key["projections"] = json!(rows);
+            key["retraction_epoch"] = json!(self.retraction_epoch()?);
+        }
+        identity::id("view-summary-key", &key)
+    }
+    pub(crate) fn view_summary(&self, view_id: &str, kind: &str, key: &str) -> Result<Option<Value>> {
+        let body: Option<String> = self.db.query_row(
+            "SELECT body FROM view_summaries WHERE view_id=? AND kind=? AND key=?",
+            params![view_id, kind, key], |r| r.get(0)).optional().unwrap_or(None);
+        body.map(|raw| identity::parse(raw.as_bytes())).transpose()
+    }
+    /// Best effort: a read-only reader recomputes next time.
+    pub(crate) fn record_view_summary(&self, view_id: &str, kind: &str, key: &str, body: &Value) {
+        let before = self.db.total_changes();
+        let _ = self.db.execute("INSERT OR REPLACE INTO view_summaries(view_id,kind,key,body) VALUES(?,?,?,?)",
+            params![view_id, kind, key, body.to_string()]);
+        self.report_changes.set(self.report_changes.get()+self.db.total_changes().saturating_sub(before));
+    }
+    pub(crate) fn report_body(&self, id: &str) -> Result<String> {
+        Ok(self
+            .db
+            .query_row("SELECT body FROM reports WHERE id=?", [id], |r| r.get(0))?)
+    }
+    pub(crate) fn has_report(&self, id: &str) -> Result<bool> {
+        Ok(self.db.query_row("SELECT EXISTS(SELECT 1 FROM reports WHERE id=?)", [id], |r| r.get(0))?)
     }
     pub fn report(&self, id: &str) -> Result<Value> {
         let body: String = self

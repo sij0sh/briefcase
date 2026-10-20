@@ -57,7 +57,7 @@ fn bounded_selection_is_ranked_pinned_and_keeps_omitted_candidates_pageable() {
 #[test]
 fn agent_delivery_fills_bytes_instead_of_generic_file_limits_and_keeps_all_evidence_reachable() {
     let mut f=Fixture::new();
-    for i in 0..40 {write(&f,&format!("src/part_{i}.rs"),"pub fn quasar_marker() {}\n");}
+    for i in 0..60 {write(&f,&format!("src/part_{i}.rs"),"pub fn quasar_marker() {}\n");}
     f.recapture();
     let mut args=full_args("repair quasar_marker");args["limit"]=json!(1);
     let mut previous=Vec::<String>::new();
@@ -85,7 +85,7 @@ fn agent_delivery_fills_bytes_instead_of_generic_file_limits_and_keeps_all_evide
         let mut continuation=manifest["continue_with"]["arguments"].clone();
         continuation["limit"]=json!(1000);continuation["max_bytes"]=json!(1048576);
         let inventory=f.call("page",continuation);
-        assert!(rows(&inventory,"items").len()>=41);
+        assert!(rows(&inventory,"items").len()>=61);
         assert!(rows(&inventory,"items").iter().any(|row|row["path"]=="src/lib.rs"));
         assert!(rows(&inventory,"items").iter().any(|row|row["selected"]==false));
         for section in manifest["sections"].as_object().unwrap().keys() {
@@ -94,7 +94,7 @@ fn agent_delivery_fills_bytes_instead_of_generic_file_limits_and_keeps_all_evide
         }
         previous=delivered;
     }
-    assert_eq!(previous.len(),31,"the retained 32-file case includes a separate anchor");
+    assert_eq!(previous.len(),47,"the retained 48-file case includes a separate anchor");
     for limit in [12,1000] {
         args["limit"]=json!(limit);
         let manifest=f.call("agent_context",args.clone());
@@ -110,7 +110,7 @@ fn agent_delivery_fills_bytes_instead_of_generic_file_limits_and_keeps_all_evide
 fn mcp_agent_delivery_accounts_for_its_actual_final_frame_on_both_surfaces() {
     use briefcase::architecture::mcp::{self,Surface};
     let mut f=Fixture::new();
-    for i in 0..40 {write(&f,&format!("src/part_{i}.rs"),"pub fn quasar_marker() {}\n");}
+    for i in 0..60 {write(&f,&format!("src/part_{i}.rs"),"pub fn quasar_marker() {}\n");}
     f.recapture();
     for (surface,name) in [(Surface::Gateway,"briefcase_query"),(Surface::Compact,"briefcase")] {
         let mut previous=Vec::<String>::new();
@@ -128,7 +128,7 @@ fn mcp_agent_delivery_accounts_for_its_actual_final_frame_on_both_surfaces() {
             assert!(delivered.len()>=8,"{frame}");assert!(delivered.starts_with(&previous));
             previous=delivered;
         }
-        assert_eq!(previous.len(),31);
+        assert_eq!(previous.len(),47);
     }
 }
 

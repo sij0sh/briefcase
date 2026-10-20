@@ -531,6 +531,35 @@ pub(crate) fn run(mut cli: Cli) -> Result<()> {
                 }
             };
         }
+        Command::Serve { fallback_published } => {
+            use std::io::{BufRead, Write};
+            briefcase::architecture::ledger::enable_process_caches();
+            let db = db()?;
+            let mut gateway = service::Gateway::new(&db, root().ok().as_deref());
+            let mut out = std::io::stdout().lock();
+            for line in std::io::stdin().lock().lines() {
+                let line = line?;
+                if line.trim().is_empty() {continue;}
+                let reply = match identity::parse(line.as_bytes()) {
+                    Err(e) => json!({"id":null,"ok":false,"error":format!("ARGUMENTS: {e}")}),
+                    Ok(request) => {
+                        let operation = request["operation"].as_str().unwrap_or("");
+                        let arguments = if request["arguments"].is_null() {json!({})} else {request["arguments"].clone()};
+                        match gateway.call(operation, &arguments, *fallback_published) {
+                            Ok(result) => json!({"id":request["id"],"ok":true,"result":result}),
+                            Err(e) => {
+                                let state = sync::readiness(&db)["state"].clone();
+                                json!({"id":request["id"],"ok":false,
+                                    "error":format!("{e} (Briefcase readiness: {})", state.as_str().unwrap_or("unknown"))})
+                            }
+                        }
+                    }
+                };
+                writeln!(out, "{}", serde_json::to_string(&reply)?)?;
+                out.flush()?;
+            }
+            return Ok(());
+        }
         _ => {}
     }
     if let Some((operation,arguments))=dispatch::context_request(&cli.command) {

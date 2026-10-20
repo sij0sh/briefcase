@@ -4,6 +4,7 @@ import json
 import os
 from pathlib import Path
 import subprocess
+import threading
 import time
 
 
@@ -53,10 +54,12 @@ class RunEvidence:
         if any(self.directory.iterdir()):
             raise ValueError(f"Evidence directory must be empty: {self.directory}")
         self.sequence = 0
+        self.lock = threading.Lock()
 
     def run(self, command, *, cwd=None, timeout=60):
-        self.sequence += 1
-        stem = self.directory / f"{self.sequence:06d}"
+        with self.lock:
+            self.sequence += 1
+            stem = self.directory / f"{self.sequence:06d}"
         record = {"command": [str(x) for x in command], "cwd": str(cwd) if cwd else None,
                   "started_at_unix": time.time(), "timeout_seconds": timeout}
         started = time.monotonic()
@@ -75,6 +78,21 @@ class RunEvidence:
             record.update(stdout_sha256=digest(stdout), stderr_sha256=digest(stderr))
             stem.with_suffix(".json").write_text(json.dumps(record, indent=2) + "\n")
         return subprocess.CompletedProcess(command, result.returncode, stdout.decode("utf-8"), stderr.decode("utf-8", errors="replace"))
+
+    def record(self, command, request, reply, *, cwd=None, timeout=60, started_at, elapsed, state=None):
+        """Retain one request/reply exchanged with a long-lived process."""
+        with self.lock:
+            self.sequence += 1
+            stem = self.directory / f"{self.sequence:06d}"
+        stdin, stdout = request.encode("utf-8"), reply.encode("utf-8")
+        record = {"command": [str(x) for x in command], "cwd": str(cwd) if cwd else None, "transport": "serve",
+                  "started_at_unix": started_at, "timeout_seconds": timeout, "elapsed_seconds": elapsed,
+                  "stdin_sha256": digest(stdin), "stdout_sha256": digest(stdout)}
+        if state:
+            record["state"] = state
+        stem.with_suffix(".stdin").write_bytes(stdin)
+        stem.with_suffix(".stdout").write_bytes(stdout)
+        stem.with_suffix(".json").write_text(json.dumps(record, indent=2) + "\n")
 
 
 def atomic_json(path, value):

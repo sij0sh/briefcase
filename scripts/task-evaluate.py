@@ -15,8 +15,12 @@ import hashlib
 import json
 from pathlib import Path
 import statistics
+import shutil
 import subprocess
+import tempfile
+import threading
 import time
+from concurrent.futures import ThreadPoolExecutor
 from run_evidence import RunEvidence, provenance, check_build_receipt
 
 FRAMING = {
@@ -54,6 +58,74 @@ def execute(binary, root, operation, arguments, timeout, *, db=None, evidence=No
     if not isinstance(value, dict):
         raise ValueError("Expected one JSON object")
     return value
+
+
+class Served:
+    """One long-lived `briefcase serve` process per database. It keeps parsed
+    cases, indexes and retained views between calls; requests are serialized."""
+    def __init__(self, binary, root, timeout, *, db=None, evidence=None):
+        database = ["--db", str(db)] if db is not None else []
+        self.command = [str(binary), *database, "--project-root", str(root), "serve"]
+        self.root, self.timeout, self.evidence = root, timeout, evidence
+        self.lock, self.process, self.lines, self.sequence = threading.Lock(), None, None, 0
+
+    def start(self):
+        import queue
+        self.process = subprocess.Popen(self.command, cwd=self.root, stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
+        self.lines = queue.Queue()
+        def read(stream, lines):
+            for line in stream:
+                lines.put(line)
+            lines.put(None)
+        threading.Thread(target=read, args=(self.process.stdout, self.lines), daemon=True).start()
+
+    def __call__(self, operation, arguments):
+        import queue
+        with self.lock:
+            if self.process is None or self.process.poll() is not None:
+                self.start()
+            self.sequence += 1
+            request = json.dumps({"id": self.sequence, "operation": operation, "arguments": arguments}, ensure_ascii=False)
+            started_at, started = time.time(), time.monotonic()
+            try:
+                self.process.stdin.write(request + "\n")
+                self.process.stdin.flush()
+                line = self.lines.get(timeout=self.timeout)
+            except (OSError, queue.Empty) as error:
+                self.stop()
+                if self.evidence:
+                    self.evidence.record(self.command, request, "", cwd=self.root, timeout=self.timeout,
+                                         started_at=started_at, elapsed=time.monotonic() - started, state="error")
+                if isinstance(error, queue.Empty):
+                    raise subprocess.TimeoutExpired(self.command, self.timeout) from None
+                raise
+            if line is None:
+                self.stop()
+                raise RuntimeError("briefcase serve exited")
+            if self.evidence:
+                self.evidence.record(self.command, request, line, cwd=self.root, timeout=self.timeout,
+                                     started_at=started_at, elapsed=time.monotonic() - started)
+        reply = json.loads(line)
+        if reply.get("id") != self.sequence:
+            raise RuntimeError("briefcase serve reply is out of order")
+        if not reply.get("ok"):
+            raise RuntimeError(str(reply.get("error"))[:2000])
+        if not isinstance(reply.get("result"), dict):
+            raise ValueError("Expected one JSON object")
+        return reply["result"]
+
+    def stop(self):
+        if self.process is not None:
+            try:
+                self.process.stdin.close()
+            except OSError:
+                pass
+            try:
+                self.process.wait(timeout=10)
+            except subprocess.TimeoutExpired:
+                self.process.kill()
+                self.process.wait()
+            self.process = None
 
 
 class PinnedCall:
@@ -149,16 +221,36 @@ def read_source_page(call, arguments, row, offset, max_bytes=1048576):
     return body, next_offset
 
 
-def verify_retained_sources(call, case, selected, references, manifest, max_bytes=1048576):
+class VerifiedDigests:
+    """Retained digests already hashed in full during this run (thread-safe)."""
+    def __init__(self):
+        self.digests, self.lock = set(), threading.Lock()
+
+    def __contains__(self, digest):
+        with self.lock:
+            return digest in self.digests
+
+    def add(self, digest):
+        with self.lock:
+            self.digests.add(digest)
+
+
+def verify_retained_sources(call, case, selected, references, manifest, max_bytes=1048576, *,
+                            page_bytes=None, pagination_checks=2, verified=None):
     """Fetch full retained bytes, including rows omitted from the manifest.
 
     First exercise any advertised nonzero source offset, then reconstruct the
     complete UTF-8 stream from zero and compare its byte count and SHA-256.
     No live files or expected-label lists enter this verification.
+
+    With `page_bytes`, integrity reads use pages of that size under a 1 MiB
+    response budget; the first `pagination_checks` multi-page files still
+    paginate at the real `max_bytes` budget. Digests in `verified` were
+    already hashed this run and get a one-page identity probe instead.
     """
     advertised = {row["path"]: row for row in [*manifest.get("files", []), manifest.get("anchor") or {}]
                   if row.get("path")}
-    checked = []
+    checked, small_checks = [], 0
     for row in selected:
         digest, total = row.get("digest"), row.get("bytes")
         if (not isinstance(digest, str) or len(digest) != 71 or not digest.startswith("sha256:")
@@ -173,13 +265,24 @@ def verify_retained_sources(call, case, selected, references, manifest, max_byte
         hint = arguments.get("source_offset", 0)
         if type(hint) is not int or not 0 <= hint <= total:
             raise ValueError(f"Invalid source offset: {row['path']}")
+        mode, budget = "paginated", max_bytes
+        if verified is not None and digest in verified:
+            read_source_page(call, {**arguments, "source_bytes": 4}, row, 0, max_bytes)
+            checked.append({"path": row["path"], "digest": digest, "bytes": total, "pages": 1, "mode": "deduplicated",
+                            "advertised_offset": hint, "in_manifest": row["path"] in advertised})
+            continue
+        if page_bytes:
+            if small_checks < pagination_checks and total > 4000:
+                small_checks += 1
+            else:
+                mode, budget, arguments = "large_page", 1048576, {**arguments, "source_bytes": page_bytes}
         hint_body, pages = None, 0
         if hint:
-            hint_body, _ = read_source_page(call, arguments, row, hint, max_bytes)
+            hint_body, _ = read_source_page(call, arguments, row, hint, budget)
             pages += 1
         hasher, offset, hint_parts = hashlib.sha256(), 0, []
         while True:
-            body, next_offset = read_source_page(call, arguments, row, offset, max_bytes)
+            body, next_offset = read_source_page(call, arguments, row, offset, budget)
             pages += 1
             hasher.update(body)
             if hint_body is not None:
@@ -193,15 +296,19 @@ def verify_retained_sources(call, case, selected, references, manifest, max_byte
             raise ValueError(f"Fetched source digest differs from retained bytes: {row['path']}")
         if hint_body is not None and b"".join(hint_parts) != hint_body:
             raise ValueError(f"Advertised source span differs from full retained bytes: {row['path']}")
-        checked.append({"path": row["path"], "digest": digest, "bytes": total, "pages": pages,
+        if verified is not None:
+            verified.add(digest)
+        checked.append({"path": row["path"], "digest": digest, "bytes": total, "pages": pages, "mode": mode,
                         "advertised_offset": hint, "in_manifest": row["path"] in advertised})
-    return {"state": "verified", "response_budget": max_bytes, "files": len(checked), "bytes": sum(row["bytes"] for row in checked),
-            "pages": sum(row["pages"] for row in checked), "sources": checked}
+    return {"state": "verified", "response_budget": max_bytes, "page_bytes": page_bytes, "files": len(checked),
+            "bytes": sum(row["bytes"] for row in checked), "pages": sum(row["pages"] for row in checked),
+            "deduplicated": sum(row["mode"] == "deduplicated" for row in checked),
+            "small_budget_files": sum(row["mode"] == "paginated" for row in checked), "sources": checked}
 
 
 def evaluate_scenario(scenario, call, *, manifest_bytes=None, exclude_facets=(), harness="pi", diagnostics=False,
                       verify_sources=False, budget_sweep=(), verify_candidates=False, source_budget=1048576,
-                      cold=False, selection_variant=None):
+                      cold=False, selection_variant=None, verify_page_bytes=None, pagination_checks=2, verified=None):
     expected = set(scenario.get("required_paths", scenario.get("followup_paths", [])))
     if not expected:
         raise ValueError("Each scenario needs labelled required_paths or followup_paths")
@@ -338,7 +445,8 @@ def evaluate_scenario(scenario, call, *, manifest_bytes=None, exclude_facets=(),
     delivery_ms = (time.monotonic() - started) * 1000
     if verify_sources:
         fetch_started = time.monotonic()
-        metrics["source_fetch"] = verify_retained_sources(call, packet.get("case_id") or packet["id"], selected, references, manifest, source_budget)
+        metrics["source_fetch"] = verify_retained_sources(call, packet.get("case_id") or packet["id"], selected, references, manifest, source_budget,
+                                                           page_bytes=verify_page_bytes, pagination_checks=pagination_checks, verified=verified)
         metrics["source_fetch"]["elapsed_ms"] = round((time.monotonic() - fetch_started) * 1000, 3)
     if verify_candidates:
         candidate_started = time.monotonic()
@@ -351,7 +459,8 @@ def evaluate_scenario(scenario, call, *, manifest_bytes=None, exclude_facets=(),
             if not isinstance(row, dict) or row.get("path") != candidate["path"]:
                 raise ValueError("Candidate source is unreachable, including unselected candidates")
             identities.append(row); candidate_refs[row["path"]] = ref
-        metrics["candidate_source_fetch"] = verify_retained_sources(call, case_id, identities, candidate_refs, {}, source_budget)
+        metrics["candidate_source_fetch"] = verify_retained_sources(call, case_id, identities, candidate_refs, {}, source_budget,
+                                                                     page_bytes=verify_page_bytes, pagination_checks=pagination_checks, verified=verified)
         metrics["candidate_source_fetch"]["elapsed_ms"] = round((time.monotonic() - candidate_started) * 1000, 3)
     discovered = {row["path"] for row in candidates} if candidates is not None else None
     verified = {row["path"] for row in metrics.get("candidate_source_fetch", metrics.get("source_fetch", {})).get("sources", [])}
@@ -445,6 +554,72 @@ def false_complete_metrics(results):
             "false_complete_definition": "Complete outcome with at least one authored required path missing, divided by scored scenarios."}
 
 
+TIMING_FIELDS = ("first_packet_ms", "brief_ms", "manifest_latency_ms", "first_relevant_passage_ms", "timing_phase")
+FAILURES = (OSError, ValueError, RuntimeError, subprocess.TimeoutExpired)
+
+
+def guarded(scenario, job):
+    try:
+        return job()
+    except FAILURES as error:
+        return {"id": scenario.get("id"), "status": "error", "error": str(error)}
+
+
+class WorkerPool:
+    """Run per-scenario jobs serially, or across private reflinked DB copies.
+
+    Each worker owns one database copy and one pinned call, so concurrent
+    writes never contend. Results keep job order.
+    """
+    def __init__(self, call, workers=1, make_call=None, database=None):
+        self.call, self.workers, self.directory, self.calls = call, workers, None, None
+        if workers > 1:
+            self.directory = Path(tempfile.mkdtemp(prefix="task-evaluate-", dir=database.parent))
+            import queue
+            self.calls = queue.Queue()
+            for index in range(workers):
+                copy = self.directory / f"worker-{index}.db"
+                for suffix in ("", "-wal"):
+                    source = Path(str(database) + suffix)
+                    if source.exists():
+                        subprocess.run(["cp", "--reflink=auto", str(source), str(copy) + suffix], check=True)
+                self.calls.put(make_call(copy))
+
+    def map(self, jobs):
+        """`jobs` are (scenario, fn(call) -> row) pairs."""
+        if self.workers <= 1:
+            return [guarded(scenario, lambda: job(self.call)) for scenario, job in jobs]
+        def run(item):
+            scenario, job = item
+            call = self.calls.get()
+            try:
+                return guarded(scenario, lambda: job(call))
+            finally:
+                self.calls.put(call)
+        with ThreadPoolExecutor(max_workers=self.workers) as executor:
+            return list(executor.map(run, jobs))
+
+    def close(self):
+        if self.directory:
+            shutil.rmtree(self.directory, ignore_errors=True)
+
+
+def adopt_serial_timings(results, serial):
+    """Latency of record comes from the serial pass; parallel figures are kept
+    separately because concurrent workers contend for CPU and disk."""
+    for row, timed in zip(results, serial):
+        if row.get("status") == "error":
+            continue
+        if timed.get("status") == "error":
+            row.update(status="error", error="Serial latency pass failed: " + timed.get("error", ""))
+            continue
+        if timed.get("case_id") != row.get("case_id"):
+            row.update(status="error", error="Serial and parallel passes retained different cases")
+            continue
+        row["parallel_timings"] = {field: row.get(field) for field in TIMING_FIELDS}
+        row.update({field: timed.get(field) for field in TIMING_FIELDS}, timing_source="serial")
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--binary", type=Path, default=Path("target/release/briefcase"))
@@ -455,6 +630,18 @@ def main():
     parser.add_argument("--verify-sources", action="store_true", help="Fetch every selected file, including omitted rows; verify UTF-8 pagination, byte counts and SHA-256 (full run only)")
     parser.add_argument("--verify-candidates", action="store_true", help="Protocol-only: fetch every candidate's source, including unselected files; does not measure blind harness discovery")
     parser.add_argument("--source-budget", type=int, default=8000, help="Real response budget for source fetch verification")
+    parser.add_argument("--verify-page-bytes", type=int, default=65536,
+                        help="Source page size for integrity reads under a 1 MiB budget; 0 paginates every file at --source-budget")
+    parser.add_argument("--pagination-checks", type=int, default=2,
+                        help="Multi-page files per scenario still paginated at --source-budget when --verify-page-bytes is set")
+    parser.add_argument("--no-dedupe-sources", action="store_true",
+                        help="Hash every selected file in full even when its digest was already verified this run")
+    parser.add_argument("--workers", type=int, default=1,
+                        help="Run scenarios, controls and investigations across this many reflinked DB copies (requires --db); "
+                             "a serial brief/manifest pass supplies latency of record")
+    parser.add_argument("--serve", action="store_true",
+                        help="Send main-pass, control and investigation calls through one long-lived `briefcase serve` per DB; "
+                             "with --workers the serial latency pass still uses one process per call")
     parser.add_argument("--trace-dir", type=Path, help="New directory retaining every raw RPC stream and command")
     parser.add_argument("--implementation-root", type=Path, default=Path(__file__).resolve().parents[1])
     parser.add_argument("--build-receipt", type=Path, help="Receipt produced by validate-p0-p1.py linking source and binary")
@@ -485,6 +672,10 @@ def main():
         parser.error("source-budget must be 256..1048576")
     if args.skip_manifest and (args.verify_sources or budgets or args.verify_candidates):
         parser.error("Source verification and budget sweeps require a harness manifest")
+    if not (args.verify_page_bytes == 0 or 4 <= args.verify_page_bytes <= 65536):
+        parser.error("verify-page-bytes must be 0 or 4..65536")
+    if args.workers < 1 or (args.workers > 1 and not args.db):
+        parser.error("--workers above 1 requires an explicit --db to copy")
     scenario_bytes = args.scenarios.read_bytes()
     authored = json.loads(scenario_bytes)
     scenarios = authored.get("scenarios", authored.get("cases", []))
@@ -509,65 +700,72 @@ def main():
         call = PinnedCall(raw_call, view)
     except (OSError, ValueError, RuntimeError, subprocess.TimeoutExpired) as error:
         parser.error(f"Cannot pin evaluation inputs: {error}")
-    results = []
-    for index, scenario in enumerate(scenarios):
-        try:
-            results.append(evaluate_scenario(scenario, call, manifest_bytes=None if args.skip_manifest else args.manifest_bytes,
-                                             harness=args.harness, diagnostics=args.diagnostics,
-                                             verify_sources=args.verify_sources, budget_sweep=budgets,
-                                             verify_candidates=args.verify_candidates, source_budget=args.source_budget,
-                                             cold=index == 0))
-        except (OSError, ValueError, RuntimeError, subprocess.TimeoutExpired) as error:
-            results.append({"id": scenario.get("id"), "status": "error", "error": str(error)})
-    facets = FACETS
-    disabled = facets if args.ablations == "all" else tuple(filter(None, args.ablations.split(",")))
-    if any(facet not in facets and facet != "lexical-only" for facet in disabled):
-        parser.error("Unknown ablation facet")
-    ablations = {}
-    for facet in disabled:
-        scored = []
-        for scenario in scenarios:
-            try:
-                scored.append(evaluate_scenario(scenario, call, manifest_bytes=None if args.skip_manifest else args.manifest_bytes,
-                                               exclude_facets=resolve_exclusions(facet), harness=args.harness, diagnostics=args.diagnostics))
-            except (OSError, ValueError, RuntimeError, subprocess.TimeoutExpired) as error:
-                scored.append({"id": scenario.get("id"), "status": "error", "error": str(error)})
-        ablations[facet] = scored
-    controls = {}
-    if args.lexical_only:
-        scored = []
-        for scenario in scenarios:
-            try:
-                scored.append(evaluate_scenario(scenario, call, manifest_bytes=None if args.skip_manifest else args.manifest_bytes,
-                                                exclude_facets=lexical_only_exclusions(), harness=args.harness, diagnostics=args.diagnostics))
-            except (OSError, ValueError, RuntimeError, subprocess.TimeoutExpired) as error:
-                scored.append({"id": scenario.get("id"), "status": "error", "error": str(error)})
-        controls["lexical_only"] = scored
-    selection_variants = {}
-    for variant in filter(None, args.selection_variants.split(",")):
-        scored = []
-        for scenario in scenarios:
-            try:
-                scored.append(evaluate_scenario(scenario, call, manifest_bytes=None if args.skip_manifest else args.manifest_bytes,
-                                                harness=args.harness, diagnostics=args.diagnostics, selection_variant=variant))
-            except (OSError, ValueError, RuntimeError, subprocess.TimeoutExpired) as error:
-                scored.append({"id": scenario.get("id"), "status": "error", "error": str(error)})
-        selection_variants[variant] = scored
-    investigations = {}
-    for mode in filter(None, args.investigation_modes.split(",")):
-        from task_investigation import run_bounded_investigation
-        import tempfile
-        rows = []
-        for scenario in scenarios:
-            try:
+    manifest_bytes = None if args.skip_manifest else args.manifest_bytes
+    verified = None if args.no_dedupe_sources else VerifiedDigests()
+    servers = []
+    def served(copy):
+        servers.append(Served(binary, root, args.timeout, db=copy, evidence=evidence))
+        return servers[-1]
+    def make_call(copy):
+        if args.serve:
+            return PinnedCall(served(copy), call.view)
+        return PinnedCall(lambda operation, arguments: execute(binary, root, operation, arguments, args.timeout, db=copy,
+                                                                **({"evidence": evidence} if evidence else {})), call.view)
+    main_call = make_call(database) if args.serve and args.workers == 1 else call
+    try:
+        pool = WorkerPool(main_call, args.workers, make_call, database)
+    except (OSError, subprocess.CalledProcessError) as error:
+        parser.error(f"Cannot copy the evaluation database: {error}")
+    try:
+        serial = None
+        if args.workers > 1:
+            serial = [guarded(scenario, lambda: evaluate_scenario(scenario, call, manifest_bytes=manifest_bytes,
+                                                                  harness=args.harness, cold=index == 0))
+                      for index, scenario in enumerate(scenarios)]
+        results = pool.map([(scenario, lambda c, scenario=scenario, index=index: evaluate_scenario(
+            scenario, c, manifest_bytes=manifest_bytes, harness=args.harness, diagnostics=args.diagnostics,
+            verify_sources=args.verify_sources, budget_sweep=budgets, verify_candidates=args.verify_candidates,
+            source_budget=args.source_budget, cold=index == 0, verify_page_bytes=args.verify_page_bytes or None,
+            pagination_checks=args.pagination_checks, verified=verified)) for index, scenario in enumerate(scenarios)])
+        if serial is not None:
+            adopt_serial_timings(results, serial)
+        facets = FACETS
+        disabled = facets if args.ablations == "all" else tuple(filter(None, args.ablations.split(",")))
+        if any(facet not in facets and facet != "lexical-only" for facet in disabled):
+            parser.error("Unknown ablation facet")
+        # Every control shares one job list so the pool stays busy across them.
+        controls_jobs = [("ablation", facet, {"exclude_facets": resolve_exclusions(facet)}) for facet in disabled]
+        if args.lexical_only:
+            controls_jobs.append(("control", "lexical_only", {"exclude_facets": lexical_only_exclusions()}))
+        controls_jobs += [("variant", variant, {"selection_variant": variant})
+                          for variant in filter(None, args.selection_variants.split(","))]
+        flat = [(group, name, scenario, options) for group, name, options in controls_jobs for scenario in scenarios]
+        scored = pool.map([(scenario, lambda c, scenario=scenario, options=options: evaluate_scenario(
+            scenario, c, manifest_bytes=manifest_bytes, harness=args.harness, diagnostics=args.diagnostics, **options))
+            for _, _, scenario, options in flat])
+        ablations, controls, selection_variants = {}, {}, {}
+        groups = {"ablation": ablations, "control": controls, "variant": selection_variants}
+        for (group, name, _, _), row in zip(flat, scored):
+            groups[group].setdefault(name, []).append(row)
+        investigations = {}
+        modes = list(filter(None, args.investigation_modes.split(",")))
+        if modes:
+            from task_investigation import run_bounded_investigation
+            def investigate(c, scenario, mode):
                 with tempfile.TemporaryDirectory() as directory:
-                    rows.append({"id": scenario.get("id"), **run_bounded_investigation(
-                        call, Path(directory) / "inv", scenario, mode=mode,
+                    return {"id": scenario.get("id"), **run_bounded_investigation(
+                        c, Path(directory) / "inv", scenario, mode=mode,
                         max_calls=args.investigation_max_calls, max_bytes=args.investigation_max_bytes,
-                        max_seconds=args.investigation_max_seconds, budget=args.manifest_bytes)})
-            except (OSError, ValueError, RuntimeError, subprocess.TimeoutExpired) as error:
-                rows.append({"id": scenario.get("id"), "status": "error", "error": str(error)})
-        investigations[mode] = rows
+                        max_seconds=args.investigation_max_seconds, budget=args.manifest_bytes)}
+            pairs = [(mode, scenario) for mode in modes for scenario in scenarios]
+            rows = pool.map([(scenario, lambda c, scenario=scenario, mode=mode: investigate(c, scenario, mode))
+                             for mode, scenario in pairs])
+            for (mode, _), row in zip(pairs, rows):
+                investigations.setdefault(mode, []).append(row)
+    finally:
+        for server in servers:
+            server.stop()
+        pool.close()
     rg_baseline = None
     if args.rg_baseline:
         from task_baseline import rg_read_baseline
@@ -618,13 +816,18 @@ def main():
                          "ledger_watermark": initial_state.get("ledger_watermark"), "validation_error": input_error,
                          "manifest_bytes": None if args.skip_manifest else args.manifest_bytes, "harness": args.harness,
                          "verify_sources": args.verify_sources, "budget_sweep": budgets,
+                         "verify_page_bytes": args.verify_page_bytes or None, "pagination_checks": args.pagination_checks,
+                         "dedupe_sources": not args.no_dedupe_sources, "workers": args.workers,
+                         "latency_of_record": "serial pass" if args.workers > 1 else "main pass",
+                         "transport": "serve" if args.serve else "process per call",
+                         "latency_transport": "process per call" if args.workers > 1 or not args.serve else "serve",
                          "verification_scope": "Source/candidate fetches and budget sweeps run only on full scenarios, not facet ablations. Candidate fetches measure protocol reachability, not harness judgment."},
               "passed": sum(r["status"] == "pass" for r in results),
               "missed": sum(r["status"] == "miss" for r in results),
               "errors": sum(r["status"] == "error" for r in results) + int(input_error is not None),
               **false_complete_metrics(results),
               "median_first_packet_ms": statistics.median(timings) if timings else None,
-              "interpretation": "Labelled task evidence recall and actual manifest delivery, not safe patch completion. Labelled precision treats only authored required paths as relevant, so unlabelled useful files lower it. Token counts are byte-based estimates. Source pinning/status preflight precedes query timing. Ablations run sequentially on the same retained corpus and timings are warm. Weights require validation on a larger held-out task corpus."}
+              "interpretation": "Labelled task evidence recall and actual manifest delivery, not safe patch completion. Labelled precision treats only authored required paths as relevant, so unlabelled useful files lower it. Token counts are byte-based estimates. Source pinning/status preflight precedes query timing. Ablations and controls run on the same retained corpus (on private DB copies when workers > 1) and their timings are warm; with workers > 1 primary latency comes from a separate serial pass. Weights require validation on a larger held-out task corpus."}
     encoded = json.dumps(report, ensure_ascii=False, indent=2) + "\n"
     if args.output:
         args.output.write_text(encoded)

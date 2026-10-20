@@ -127,7 +127,7 @@ pub fn neighbors(l: &Ledger, a: &Value) -> Result<Value> {
 
 fn load_index(l:&Ledger,id:&str) -> Result<Index> {
     require(id.starts_with("task-index:"),"TASK","A retained task-index ID is required")?;
-    let index:Index=serde_json::from_value(l.report(id)?)?;
+    let index=super::index::retained(l,id)?.ok_or("TASK: Unknown retained task index")?;
     require(index.id==id,"TASK","Retained index identity mismatch")?;
     Ok(index)
 }

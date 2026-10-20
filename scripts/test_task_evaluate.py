@@ -335,7 +335,7 @@ class SourceTransportTests(unittest.TestCase):
                 raise AssertionError(operation)
             row = selected[int(arguments["ref"].rsplit("/", 1)[1])]
             raw, offset = bodies[row["path"]].encode(), arguments["source_offset"]
-            end = min(offset + 4000, len(raw))
+            end = min(offset + arguments.get("source_bytes", 4000), len(raw))
             while end < len(raw) and raw[end] & 192 == 128:
                 end -= 1
             return {"report_id": packet["id"], "ref": arguments["ref"], "entry": row.copy(),
@@ -355,6 +355,72 @@ class SourceTransportTests(unittest.TestCase):
         offsets = [args["source_offset"] for operation, args in calls if operation == "explain" and args["ref"] == "/slice/impl/0"]
         self.assertEqual(offsets, [2, 0, 4000])
         self.assertEqual(result["harness_context"]["delivery_recall"], 1/3)
+
+    def test_large_pages_keep_a_small_budget_pagination_check_and_skip_verified_digests(self):
+        _, _, call, calls = self.fixture()
+        verified = task_evaluate.VerifiedDigests()
+        scenario = {"id": "fetch", "task": "inspect", "required_paths": ["a"]}
+        first = task_evaluate.evaluate_scenario(scenario, call, manifest_bytes=8000, verify_sources=True,
+            verify_page_bytes=65536, pagination_checks=1, verified=verified)["source_fetch"]
+        self.assertEqual({row["path"]: row["mode"] for row in first["sources"]},
+                         {"a": "paginated", "b": "large_page", "empty": "large_page"})
+        self.assertEqual(first["small_budget_files"], 1)
+        calls.clear()
+        again = task_evaluate.evaluate_scenario(scenario, call, manifest_bytes=8000, verify_sources=True,
+            verify_page_bytes=65536, pagination_checks=0, verified=verified)["source_fetch"]
+        self.assertEqual(again["deduplicated"], 3)
+        probes = [args for operation, args in calls if operation == "explain"]
+        self.assertEqual([(args["source_offset"], args["source_bytes"]) for args in probes], [(0, 4)] * 3)
+        fresh = task_evaluate.evaluate_scenario(scenario, call, manifest_bytes=8000, verify_sources=True,
+            verify_page_bytes=65536, pagination_checks=0)["source_fetch"]
+        self.assertEqual(next(row for row in fresh["sources"] if row["path"] == "a")["pages"], 2)
+
+    def test_large_page_digest_mismatch_still_fails(self):
+        _, _, call, _ = self.fixture()
+        def corrupt(operation, arguments):
+            page = call(operation, arguments)
+            if operation == "explain":
+                page["text"] = page["text"].replace("λ", "μ")
+            return page
+        with self.assertRaisesRegex(ValueError, "digest differs"):
+            task_evaluate.evaluate_scenario({"id": "bad", "task": "inspect", "required_paths": ["a"]},
+                corrupt, manifest_bytes=8000, verify_sources=True, verify_page_bytes=65536, pagination_checks=0)
+
+    def test_served_calls_reuse_one_process_and_record_each_exchange(self):
+        with tempfile.TemporaryDirectory() as directory:
+            fake = Path(directory) / "briefcase"
+            fake.write_text("#!/usr/bin/env python3\n"
+                            "import json, os, sys\n"
+                            "for line in sys.stdin:\n"
+                            "    r = json.loads(line)\n"
+                            "    if r['operation'] == 'boom':\n"
+                            "        print(json.dumps({'id': r['id'], 'ok': False, 'error': 'TASK: bad'}), flush=True)\n"
+                            "    else:\n"
+                            "        print(json.dumps({'id': r['id'], 'ok': True, 'result': {'pid': os.getpid(), 'args': r['arguments']}}), flush=True)\n")
+            fake.chmod(0o755)
+            from run_evidence import RunEvidence
+            evidence = RunEvidence(Path(directory) / "trace")
+            served = task_evaluate.Served(fake, Path(directory), 10, db=Path(directory) / "x.db", evidence=evidence)
+            try:
+                first = served("brief", {"task": "a"})
+                second = served("explain", {"ref": "/x"})
+                with self.assertRaisesRegex(RuntimeError, "TASK: bad"):
+                    served("boom", {})
+            finally:
+                served.stop()
+        self.assertEqual(first["pid"], second["pid"])
+        self.assertEqual(second["args"], {"ref": "/x"})
+        self.assertIn("--db", served.command)
+        self.assertEqual(served.command[-1], "serve")
+
+    def test_serial_timings_replace_parallel_latency_and_detect_case_drift(self):
+        results = [{"id": "a", "case_id": "c1", "brief_ms": 900, "timing_phase": "cold"},
+                   {"id": "b", "case_id": "c2", "brief_ms": 800, "timing_phase": "warm"}]
+        serial = [{"id": "a", "case_id": "c1", "brief_ms": 100, "timing_phase": "cold"},
+                  {"id": "b", "case_id": "other", "brief_ms": 90, "timing_phase": "warm"}]
+        task_evaluate.adopt_serial_timings(results, serial)
+        self.assertEqual((results[0]["brief_ms"], results[0]["parallel_timings"]["brief_ms"]), (100, 900))
+        self.assertEqual(results[1]["status"], "error")
 
     def test_corruption_stalled_cursors_wrong_entries_and_budget_notices_fail_source_verification(self):
         changes = [

@@ -22,6 +22,8 @@ import json
 import subprocess
 import sys
 import tempfile
+import threading
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import task_outcomes as outcomes
@@ -114,32 +116,60 @@ def determinism(rows):
     return unstable
 
 
-def agent_rows(task, conditions, protocol, args, delivered_by_condition, fixture_dir=None, fixture=None):
-    rows = []
-    for condition in conditions:
-        delivered = delivered_by_condition.get(condition)
-        if delivered is None:
-            continue
-        for repeat in range(args.agent_repeats):
-            with tempfile.TemporaryDirectory(dir=args.work) as scratch:
-                scratch = Path(scratch)
-                if fixture is not None:
-                    workdir = outcomes.materialize(fixture_dir, fixture, scratch / "work")
-                    pristine = outcomes.materialize(fixture_dir, fixture, scratch / "pristine")
-                else:
-                    workdir, pristine = scratch, None
-                bundle = outcomes.agent_bundle(task, condition, delivered)
+class AgentTrials:
+    """Collect agent trials across tasks, then run them concurrently.
+
+    Paid trials fail fast: after `max_errors` failed trials (0 = never) the
+    rest are recorded as skipped instead of spending more model calls, and
+    the run reports why it stopped.
+    """
+    def __init__(self, args):
+        self.args, self.jobs, self.errors, self.aborted = args, [], 0, None
+        self.lock = threading.Lock()
+
+    def add(self, task, conditions, delivered_by_condition, fixture_dir=None, fixture=None):
+        for condition in conditions:
+            delivered = delivered_by_condition.get(condition)
+            if delivered is not None:
+                self.jobs += [(task, condition, delivered, repeat, fixture_dir, fixture)
+                              for repeat in range(self.args.agent_repeats)]
+
+    def trial(self, job):
+        task, condition, delivered, repeat, fixture_dir, fixture = job
+        args = self.args
+        row = {"set": args.set, "scenario": task["id"], "condition": condition, "repeat": repeat}
+        with self.lock:
+            if self.aborted:
+                return {**row, "status": "skipped", "seconds": 0, "error": "agent tier stopped: " + self.aborted}
+        with tempfile.TemporaryDirectory(dir=args.work) as scratch:
+            scratch = Path(scratch)
+            if fixture is not None:
+                workdir = outcomes.materialize(fixture_dir, fixture, scratch / "work")
+                pristine = outcomes.materialize(fixture_dir, fixture, scratch / "pristine")
+            else:
+                workdir, pristine = scratch, None
+            bundle = outcomes.agent_bundle(task, condition, delivered)
+            try:
                 answer = outcomes.run_agent(args.agent_command, bundle, workdir, args.agent_timeout)
-                row = {"set": args.set, "scenario": task["id"], "condition": condition, "repeat": repeat,
-                       "status": answer["status"], "seconds": answer["seconds"]}
-                if answer["status"] == "ok":
-                    row.update(outcomes.score_agent(task, answer["answer"], delivered, task.get("forbidden_patterns", []),
-                                                    workdir=workdir if fixture else None, pristine=pristine,
-                                                    fixture=fixture))
-                else:
-                    row["error"] = answer["error"]
-                rows.append(row)
-    return rows
+            except subprocess.TimeoutExpired:
+                answer = {"status": "error", "error": "agent timed out", "seconds": args.agent_timeout}
+            row.update(status=answer["status"], seconds=answer["seconds"])
+            if answer["status"] == "ok":
+                row.update(outcomes.score_agent(task, answer["answer"], delivered, task.get("forbidden_patterns", []),
+                                                workdir=workdir if fixture else None, pristine=pristine,
+                                                fixture=fixture))
+            else:
+                row["error"] = answer["error"]
+                with self.lock:
+                    self.errors += 1
+                    if args.agent_max_errors and self.errors >= args.agent_max_errors and not self.aborted:
+                        self.aborted = f"{self.errors} failed trial(s); last {task['id']}/{condition}: {answer['error'][:500]}"
+                print(f"agent error {task['id']}/{condition}#{repeat}: {answer['error'][:300]}", file=sys.stderr)
+        return row
+
+    def run(self):
+        with ThreadPoolExecutor(max_workers=max(1, self.args.agent_workers)) as executor:
+            return list(executor.map(self.trial, self.jobs))
 
 
 def command_validate(args):
@@ -161,7 +191,8 @@ def command_run(args):
     repeats = args.repeats or protocol["tiers"]["deterministic"]["repeats"]
     work = Path(args.work).resolve()
     work.mkdir(parents=True, exist_ok=True)
-    rows, agents, views = [], [], {}
+    rows, views = [], {}
+    trials = AgentTrials(args)
     if args.set == "t3":
         claims = {s["id"]: s for s in json.loads(args.claims.read_text())["scenarios"]}
         scenarios = json.loads(args.scenarios.read_text())["scenarios"]
@@ -178,8 +209,7 @@ def command_run(args):
                                   work=work, repeats=repeats, set_name="t3")
             rows += produced
             if args.agent_command:
-                agents += agent_rows(task, conditions, protocol, args,
-                                     {r["condition"]: r["_delivered"] for r in produced if r["repeat"] == 0})
+                trials.add(task, conditions, {r["condition"]: r["_delivered"] for r in produced if r["repeat"] == 0})
             print(f"{scenario['id']}: " + ", ".join(f"{r['condition']}={r['supportability']}" for r in produced if r["repeat"] == 0),
                   file=sys.stderr)
     else:
@@ -195,22 +225,25 @@ def command_run(args):
                                   rg_sessions_root=rg_sessions, work=fixture_work, repeats=repeats, set_name="repairs")
             rows += produced
             if args.agent_command:
-                agents += agent_rows(task, conditions, protocol, args,
-                                     {r["condition"]: r["_delivered"] for r in produced if r["repeat"] == 0},
-                                     fixture_dir=fixture_dir, fixture=fixture)
+                trials.add(task, conditions, {r["condition"]: r["_delivered"] for r in produced if r["repeat"] == 0},
+                           fixture_dir=fixture_dir, fixture=fixture)
             print(f"{fixture['id']}: " + ", ".join(f"{r['condition']}={r['supportability_all']}" for r in produced if r["repeat"] == 0),
                   file=sys.stderr)
+    agents = trials.run()
     for row in rows:
         row.pop("_delivered", None)
     result = {"schema_version": "1.0", "kind": "outcome_results", "protocol": protocol["revision"], "set": args.set,
               "binary": str(binary), "views": views, "conditions": conditions, "repeats": repeats,
-              "nondeterministic": determinism(rows), "rows": rows, "agent_rows": agents}
+              "nondeterministic": determinism(rows), "rows": rows, "agent_rows": agents,
+              "agent_aborted": trials.aborted}
     result["summary"] = summarize([result], protocol)
     text = json.dumps(result, indent=2)
     if args.output:
         args.output.write_text(text + "\n")
     print(json.dumps(result["summary"], indent=2))
-    return 0
+    if trials.aborted:
+        print("agent tier stopped early: " + trials.aborted, file=sys.stderr)
+    return 1 if trials.aborted else 0
 
 
 def condition_table(rows, metric):
@@ -323,6 +356,9 @@ def main(argv=None):
     trial.add_argument("--agent-command", help="Authorized agent command (paid model calls); omit for the deterministic tier only")
     trial.add_argument("--agent-repeats", type=int, default=0)
     trial.add_argument("--agent-timeout", type=float, default=900)
+    trial.add_argument("--agent-workers", type=int, default=4, help="Concurrent agent trials")
+    trial.add_argument("--agent-max-errors", type=int, default=1,
+                       help="Stop starting paid trials after this many failures (0 = never stop)")
     summary = commands.add_parser("summarize")
     summary.add_argument("results", nargs="+")
     summary.add_argument("--output", type=Path)

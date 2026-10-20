@@ -26,10 +26,10 @@ pub fn event(db:&Path,root:&Path,phase:&str,input:&Value)->Result<Value>{
     let l=Ledger::open_existing(db)?;
     let Some(state)=l.adoption_prompt(key)? else {return Ok(json!({}));};
     let id=state["case_id"].as_str().or_else(||state["report_id"].as_str()).ok_or("HOOK: Missing initial case")?;
-    let initial=if id.starts_with("task-case:") {serde_json::to_value(task::case::load(&l,id)?)?} else {l.report(id)?};
+    let initial=if id.starts_with("task-case:") {task::case::load_doc(&l,id)?} else {l.report(id)?};
     let current=service::call_with_context(&l,"agent_context",&json!({"task":state["task"],"duty":"review","max_bytes":context_budget()}),Some(root),true)?;
     let review_id=current["case_id"].as_str().ok_or("HOOK: Review brief has no case ID")?;
-    let review=serde_json::to_value(task::case::load(&l,review_id)?)?;
+    let review=task::case::load_doc(&l,review_id)?;
     let (dirty,dirty_state)=match super::freshness::working_paths(root) {
         Ok(paths)=>(paths,json!({"state":"checked"})),
         Err(error)=>(std::collections::BTreeSet::new(),json!({"state":"unavailable","reason":error.to_string().chars().take(400).collect::<String>()})),

@@ -67,7 +67,7 @@ suggest files, but never enter authoritative adjacency or establish membership.
 Candidates combine the strongest signal in each facet, an independent-signal
 bonus, duty/role relevance, traversal distance, endpoint fanout and hub degree.
 Traversal uses localized endpoint files. Holding/support files remain provenance.
-The default selected slice has at most **32 files**; `--max-files` or the
+The default selected slice has at most **48 files**; `--max-files` or the
 `max_files` operation argument changes that bound. Exact anchors dominate rank.
 These integer weights are initial heuristics, not calibrated probabilities.
 `/candidates` retains the complete discovered ranking, including unselected files.

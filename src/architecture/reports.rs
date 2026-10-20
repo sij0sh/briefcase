@@ -75,7 +75,7 @@ pub fn page(l:&Ledger,a:&Value) -> Result<Value> {
     }
     if doc["response"].is_object() {
         require(section=="/items"||section=="/response/results","PAGINATION","Unknown query section")?;
-        return query::report_page(l,doc,offset,limit);
+        return query::report_page(l,std::rc::Rc::unwrap_or_clone(doc),offset,limit);
     }
     require(sections.contains(&section),"PAGINATION","Unknown report section")?;
     let items=doc.pointer(&section).and_then(Value::as_array).ok_or("REPORT: Section is not an array")?;
@@ -167,7 +167,16 @@ fn report_sections(doc:&Value)->Vec<String>{
     let mut sections=vec![];visit(doc,"",&mut sections);sections
 }
 
-fn load_report(l:&Ledger,id:&str) -> Result<Value> {
-    if id.starts_with("task-case:") {Ok(serde_json::to_value(task::case::load(l,id)?)?)}
-    else {l.report(id)}
+thread_local! {
+    /// Parsed content-addressed task indexes; long-lived processes only.
+    static INDEX_DOCS: std::cell::RefCell<Vec<(String,std::rc::Rc<Value>)>> = const { std::cell::RefCell::new(Vec::new()) };
+}
+fn load_report(l:&Ledger,id:&str) -> Result<std::rc::Rc<Value>> {
+    if id.starts_with("task-case:") {return task::case::load_doc(l,id).map(Into::into);}
+    if !id.starts_with("task-index:") || !crate::architecture::ledger::process_caches() {return l.report(id).map(Into::into);}
+    if !l.has_report(id)? {return l.report(id).map(Into::into);}
+    if let Some(doc)=INDEX_DOCS.with(|d|d.borrow().iter().find(|(k,_)|k==id).map(|(_,v)|v.clone())) {return Ok(doc);}
+    let doc=std::rc::Rc::new(l.report(id)?);
+    INDEX_DOCS.with(|d|{let mut d=d.borrow_mut(); if d.len()>=2 {d.remove(0);} d.push((id.into(),doc.clone()));});
+    Ok(doc)
 }

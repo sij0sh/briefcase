@@ -221,6 +221,7 @@ pub fn serve_path_for(
 }
 /// Explicit invocation root lets fresh MCP task reads retain the text layer.
 pub fn serve_path_for_root(surface:Surface,db:&Path,root:Option<&Path>,input:impl BufRead,output:impl Write)->Result<()> {
+    crate::architecture::ledger::enable_process_caches();
     let mut ledger:Option<Ledger>=None;
     frames(input,output,|request| {
         let name=request["params"]["name"].as_str().unwrap_or("");

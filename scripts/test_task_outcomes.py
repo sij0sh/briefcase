@@ -160,6 +160,22 @@ class AgentScoringTests(unittest.TestCase):
         self.assertEqual(scored["cited_claims"], ["C"])
 
 
+class AgentTrialTests(unittest.TestCase):
+    def test_first_failure_stops_further_paid_trials(self):
+        import argparse, importlib.util
+        spec = importlib.util.spec_from_file_location("task_outcomes_cli", Path(__file__).with_name("task-outcomes.py"))
+        cli = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(cli)
+        with tempfile.TemporaryDirectory() as work:
+            args = argparse.Namespace(set="t3", work=work, agent_command="exit 3", agent_timeout=30,
+                                      agent_repeats=3, agent_workers=1, agent_max_errors=1)
+            trials = cli.AgentTrials(args)
+            trials.add({"id": "T", "task": "x", "claims": []}, ["a"], {"a": delivered()})
+            rows = trials.run()
+        self.assertEqual([row["status"] for row in rows], ["error", "skipped", "skipped"])
+        self.assertIn("T/a", trials.aborted)
+
+
 class FixtureTests(unittest.TestCase):
     def test_materialized_projects_hold_no_scorer_only_files(self):
         scorer_only = {"fixture.json", "reference.patch", "naive.patch"}

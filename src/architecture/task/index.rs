@@ -7,18 +7,48 @@ const INDEX_SOURCES:&[&[u8]]=&[include_bytes!("mod.rs"),include_bytes!("evidence
     include_bytes!("index.rs"),include_bytes!("producers.rs"),include_bytes!("../source.rs"),include_bytes!("../retained_source.rs"),include_bytes!("../rust.rs")];
 fn implementation_digest(sources:&[&[u8]]) -> String {identity::bytes_digest(&sources.concat())}
 
-fn cache_key(s: &Snapshot) -> Result<String> {
+thread_local! {
+    /// Merged-bundle digest per (ledger stamp, joined views); long-lived processes only.
+    static BUNDLE_DIGEST: std::cell::RefCell<Option<(String,String)>> = const { std::cell::RefCell::new(None) };
+}
+fn bundle_digest(l: &Ledger, s: &Snapshot, views: &[String]) -> Result<String> {
+    if !crate::architecture::ledger::process_caches() {
+        return Ok(identity::bytes_digest(&serde_json::to_vec(&s.view.bundle)?));
+    }
+    let key=format!("{:?}|{}|{}",l.cache_stamp()?,s.view.id,views.join(","));
+    if let Some(digest)=BUNDLE_DIGEST.with(|d|d.borrow().as_ref().filter(|(k,_)|*k==key).map(|(_,v)|v.clone())) {return Ok(digest);}
+    let digest=identity::bytes_digest(&serde_json::to_vec(&s.view.bundle)?);
+    BUNDLE_DIGEST.with(|d|*d.borrow_mut()=Some((key,digest.clone())));
+    Ok(digest)
+}
+
+fn cache_key(l: &Ledger, s: &Snapshot) -> Result<String> {
+    let views=s.profiles.iter().chain(s.evidence_views.iter()).map(|v|v.id.clone()).collect::<Vec<_>>();
     identity::id("task-index", &json!({"method":METHOD,"view":s.view.id,
-        "profile_views":s.profiles.iter().chain(s.evidence_views.iter()).map(|v|v.id.clone()).collect::<Vec<_>>(),"profile_boundaries":s.profile_boundaries,
-        "producer_links":s.producer_links,"bundle":identity::bytes_digest(&serde_json::to_vec(&s.view.bundle)?),
+        "profile_views":views,"profile_boundaries":s.profile_boundaries,
+        "producer_links":s.producer_links,"bundle":bundle_digest(l,s,&views)?,
         "retraction_epoch":s.view.retraction_watermark,
         "implementation":implementation_digest(INDEX_SOURCES)}))
 }
 
+thread_local! {
+    /// Parsed content-addressed indexes, kept only in long-lived processes.
+    static PARSED: std::cell::RefCell<Vec<Index>> = const { std::cell::RefCell::new(Vec::new()) };
+}
+/// A retained index by ID, or None when it is not retained.
+pub(super) fn retained(l: &Ledger, id: &str) -> Result<Option<Index>> {
+    if !l.has_report(id)? {return Ok(None);}
+    if let Some(ix)=PARSED.with(|p|p.borrow().iter().find(|ix|ix.id==id).cloned()) {return Ok(Some(ix));}
+    let ix: Index = serde_json::from_value(l.report(id)?)?;
+    if crate::architecture::ledger::process_caches() {
+        PARSED.with(|p|{let mut p=p.borrow_mut(); if p.len()>=2 {p.remove(0);} p.push(ix.clone());});
+    }
+    Ok(Some(ix))
+}
+
 pub(super) fn load(l: &Ledger, s: &Snapshot) -> Result<Index> {
-    let id = cache_key(s)?;
-    if let Ok(value) = l.report(&id) {
-        let ix: Index = serde_json::from_value(value)?;
+    let id = cache_key(l,s)?;
+    if let Some(ix) = retained(l,&id)? {
         require(ix.id == id && ix.source_view == s.view.id,"TASK","Mismatched task index")?;
         return Ok(ix);
     }

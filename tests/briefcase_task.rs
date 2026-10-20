@@ -161,7 +161,7 @@ fn neighbor_continuations_pin_the_index_and_label_later_retractions() {
 #[test]
 fn artifact_roles_cover_common_harness_files() {
     for (path,role) in [("AGENTS.md","doc"),("scripts/verify","script"),("install","install"),("docs/adr/0001.md","adr"),
-        ("plans/refactor.md","plan"),("specs/store_test.rs","test"),("fixtures/data.json","fixture"),("Cargo.toml","build"),("src/bin/main.rs","impl"),("crates/demo/src/bin/tool/run.rs","impl"),("bin/maintenance.sh","script"),(".env","config"),("src/generated/a.rs","generated")] {
+        ("plans/refactor.md","plan"),("specs/store_test.rs","test"),("fixtures/data.json","fixture"),("Cargo.toml","build"),("src/bin/main.rs","impl"),("crates/demo/src/bin/tool/run.rs","impl"),("bin/maintenance.sh","script"),(".git/hooks/pre-commit","script"),("infra/relay/src/hooks/HookForwarder.ts","impl"),("web/src/hooks/useThread.tsx","impl"),("bin/cli.js","impl"),("scripts/release.ts","script"),(".env","config"),("src/generated/a.rs","generated")] {
         assert_eq!(source::artifact_role(path),role,"{path}");
     }
 }

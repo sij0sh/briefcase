@@ -5,6 +5,10 @@ impl Ledger {
     /// This does not grant a negative architecture guarantee.
     pub(crate) fn retained(&self, selector: &str) -> Result<View> {
         let id = self.resolve(selector)?;
+        let stamp=self.cache_stamp()?;
+        if let Some((prior,view))=self.retained_cache.borrow().get(&id) {
+            if *prior==stamp {return Ok(view.clone());}
+        }
         let (generation, body, diagnostics): (u64, String, String) = self.db.query_row(
             "SELECT generation,bundle,diagnostics FROM views WHERE id=?", [&id],
             |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))?;
@@ -14,15 +18,26 @@ impl Ledger {
         let eligible = rows(&bundle, "assertions").iter().map(|a| text(a,"id"))
             .filter(|id| !removed.contains(id)).collect();
         let invalidated = rows(&bundle,"assertions").iter().any(|a| removed.contains(&text(a,"id")));
-        Ok(View { id: id.clone(), generation, bundle, diagnostics: identity::parse(diagnostics.as_bytes())?,
+        let view=View { id: id.clone(), generation, bundle, diagnostics: identity::parse(diagnostics.as_bytes())?,
             projections: vec![], eligible, stale: true, invalidated,
-            retraction_watermark: self.retraction_epoch()?, overlay_watermark: 0, scope: self.scope_of(&id)? })
+            retraction_watermark: self.retraction_epoch()?, overlay_watermark: 0, scope: self.scope_of(&id)? };
+        if super::process_caches() {
+            let mut cache=self.retained_cache.borrow_mut();
+            if cache.len()>=4 {cache.clear();}
+            cache.insert(id,(stamp,view.clone()));
+        }
+        Ok(view)
+    }
+    /// Changes outside report storage, including other connections' commits,
+    /// invalidate per-connection view caches.
+    pub(crate) fn cache_stamp(&self)->Result<(u64,u64)> {
+        let data_version: u64 = self.db.query_row("PRAGMA data_version", [], |r|r.get(0))?;
+        Ok((data_version,self.db.total_changes().saturating_sub(self.report_changes.get())))
     }
 
     pub fn load(&self, selector: &str) -> Result<View> {
         let id = self.resolve(selector)?;
-        let data_version: u64 = self.db.query_row("PRAGMA data_version", [], |r|r.get(0))?;
-        let stamp=(data_version,self.db.total_changes().saturating_sub(self.report_changes.get()));
+        let stamp=self.cache_stamp()?;
         if let Some((prior,view))=self.view_cache.borrow().get(&id) {
             if *prior==stamp {return Ok(view.clone());}
         }

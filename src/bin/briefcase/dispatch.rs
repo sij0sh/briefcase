@@ -63,6 +63,7 @@ pub(crate) fn dispatch(command: Command, ledger: &mut Ledger, ctx: &Ctx) -> Resu
         | Command::Mcp { .. }
         | Command::Sync { .. }
         | Command::Call { .. }
+        | Command::Serve { .. }
         | Command::Operations { .. }
         | Command::Install { .. } => unreachable!("handled before opening the ledger"),
         Command::Recover => ledger.recover()?,

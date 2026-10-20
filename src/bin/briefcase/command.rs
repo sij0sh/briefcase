@@ -35,7 +35,7 @@ pub(crate) enum Command {
         view: String,
         #[arg(long,value_parser=clap::value_parser!(u64).range(1..=3))]
         depth: Option<u64>,
-        #[arg(long,default_value_t=32,value_parser=clap::value_parser!(u64).range(1..=1000))]
+        #[arg(long,default_value_t=48,value_parser=clap::value_parser!(u64).range(1..=1000))]
         max_files:u64,
         /// Emit the budgeted manifest used by automatic coding-harness context.
         #[arg(long)]
@@ -464,6 +464,13 @@ pub(crate) enum Command {
         /// Wait up to this many seconds while a writer (such as a sync) is active.
         #[arg(long, default_value_t = 0, value_parser=clap::value_parser!(u64).range(0..=120))]
         wait_ready: u64,
+        /// On pending source capture only, retry against the last published pin.
+        #[arg(long)]
+        fallback_published: bool,
+    },
+    /// Answer newline-delimited read calls on stdin with one process and
+    /// ledger: {"id","operation","arguments"} -> {"id","ok","result"|"error"}.
+    Serve {
         /// On pending source capture only, retry against the last published pin.
         #[arg(long)]
         fallback_published: bool,

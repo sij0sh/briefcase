@@ -128,15 +128,52 @@ pub(super) fn contribute(candidates: &mut Candidates, path: &str, signal: Signal
         }
     }
     candidate.signals = kept;
+    candidate.score = facet_score(&candidate.signals);
+}
+/// Strongest signal per facet plus a bonus per additional facet. Zero-strength
+/// signals remain as explanations but do not count as a facet.
+fn facet_score(signals: &[Signal]) -> u64 {
     let mut strongest = BTreeMap::<&str, u64>::new();
-    for s in &candidate.signals {
+    for s in signals.iter().filter(|s| s.strength > 0) {
         strongest
             .entry(&s.facet)
             .and_modify(|n| *n = (*n).max(s.strength))
             .or_insert(s.strength);
     }
-    candidate.score =
-        strongest.values().sum::<u64>() + strongest.len().saturating_sub(1) as u64 * 8;
+    strongest.values().sum::<u64>() + strongest.len().saturating_sub(1) as u64 * 8
+}
+fn is_import_signal(s: &Signal) -> bool {
+    let basis = s.provenance["basis"].as_str().unwrap_or_default();
+    match s.kind.as_str() {
+        "IMPORTS" | "DEPENDS_ON" => basis == "retained_assertion",
+        "TESTS" => basis.starts_with("test_IMPORTS;") || basis.starts_with("test_DEPENDS_ON;"),
+        _ => false,
+    }
+}
+/// Import structure corroborates task relevance but cannot exceed it: an
+/// import-derived signal is capped at the candidate's own lexical or anchor
+/// strength. Uncapped strength stays in provenance.
+fn corroborate(candidate: &mut Candidate) {
+    let ceiling = candidate
+        .signals
+        .iter()
+        .filter(|s| ["lexical", "anchors"].contains(&s.facet.as_str()))
+        .map(|s| s.strength)
+        .max()
+        .unwrap_or(0);
+    for s in candidate.signals.iter_mut().filter(|s| is_import_signal(s)) {
+        if s.strength > ceiling {
+            if let Some(provenance) = s.provenance.as_object_mut() {
+                provenance.insert("uncapped_strength".into(), json!(s.strength));
+                provenance.insert("cap".into(), json!("task_relevance_ceiling"));
+            }
+            s.strength = ceiling;
+        }
+    }
+    candidate
+        .signals
+        .sort_by_key(|s| (std::cmp::Reverse(s.strength), s.facet.clone(), s.via_link.clone()));
+    candidate.score = facet_score(&candidate.signals);
 }
 fn signal(
     facet: &str,
@@ -1014,6 +1051,7 @@ pub(super) fn rank(ix: &Index, r: &Request, candidates: Candidates) -> Vec<Candi
         .filter(|c| ix.files.contains_key(&c.path))
         .collect();
     for candidate in &mut ranked {
+        corroborate(candidate);
         candidate.role = Some(ix.files[&candidate.path].role.clone());
         if r.duty
             .policy()
@@ -1558,6 +1596,40 @@ mod tests {
         assert!(ranked[0].selected);
         assert!(!ranked[1].selected);
         assert!(ranked[0].score > ranked[1].score);
+    }
+    #[test]
+    fn import_signals_corroborate_but_cannot_exceed_task_relevance() {
+        let mut candidates = Candidates::new();
+        let import = |strength| {
+            signal(
+                "dependency",
+                "IMPORTS",
+                strength,
+                "retained_relationship",
+                1,
+                Some("link:hub"),
+                json!({"basis":"retained_assertion"}),
+            )
+        };
+        // a.rs: only reached through an import hub; b.rs: weakly matched text.
+        contribute(&mut candidates, "src/a.rs", import(80));
+        contribute(&mut candidates, "src/b.rs", import(80));
+        contribute(
+            &mut candidates,
+            "src/b.rs",
+            signal("lexical", "retained_text", 30, "candidate", 0, None, json!({})),
+        );
+        let request = super::super::request::parse(&json!({"task":"repair anchor"}))
+            .unwrap()
+            .0;
+        let ranked = rank(&ix(), &request, candidates);
+        let a = ranked.iter().find(|c| c.path == "src/a.rs").unwrap();
+        let b = ranked.iter().find(|c| c.path == "src/b.rs").unwrap();
+        assert!(!a.selected, "import-only reach is not task relevance");
+        assert_eq!(b.score - a.score, 30 + 30 + 8);
+        let capped = b.signals.iter().find(|s| s.kind == "IMPORTS").unwrap();
+        assert_eq!(capped.strength, 30);
+        assert_eq!(capped.provenance["uncapped_strength"], 80);
     }
     fn variant_ix() -> (Index, Candidates) {
         let mut ix = ix();

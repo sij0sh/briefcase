@@ -91,6 +91,34 @@ fn analysis(
         "interpretation":"Complete describes the recorded producer/pass scope, not universal semantic coverage or observed behavior."})
 }
 
+type Family = (&'static str, &'static str, &'static [&'static str], Option<&'static str>);
+const FAMILIES: &[Family] = &[
+    ("dependencies", "source", &["DEPENDS_ON"], Some("module-dependency-overlay-v1")),
+    ("static_calls", "source", &["CALLS_STATIC"], None),
+    ("data", "source", &["READS", "WRITES"], None),
+    ("deployment", "deployment", &["BUILDS", "DEPLOYS_AS", "DECLARES_CONNECTION"], None),
+    ("observed_runtime", "runtime", &["CALLS_OBSERVED", "CONNECTION_OBSERVED"], None),
+];
+
+/// Bundle-derived counts and analysis states for one pinned view. Views are
+/// immutable, so the result is memoized under every other input that can
+/// change it (overlays, retractions, projection rows); only a miss parses
+/// and verifies the bundle.
+fn view_inventory(l: &Ledger, pin: &str, scope: &str) -> Result<Value> {
+    let key = l.view_summary_key(pin, true)?;
+    if let Some(memo) = l.view_summary(pin, "inventory", &key)? {
+        return Ok(memo);
+    }
+    let view = l.load(pin)?;
+    let analyses: BTreeMap<_, _> = FAMILIES.iter().filter(|f| f.1 == scope).map(|&(name, _, predicates, pass)| {
+        (name, analysis(&view.bundle, predicates, pass, view.invalidated,
+            view.diagnostics["requested_analyses"][name].as_bool()))
+    }).collect();
+    let memo = json!({"view_id":view.id,"counts":counts(&view),"analysis":analyses});
+    l.record_view_summary(pin, "inventory", &key, &memo);
+    Ok(memo)
+}
+
 pub(super) fn summary(l: &Ledger) -> Result<Value> {
     let status = l.status()?;
     let source_sync=l.sync_state()?.map(|(key,view,profile)|json!({"input_key":key,"view_id":view,"profile":profile}));
@@ -104,8 +132,8 @@ pub(super) fn summary(l: &Ledger) -> Result<Value> {
             publications.first().cloned()
         };
         if let Some(pin) = pin {
-            let view = l.load(&pin)?;
-            let mut inventory = counts(&view);
+            let view = view_inventory(l, &pin, scope)?;
+            let mut inventory = view["counts"].clone();
             inventory["published_views"] = json!(publications.len());
             if let Some(scan) = rows(&status, "scans")
                 .iter()
@@ -134,43 +162,15 @@ pub(super) fn summary(l: &Ledger) -> Result<Value> {
             );
         }
     }
-    let families = [
-        (
-            "dependencies",
-            "source",
-            &["DEPENDS_ON"][..],
-            Some("module-dependency-overlay-v1"),
-        ),
-        ("static_calls", "source", &["CALLS_STATIC"][..], None),
-        ("data", "source", &["READS", "WRITES"][..], None),
-        (
-            "deployment",
-            "deployment",
-            &["BUILDS", "DEPLOYS_AS", "DECLARES_CONNECTION"][..],
-            None,
-        ),
-        (
-            "observed_runtime",
-            "runtime",
-            &["CALLS_OBSERVED", "CONNECTION_OBSERVED"][..],
-            None,
-        ),
-    ];
     let mut analyses = BTreeMap::new();
-    for (name, scope, predicates, pass) in families {
+    for &(name, scope, _, _) in FAMILIES {
         let mut entry = if let Some(view) = views.get(scope) {
-            analysis(
-                &view.bundle,
-                predicates,
-                pass,
-                view.invalidated,
-                view.diagnostics["requested_analyses"][name].as_bool(),
-            )
+            view["analysis"][name].clone()
         } else {
             json!({"state":scopes[scope]["state"],"retained_fact_count":null})
         };
         entry["scope"] = json!(scope);
-        entry["view_id"] = views.get(scope).map(|v| json!(v.id)).unwrap_or(Value::Null);
+        entry["view_id"] = views.get(scope).map(|v| v["view_id"].clone()).unwrap_or(Value::Null);
         analyses.insert(name.to_owned(), entry);
     }
     let mut inventory = scopes.get("source").cloned().unwrap_or(Value::Null);
@@ -213,7 +213,7 @@ pub(super) fn summary(l: &Ledger) -> Result<Value> {
     inventory["session_publications"] = json!(publications.len());
     inventory["session_count_basis"]=json!("Distinct retained repository, harness name and external session ID. Retention/profile interpretations are separate publications.");
     inventory["session_publications_without_external_id"] = json!(unidentified);
-    let pins: Vec<_> = views.values().map(|v| v.id.clone()).collect();
+    let pins: Vec<_> = views.values().map(|v| v["view_id"].clone()).collect();
     Ok(
         json!({"operation":"status","summary":true,"repository":status["repository"],"current_view":status["current_view"],
         "pending_or_interrupted":status["pending_or_interrupted"],"ledger_watermark":status["ledger_watermark"],"source_sync":source_sync,

@@ -104,16 +104,37 @@ pub fn open_context(db:&std::path::Path,root:&std::path::Path) -> Result<Ledger>
 }
 /// Path-based gateway used by CLI adapters so a fresh repository is useful.
 pub fn call_path(db:&std::path::Path,root:Option<&std::path::Path>,name:&str,args:&Value,fallback:bool)->Result<Value> {
-    let operation=find(name).ok_or("UNKNOWN_OPERATION: Unknown architecture operation")?;
-    let normalized=normalize(name,&operation,args);
-    validate(&operation.schema,&normalized)?;
-    if operation.kind==Kind::Describe {return discover(&normalized);}
-    if matches!(operation.kind,Kind::Brief|Kind::AgentContext) {super::task::validate_request(&normalized)?;}
-    let l=match (operation.kind,root) {
-        (Kind::Brief|Kind::AgentContext|Kind::Search|Kind::Occurrences|Kind::Neighbors,Some(root))=>open_context(db,root)?,
-        _=>Ledger::open_existing(db)?,
-    };
-    call_validated(&l,&operation,&normalized,root,fallback,&response::serialized_bytes)
+    Gateway::new(db,root).call(name,args,fallback)
+}
+
+/// One ledger connection reused across path-based calls. Per-connection view
+/// caches are stamped by SQLite change counters, so other writers' commits
+/// are observed on the next call.
+pub struct Gateway {
+    db: std::path::PathBuf,
+    root: Option<std::path::PathBuf>,
+    ledger: Option<Ledger>,
+}
+impl Gateway {
+    pub fn new(db:&std::path::Path,root:Option<&std::path::Path>)->Self {
+        Self {db:db.into(),root:root.map(Into::into),ledger:None}
+    }
+    pub fn call(&mut self,name:&str,args:&Value,fallback:bool)->Result<Value> {
+        let operation=find(name).ok_or("UNKNOWN_OPERATION: Unknown architecture operation")?;
+        let normalized=normalize(name,&operation,args);
+        validate(&operation.schema,&normalized)?;
+        if operation.kind==Kind::Describe {return discover(&normalized);}
+        if matches!(operation.kind,Kind::Brief|Kind::AgentContext) {super::task::validate_request(&normalized)?;}
+        let root=self.root.as_deref();
+        let context=matches!(operation.kind,Kind::Brief|Kind::AgentContext|Kind::Search|Kind::Occurrences|Kind::Neighbors);
+        match (context,root) {
+            (true,Some(root)) if self.ledger.as_ref().is_none_or(|l|l.resolve("latest").is_err()) =>
+                self.ledger=Some(open_context(&self.db,root)?),
+            _ if self.ledger.is_none() => self.ledger=Some(Ledger::open_existing(&self.db)?),
+            _ => {}
+        }
+        call_validated(self.ledger.as_ref().unwrap(),&operation,&normalized,root,fallback,&response::serialized_bytes)
+    }
 }
 
 fn call_validated(

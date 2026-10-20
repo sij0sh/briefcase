@@ -45,7 +45,7 @@ fn is_default_selection_variant(value: &str) -> bool {
     value == "baseline"
 }
 fn default_max_files() -> usize {
-    32
+    48
 }
 fn is_default_max_files(value: &usize) -> bool {
     *value == default_max_files()

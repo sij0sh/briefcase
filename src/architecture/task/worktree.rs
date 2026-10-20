@@ -4,7 +4,7 @@ use super::*;
 use std::path::Path;
 
 pub fn worktree(l:&Ledger,a:&Value,root:&Path)->Result<Value> {
-    let case=if let Some(id)=a["case_id"].as_str() {Some(serde_json::to_value(case::load(l,id)?)?)} else {None};
+    let case=if let Some(id)=a["case_id"].as_str() {Some(case::load_doc(l,id)?)} else {None};
     let selector=case.as_ref().and_then(|c|c["view_id"].as_str()).unwrap_or_else(||a["view"].as_str().unwrap_or("latest"));
     require(a["view"].as_str().is_none_or(|v|v=="latest"||v==selector),"WORKTREE","view differs from the case source pin")?;
     let view=l.retained(selector)?;

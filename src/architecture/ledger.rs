@@ -174,11 +174,19 @@ fn ownership(db: &Connection) -> Result<Ownership> {
     }
     foreign("unrecognized schema")
 }
+/// Long-lived processes (serve mode) keep extra parsed copies of immutable
+/// reports and retained views. One-shot commands skip the copy cost.
+static PROCESS_CACHES: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+pub fn enable_process_caches() { PROCESS_CACHES.store(true, std::sync::atomic::Ordering::Relaxed); }
+pub(crate) fn process_caches() -> bool { PROCESS_CACHES.load(std::sync::atomic::Ordering::Relaxed) }
+
 pub struct Ledger {
     db: Connection,
     /// Verified views reused within this connection. SQLite changes outside
     /// report storage invalidate the cache, including direct integrity tests.
     view_cache: RefCell<BTreeMap<String, ((u64,u64), View)>>,
+    /// Unverified retained views, invalidated by the same stamp.
+    retained_cache: RefCell<BTreeMap<String, ((u64,u64), View)>>,
     report_changes: Cell<u64>,
 }
 /// Retained Git commit metadata for evolution metrics: `files_total` is the

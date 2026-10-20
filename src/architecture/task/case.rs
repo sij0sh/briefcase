@@ -255,7 +255,45 @@ pub(super) fn retain(l: &Ledger, mut case: Case) -> Result<Case> {
     let doc = serde_json::to_value(&case)?;
     crate::architecture::contracts::schema(&doc, "task-case", None)?;
     l.save_report(&case.id, &doc, &[])?;
+    // The stored body passed full validation; record it so reads can skip it.
+    // A failed record only costs a later full validation.
+    if let Ok(body) = l.report_body(&case.id) {
+        if identity::parse(body.as_bytes()).ok().as_ref() == Some(&doc) {
+            let _ = l.record_validation(&identity::bytes_digest(body.as_bytes()), &validator());
+        }
+    }
     Ok(case)
+}
+/// Identity of the case validation logic: contract schema, case definitions,
+/// and the contract validator. Any change revalidates retained cases.
+fn validator() -> String {
+    let parts: &[&[u8]] = &[
+        include_bytes!("case.rs"), include_bytes!("mod.rs"), include_bytes!("completeness.rs"),
+        include_bytes!("request.rs"), include_bytes!("trace.rs"), include_bytes!("retrieval.rs"),
+        include_bytes!("duty.rs"), include_bytes!("../../../contracts/v1/task-case.schema.json"),
+    ];
+    let contract = crate::architecture::contracts::validator_version().unwrap_or_default();
+    format!("task-case:{}:{contract}", identity::bytes_digest(&parts.concat()))
+}
+/// The retained case document. Bytes that already passed full validation
+/// under this validator are returned as stored; anything else is fully
+/// validated by `load` and, when it serializes back to the stored document,
+/// recorded for later reads.
+pub(crate) fn load_doc(l: &Ledger, id: &str) -> Result<Value> {
+    require(id.starts_with("task-case:"), "TASK", "A retained task-case ID is required")?;
+    let body = l.report_body(id)?;
+    let digest = identity::bytes_digest(body.as_bytes());
+    let validator = validator();
+    if l.validation_cached(&digest, &validator)? {
+        let doc = identity::parse(body.as_bytes())?;
+        require(doc["id"] == id, "TASK", "Retained case identity mismatch")?;
+        return Ok(doc);
+    }
+    let doc = serde_json::to_value(load(l, id)?)?;
+    if identity::parse(body.as_bytes()).ok().as_ref() == Some(&doc) {
+        let _ = l.record_validation(&digest, &validator);
+    }
+    Ok(doc)
 }
 pub(crate) fn load(l: &Ledger, id: &str) -> Result<Case> {
     require(

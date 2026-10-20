@@ -50,7 +50,10 @@ pub fn artifact_role(path: &str) -> &'static str {
         || super::capture::is_dockerfile(path) || name.ends_with(".csproj") { "build" }
     // Cargo binary targets are application source, including nested workspaces.
     else if name.ends_with(".rs") && dirs.windows(2).any(|p|p == ["src", "bin"]) { "impl" }
-    else if dirs.iter().any(|d| ["scripts", "script", "bin", "hooks"].contains(d))
+    // Source code under `bin`/`hooks` (CLI entrypoints, React or relay hooks)
+    // is application code; extensionless git hooks and shell files are scripts.
+    else if dirs.iter().any(|d| ["scripts", "script"].contains(d))
+        || (dirs.iter().any(|d| ["bin", "hooks"].contains(d)) && code_extension(path).is_none())
         || ["sh", "bash", "ps1", "bat", "cmd"].contains(&name.rsplit('.').next().unwrap_or("")) { "script" }
     else if dirs.iter().any(|d| ["docs", "doc", ".agents", ".codex"].contains(d))
         || ["md", "rst", "adoc"].contains(&name.rsplit('.').next().unwrap_or(""))

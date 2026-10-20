@@ -66,32 +66,39 @@ pub(super) fn inventory_summary(inventory: &Value) -> Value {
 /// Independent availability layers. A missing semantic or runtime layer never
 /// suppresses retained text; availability is not a freshness guarantee.
 pub fn readiness(l: &Ledger) -> Result<Value> {
-    let source = l
-        .resolve("latest")
-        .ok()
-        .map(|id| l.retained(&id))
-        .transpose()?;
-    let source_state=source.as_ref().map(|v|json!({"state":"retained","view_id":v.id,
-        "capture":v.diagnostics["capture"],"file_count":rows(&v.bundle,"snapshots").iter().map(|s|rows(s,"files").len()).sum::<usize>()}))
-        .unwrap_or(json!({"state":"unavailable"}));
-    let semantic = |predicate: &str| {
-        let runs: Vec<_> = source
-            .as_ref()
-            .into_iter()
-            .flat_map(|v| rows(&v.bundle, "runs"))
-            .filter(|r| {
-                rows(&r["coverage"], "guarantees")
-                    .iter()
-                    .any(|g| g["predicate"] == predicate)
-            })
-            .collect();
-        json!({"state":if runs.is_empty() {"not_run"} else if runs.iter().all(|r|r["coverage"]["resolution_complete"] == true) {"complete_for_producer_scope"} else {"partial"},
-            "runs":runs.iter().map(|r|json!({"id":r["id"],"coverage":r["coverage"]})).collect::<Vec<_>>()})
+    // Source layers derive only from the immutable view and its overlays, so
+    // they are memoized per view instead of parsing the bundle every call.
+    let source = match l.resolve("latest").ok() {
+        Some(id) => {
+            let key = l.view_summary_key(&id, false)?;
+            match l.view_summary(&id, "readiness", &key)? {
+                Some(memo) => Some(memo),
+                None => {
+                    let v = l.retained(&id)?;
+                    let semantic = |predicate: &str| {
+                        let runs: Vec<_> = rows(&v.bundle, "runs").iter().filter(|r| {
+                            rows(&r["coverage"], "guarantees").iter().any(|g| g["predicate"] == predicate)
+                        }).collect();
+                        json!({"state":if runs.is_empty() {"not_run"} else if runs.iter().all(|r|r["coverage"]["resolution_complete"] == true) {"complete_for_producer_scope"} else {"partial"},
+                            "runs":runs.iter().map(|r|json!({"id":r["id"],"coverage":r["coverage"]})).collect::<Vec<_>>()})
+                    };
+                    let memo = json!({"source_text":{"state":"retained","view_id":v.id,"capture":v.diagnostics["capture"],
+                        "file_count":rows(&v.bundle,"snapshots").iter().map(|s|rows(s,"files").len()).sum::<usize>()},
+                        "parsed_source":semantic("DECLARES"),"static_analysis":semantic("CALLS_STATIC")});
+                    l.record_view_summary(&id, "readiness", &key, &memo);
+                    Some(memo)
+                }
+            }
+        }
+        None => None,
     };
+    let not_run = json!({"state":"not_run","runs":[]});
+    let layer = |name: &str| source.as_ref().map(|s| s[name].clone()).unwrap_or_else(|| not_run.clone());
+    let source_state = source.as_ref().map(|s| s["source_text"].clone()).unwrap_or(json!({"state":"unavailable"}));
     let history = l.history_tip()?;
     let sessions = l.session_publications()?;
     Ok(
-        json!({"source_text":source_state,"parsed_source":semantic("DECLARES"),"static_analysis":semantic("CALLS_STATIC"),
+        json!({"source_text":source_state,"parsed_source":layer("parsed_source"),"static_analysis":layer("static_analysis"),
         "history":{"state":if history.is_some() {"retained"} else {"not_run"},"tip":history.map(|h|h.0)},
         "sessions":{"state":if sessions.is_empty() {"not_imported"} else {"retained"},"publications":sessions.len()},
         "deployment":{"publications":l.scoped_views("deployment")?.len()},"runtime":{"publications":l.scoped_views("runtime")?.len()},
