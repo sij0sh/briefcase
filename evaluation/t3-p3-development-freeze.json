@@ -1,0 +1,31 @@
+{
+  "date": "2026-10-20",
+  "source_root": "/home/joshsimon/Projects/t3code-main",
+  "status": "development pilot; authored after round-4 results; not held-out; no promotion",
+  "scenarios": 3,
+  "required_paths": 11,
+  "claims": 9,
+  "claim_kinds": {
+    "condition": 3,
+    "consumer": 3,
+    "counterevidence": 3
+  },
+  "alternate_groups": 1,
+  "counterevidence_obligations": 15,
+  "counterevidence_passages": 12,
+  "scenario_sha256": "b92c70a75406e406b4203f8b29b4a92d35d5d1731ef6ca9e2c9e75b318a2161a",
+  "oracle_sha256": "a2b395c1f4a980055e307225ec55b26d262d4c1b6938f993f806689b37fee68b",
+  "source_files": {
+    "packages/client-runtime/src/textPaste.ts": "089ebfc0d5870274f6bb99b5c723bca899a2e5ddd06139e76df8ee5aed918b07",
+    "packages/client-runtime/src/textPaste.test.ts": "bc25f04a652e1eac6fa68965c20b13f5a87790b97dac23e09e95febbc3ff668f",
+    "apps/web/src/components/chat/ChatComposer.tsx": "f8704b982459abf3f79ae83f739709754618102e86fc7e5fb18f860a134f57a0",
+    "apps/mobile/src/state/use-thread-composer-state.ts": "f5c999cb5f5dc351d1c5853bf35c3346a96bd9e4c861cb6634b3720f9b4b5ba2",
+    "apps/mobile/src/native/T3ComposerEditor.native.tsx": "01ead7f523255148fda78b3d2029aa0064a30ac66fb17642e828e26b61053ec3",
+    "packages/client-runtime/src/mediaReference.ts": "980561aa78d88e9e91f6cf9775ed60694cd168e3da3f3fcdabb76a5a4cac14ad",
+    "packages/client-runtime/src/mediaReference.test.ts": "2c253126566cab9055ae6ff72bfb68dcaab17360e1ea6b22eead7a92071dc394",
+    "packages/client-runtime/src/mediaSource.ts": "f9f7499c611395e030783f1668b7569fdf7b7784aa643cf4e63913676883e63b",
+    "apps/mobile/src/features/devices/shakeDetector.ts": "d7b818271c67251243ddb3e1eda629adf33ab20b2c4c980ab6ed63cbe439819c",
+    "apps/mobile/src/features/devices/shakeDetector.test.ts": "9710d3680b9bc405717b485de00dc53c24ec68bb3da22a3e5dbcb470a8747d7c",
+    "apps/mobile/src/features/devices/DevicePreviewRouteScreen.tsx": "f82ebdbdabe551b41a06d8f5dbf4c8d9301de2c6f1b8bd43a5ecc24c4d74e4a4"
+  }
+}

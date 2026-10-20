@@ -23,6 +23,24 @@ def state_conclusions(state):
     return rows
 
 
+def claim_groups(claim):
+    """The primary all-of evidence group and any alternate witness groups."""
+    alternatives = claim.get("alternatives", [])
+    if not isinstance(alternatives, list):
+        raise ValueError("Claim alternatives must be a list")
+    groups = [claim, *alternatives]
+    if any(not isinstance(group, dict) for group in groups):
+        raise ValueError("A claim group must be an object")
+    return groups
+
+
+def obligation_list(group, name):
+    values = group.get(name, [])
+    if not isinstance(values, list) or any(not isinstance(value, str) for value in values):
+        raise ValueError(f"Claim {name} must be a list of evidence IDs")
+    return values
+
+
 def validate_oracles(scenarios):
     ids = [s["id"] for s in scenarios]
     if len(set(ids)) != len(ids):
@@ -39,12 +57,34 @@ def validate_oracles(scenarios):
                              and 0 <= span["start"] < span["end"]):
                 raise ValueError("Invalid witness byte range")
         for claim in groups["claims"]:
-            for alternative in [claim, *claim.get("alternatives", [])]:
-                if not (alternative.get("passages") or alternative.get("relationships")):
+            if "kind" in claim and (not isinstance(claim["kind"], str) or not claim["kind"].strip()):
+                raise ValueError("A claim kind must be a non-empty string")
+            for group in claim_groups(claim):
+                if not (group.get("passages") or group.get("relationships")):
                     raise ValueError("A claim needs at least one evidence obligation")
                 for name in ("passages", "relationships"):
-                    if set(alternative.get(name, [])) - {r["id"] for r in groups[name]}:
+                    if set(obligation_list(group, name)) - {r["id"] for r in groups[name]}:
                         raise ValueError("Claim names an unknown evidence obligation")
+                counterevidence = obligation_list(group, "counterevidence")
+                if set(counterevidence) - {r["id"] for r in groups["passages"]}:
+                    raise ValueError("Claim names an unknown counterevidence passage")
+                if set(counterevidence) & set(obligation_list(group, "passages")):
+                    raise ValueError("Counterevidence cannot also be a positive passage")
+
+
+def oracle_shape(oracle):
+    claims = oracle.get("claims", [])
+    counterevidence = {passage for claim in claims for group in claim_groups(claim)
+                       for passage in obligation_list(group, "counterevidence")}
+    kinds = {}
+    for claim in claims:
+        kind = claim.get("kind") or "unspecified"
+        kinds[kind] = kinds.get(kind, 0) + 1
+    return {"passages_required": len(oracle.get("passages", [])),
+            "relationships_required": len(oracle.get("relationships", [])),
+            "claims_required": len(claims),
+            "counterevidence_required": len(counterevidence),
+            "claim_kinds_required": kinds}
 
 
 def read_evidence(checkpoint):
@@ -134,9 +174,20 @@ def score(oracle, passages, ranges, identities, responses, conclusions=None):
                     for k in ("basis", "class", "authority"))]
     claims = {c["id"]: c for c in oracle.get("claims", [])}
     def met(spec):
-        return all(passage_hits[p] for p in spec.get("passages", [])) and all(
-            relation_hits[r] for r in spec.get("relationships", []))
-    supported_claims = [c["id"] for c in claims.values() if any(met(a) for a in [c, *c.get("alternatives", [])])]
+        return (all(passage_hits.get(p, False) for p in spec.get("passages", []))
+                and all(relation_hits.get(r, []) for r in spec.get("relationships", []))
+                and all(passage_hits.get(p, False) for p in spec.get("counterevidence", [])))
+    supported_claims = [c["id"] for c in claims.values()
+                        if any(met(a) for a in claim_groups(c))]
+    counter_ids = sorted({p for c in claims.values() for a in claim_groups(c)
+                          for p in a.get("counterevidence", [])})
+    counter_hits = {p: passage_hits.get(p, False) for p in counter_ids}
+    kind_counts = {}
+    for claim in claims.values():
+        kind = claim.get("kind") or "unspecified"
+        counts = kind_counts.setdefault(kind, {"required": 0, "supportable": 0})
+        counts["required"] += 1
+        counts["supportable"] += int(claim["id"] in supported_claims)
     assessed = []
     submitted_ids = [c.get("claim_id") for c in conclusions or []]
     if len(set(submitted_ids)) != len(submitted_ids):
@@ -159,18 +210,23 @@ def score(oracle, passages, ranges, identities, responses, conclusions=None):
                             for p in ranges.get(witness["path"], []))):
                     cited.add(witness["id"])
         ids = set(conclusion.get("relationship_ids", []))
-        support = eligible and any(met(a) and set(a.get("passages", [])) <= cited
-            and all(ids & set(relation_hits[r]) for r in a.get("relationships", []))
-            for a in [claim, *claim.get("alternatives", [])])
+        support = eligible and any(
+            met(a) and set(a.get("passages", [])) <= cited and set(a.get("counterevidence", [])) <= cited
+            and all(ids & set(relation_hits.get(r, [])) for r in a.get("relationships", []))
+            for a in claim_groups(claim))
         assessed.append({"claim_id": conclusion.get("claim_id"), "supported": bool(support)})
     return {"passages_inspected": sum(passage_hits.values()), "passages_required": len(passage_hits),
             "passage_recall": sum(passage_hits.values()) / len(passage_hits) if passage_hits else None,
             "passage_hits": passage_hits, "relationships_delivered": sum(bool(x) for x in relation_hits.values()),
             "relationships_required": len(relation_hits),
             "relationship_recall": sum(bool(x) for x in relation_hits.values()) / len(relation_hits) if relation_hits else None,
-            "relationship_hits": relation_hits, "claims_supportable": len(supported_claims),
+            "relationship_hits": relation_hits, "counterevidence_inspected": sum(counter_hits.values()),
+            "counterevidence_required": len(counter_hits),
+            "counterevidence_recall": (sum(counter_hits.values()) / len(counter_hits)) if counter_hits else None,
+            "counterevidence_hits": counter_hits, "claims_supportable": len(supported_claims),
             "claims_required": len(claims), "supportable_claim_ids": supported_claims,
             "claim_supportability": len(supported_claims) / len(claims) if claims else None,
+            "claim_kinds": kind_counts,
             "conclusions": {"state": "scored" if conclusions is not None else "not_submitted",
                 "submitted": len(assessed), "supported": sum(r["supported"] for r in assessed),
                 "unsupported": sum(not r["supported"] for r in assessed),
@@ -181,15 +237,26 @@ def score(oracle, passages, ranges, identities, responses, conclusions=None):
 
 def aggregate(rows):
     totals = {name: sum(r.get(name, 0) for r in rows) for name in
-        ("passages_inspected", "passages_required", "relationships_delivered", "relationships_required", "claims_supportable", "claims_required")}
+        ("passages_inspected", "passages_required", "relationships_delivered", "relationships_required",
+         "counterevidence_inspected", "counterevidence_required", "claims_supportable", "claims_required")}
     errors = sum(bool(r.get("status") == "error" or r.get("timing_error")) for r in rows)
     for prefix, hits, total, ratio in (("passage", "passages_inspected", "passages_required", "passage_recall"),
         ("relationship", "relationships_delivered", "relationships_required", "relationship_recall"),
+        ("counterevidence", "counterevidence_inspected", "counterevidence_required", "counterevidence_recall"),
         ("claim", "claims_supportable", "claims_required", "claim_supportability")):
         totals[f"micro_{prefix}_coverage_lower_bound"] = totals[hits] / totals[total] if totals[total] else None
         totals[f"micro_{prefix}_coverage"] = totals[f"micro_{prefix}_coverage_lower_bound"] if not errors else None
         values = [r[ratio] for r in rows if r.get(ratio) is not None]
         totals[f"macro_{prefix}_coverage"] = sum(values) / len(values) if values and not errors else None
+    kinds = {}
+    for row in rows:
+        for kind, counts in (row.get("claim_kinds") or {}).items():
+            entry = kinds.setdefault(kind, {"required": 0, "supportable": 0})
+            entry["required"] += counts.get("required", 0)
+            entry["supportable"] += counts.get("supportable", 0)
+    for entry in kinds.values():
+        entry["coverage"] = entry["supportable"] / entry["required"] if entry["required"] and not errors else None
+    totals["claim_kinds"] = kinds
     totals["conclusions"] = {field: sum(r.get("conclusions", {}).get(field, 0) for r in rows)
                              for field in ("submitted", "supported", "unsupported")}
     conclusions = totals["conclusions"]
@@ -204,10 +271,12 @@ def aggregate(rows):
     totals["coverage_per_effort"] = {
         "passage_hits_per_call": unit(totals["passages_inspected"], effort["calls"]),
         "relationship_hits_per_call": unit(totals["relationships_delivered"], effort["calls"]),
+        "counterevidence_hits_per_call": unit(totals["counterevidence_inspected"], effort["calls"]),
         "claim_hits_per_call": unit(totals["claims_supportable"], effort["calls"]),
         "supported_conclusions_per_call": unit(conclusions["supported"], effort["calls"]),
         "passage_hits_per_mib": unit(totals["passages_inspected"], effort["bytes"] / 1048576),
         "relationship_hits_per_mib": unit(totals["relationships_delivered"], effort["bytes"] / 1048576),
+        "counterevidence_hits_per_mib": unit(totals["counterevidence_inspected"], effort["bytes"] / 1048576),
         "claim_hits_per_mib": unit(totals["claims_supportable"], effort["bytes"] / 1048576),
         "supported_conclusions_per_mib": unit(conclusions["supported"], effort["bytes"] / 1048576),
         "interpretation": "Coverage divided by the arm's actual calls or response bytes. Null for any incomplete arm; effort is not a quality score."}
@@ -228,8 +297,10 @@ def evaluate(results_path, oracles, submissions=None):
             oracle = labels[row["id"]]
             effort = {field: row.get(field) for field in EFFORT_FIELDS}
             if row.get("status") == "error":
-                scored.append({"id": row["id"], "status": "error", "passages_required": len(oracle.get("passages", [])),
-                    "relationships_required": len(oracle.get("relationships", [])), "claims_required": len(oracle.get("claims", [])),
+                shape = oracle_shape(oracle)
+                kinds = shape.pop("claim_kinds_required")
+                scored.append({"id": row["id"], "status": "error", **shape,
+                    "claim_kinds": {kind: {"required": count, "supportable": 0} for kind, count in kinds.items()},
                     "effort": effort})
                 continue
             state, passages, ranges, identities, responses = read_evidence(row["checkpoint"])

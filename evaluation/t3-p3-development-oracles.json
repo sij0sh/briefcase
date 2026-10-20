@@ -1,0 +1,563 @@
+{
+  "method": "priority3-obligation-oracles-v1",
+  "provenance": "Development pilot authored after the round-4 results were known. Claims carry condition, consumer and counterevidence obligations. Counterevidence is evidence that limits the claim and must be inspected and cited; it is not an automatic refutation. This set is not held-out and must not be used for promotion.",
+  "scenarios": [
+    {
+      "id": "T3-P3-DEV1-pasted-text-fold",
+      "passages": [
+        {
+          "id": "p1",
+          "path": "packages/client-runtime/src/textPaste.ts",
+          "pattern": "PASTED_TEXT_ATTACHMENT_THRESHOLD_BYTES = 32 \\* 1024",
+          "source_sha256": "089ebfc0d5870274f6bb99b5c723bca899a2e5ddd06139e76df8ee5aed918b07",
+          "byte_range": {
+            "start": 0,
+            "end": 64
+          }
+        },
+        {
+          "id": "p2",
+          "path": "packages/client-runtime/src/textPaste.ts",
+          "pattern": "bypassAutoAttachment \\|\\| !input\\.canAttach",
+          "source_sha256": "089ebfc0d5870274f6bb99b5c723bca899a2e5ddd06139e76df8ee5aed918b07",
+          "byte_range": {
+            "start": 959,
+            "end": 1039
+          }
+        },
+        {
+          "id": "p3",
+          "path": "packages/client-runtime/src/textPaste.ts",
+          "pattern": "textEncoder\\.encode\\(input\\.text\\)\\.byteLength",
+          "source_sha256": "089ebfc0d5870274f6bb99b5c723bca899a2e5ddd06139e76df8ee5aed918b07",
+          "byte_range": {
+            "start": 1065,
+            "end": 1294
+          }
+        },
+        {
+          "id": "p4",
+          "path": "packages/client-runtime/src/textPaste.ts",
+          "pattern": "threshold is byte-based",
+          "source_sha256": "089ebfc0d5870274f6bb99b5c723bca899a2e5ddd06139e76df8ee5aed918b07",
+          "byte_range": {
+            "start": 520,
+            "end": 734
+          }
+        },
+        {
+          "id": "p5",
+          "path": "packages/client-runtime/src/textPaste.test.ts",
+          "pattern": "measures UTF-8 bytes instead of UTF-16 characters",
+          "source_sha256": "bc25f04a652e1eac6fa68965c20b13f5a87790b97dac23e09e95febbc3ff668f",
+          "byte_range": {
+            "start": 727,
+            "end": 1033
+          }
+        },
+        {
+          "id": "p6",
+          "path": "packages/client-runtime/src/textPaste.test.ts",
+          "pattern": "keeps text inline for the explicit bypass",
+          "source_sha256": "bc25f04a652e1eac6fa68965c20b13f5a87790b97dac23e09e95febbc3ff668f",
+          "byte_range": {
+            "start": 1035,
+            "end": 1393
+          }
+        },
+        {
+          "id": "p7",
+          "path": "apps/web/src/components/chat/ChatComposer.tsx",
+          "pattern": "isLiteralPendingAnswer\\) return false",
+          "source_sha256": "f8704b982459abf3f79ae83f739709754618102e86fc7e5fb18f860a134f57a0",
+          "byte_range": {
+            "start": 236400,
+            "end": 236525
+          }
+        },
+        {
+          "id": "p8",
+          "path": "apps/web/src/components/chat/ChatComposer.tsx",
+          "pattern": "pastedTextDisposition\\(\\{",
+          "source_sha256": "f8704b982459abf3f79ae83f739709754618102e86fc7e5fb18f860a134f57a0",
+          "byte_range": {
+            "start": 237192,
+            "end": 237382
+          }
+        },
+        {
+          "id": "p9",
+          "path": "apps/web/src/components/chat/ChatComposer.tsx",
+          "pattern": "Pasted text is too large for this message",
+          "source_sha256": "f8704b982459abf3f79ae83f739709754618102e86fc7e5fb18f860a134f57a0",
+          "byte_range": {
+            "start": 237592,
+            "end": 237977
+          }
+        },
+        {
+          "id": "p10",
+          "path": "apps/mobile/src/state/use-thread-composer-state.ts",
+          "pattern": "countComposerDraftAttachmentsAfterSelection\\(threadKey, insertion\\)",
+          "source_sha256": "f5c999cb5f5dc351d1c5853bf35c3346a96bd9e4c861cb6634b3720f9b4b5ba2",
+          "byte_range": {
+            "start": 35835,
+            "end": 36081
+          }
+        },
+        {
+          "id": "p11",
+          "path": "apps/mobile/src/state/use-thread-composer-state.ts",
+          "pattern": "shouldFold && canAttach && maxBytes !== null",
+          "source_sha256": "f5c999cb5f5dc351d1c5853bf35c3346a96bd9e4c861cb6634b3720f9b4b5ba2",
+          "byte_range": {
+            "start": 36082,
+            "end": 36139
+          }
+        },
+        {
+          "id": "p12",
+          "path": "apps/mobile/src/native/T3ComposerEditor.native.tsx",
+          "pattern": "textPasteThresholdBytes=\\{onPasteText",
+          "source_sha256": "01ead7f523255148fda78b3d2029aa0064a30ac66fb17642e828e26b61053ec3",
+          "byte_range": {
+            "start": 11511,
+            "end": 11593
+          }
+        },
+        {
+          "id": "p13",
+          "path": "packages/client-runtime/src/textPaste.test.ts",
+          "pattern": "folds a smaller paste when the resulting prompt",
+          "source_sha256": "bc25f04a652e1eac6fa68965c20b13f5a87790b97dac23e09e95febbc3ff668f",
+          "byte_range": {
+            "start": 1395,
+            "end": 1662
+          }
+        }
+      ],
+      "relationships": [
+        {
+          "id": "r1",
+          "predicate": "IMPORTS",
+          "from_path": "packages/client-runtime/src/textPaste.test.ts",
+          "to_path": "packages/client-runtime/src/textPaste.ts",
+          "authority": "static_association"
+        }
+      ],
+      "claims": [
+        {
+          "id": "condition-threshold",
+          "kind": "condition",
+          "text": "Pasted text becomes an attachment only when attachment support is available, automatic attachment is not bypassed, the text is non-empty, and the UTF-8 size reaches 32 KiB or the paste would exceed the input limit.",
+          "passages": [
+            "p1",
+            "p2",
+            "p3",
+            "p4",
+            "p5"
+          ],
+          "counterevidence": [
+            "p6",
+            "p12"
+          ],
+          "relationships": [],
+          "alternatives": [
+            {
+              "passages": [
+                "p1",
+                "p2",
+                "p3",
+                "p4"
+              ],
+              "counterevidence": [
+                "p6",
+                "p12"
+              ],
+              "relationships": []
+            }
+          ]
+        },
+        {
+          "id": "consumer-staging",
+          "kind": "consumer",
+          "text": "The web composer keeps editor answers inline, applies the disposition helper with the input-limit result, and reports an error when a large paste cannot be staged; the mobile composer also requires an advertised upload limit and a free attachment slot before folding.",
+          "passages": [
+            "p7",
+            "p8",
+            "p9",
+            "p10",
+            "p11"
+          ],
+          "counterevidence": [
+            "p12"
+          ],
+          "relationships": []
+        },
+        {
+          "id": "counterevidence-limits",
+          "kind": "counterevidence",
+          "text": "The 32 KiB boundary is not the only trigger and does not guarantee an attachment: a smaller paste is folded when the input limit would be exceeded, editor answers remain inline, and the mobile editor disables the threshold when no paste handler is installed.",
+          "passages": [
+            "p13",
+            "p7",
+            "p12"
+          ],
+          "counterevidence": [
+            "p1",
+            "p6"
+          ],
+          "relationships": []
+        }
+      ],
+      "interpretation": "Condition, consumer and limit obligations for large-paste folding. The static import only locates the test; it does not prove execution."
+    },
+    {
+      "id": "T3-P3-DEV2-media-reference-scope",
+      "passages": [
+        {
+          "id": "m1",
+          "path": "packages/client-runtime/src/mediaReference.ts",
+          "pattern": "mediaFileReference\\(",
+          "source_sha256": "980561aa78d88e9e91f6cf9775ed60694cd168e3da3f3fcdabb76a5a4cac14ad",
+          "byte_range": {
+            "start": 1225,
+            "end": 1356
+          }
+        },
+        {
+          "id": "m2",
+          "path": "packages/client-runtime/src/mediaReference.ts",
+          "pattern": "target\\.segments\\.length <= workspace\\.segments\\.length",
+          "source_sha256": "980561aa78d88e9e91f6cf9775ed60694cd168e3da3f3fcdabb76a5a4cac14ad",
+          "byte_range": {
+            "start": 1481,
+            "end": 1906
+          }
+        },
+        {
+          "id": "m3",
+          "path": "packages/client-runtime/src/mediaReference.ts",
+          "pattern": "relativePath: target\\.segments\\.slice",
+          "source_sha256": "980561aa78d88e9e91f6cf9775ed60694cd168e3da3f3fcdabb76a5a4cac14ad",
+          "byte_range": {
+            "start": 1907,
+            "end": 2028
+          }
+        },
+        {
+          "id": "m4",
+          "path": "packages/client-runtime/src/mediaReference.ts",
+          "pattern": "does not resolve filesystem symlinks",
+          "source_sha256": "980561aa78d88e9e91f6cf9775ed60694cd168e3da3f3fcdabb76a5a4cac14ad",
+          "byte_range": {
+            "start": 1133,
+            "end": 1224
+          }
+        },
+        {
+          "id": "m5",
+          "path": "packages/client-runtime/src/mediaReference.test.ts",
+          "pattern": "outside\\.mp4",
+          "source_sha256": "2c253126566cab9055ae6ff72bfb68dcaab17360e1ea6b22eead7a92071dc394",
+          "byte_range": {
+            "start": 263,
+            "end": 328
+          }
+        },
+        {
+          "id": "m6",
+          "path": "packages/client-runtime/src/mediaReference.test.ts",
+          "pattern": "project-other",
+          "source_sha256": "2c253126566cab9055ae6ff72bfb68dcaab17360e1ea6b22eead7a92071dc394",
+          "byte_range": {
+            "start": 329,
+            "end": 394
+          }
+        },
+        {
+          "id": "m7",
+          "path": "packages/client-runtime/src/mediaSource.ts",
+          "pattern": "mediaUrlReference\\(classified\\.uri\\)",
+          "source_sha256": "f9f7499c611395e030783f1668b7569fdf7b7784aa643cf4e63913676883e63b",
+          "byte_range": {
+            "start": 2752,
+            "end": 2901
+          }
+        },
+        {
+          "id": "m8",
+          "path": "packages/client-runtime/src/mediaSource.ts",
+          "pattern": "mediaReferenceFileName\\(reference\\)",
+          "source_sha256": "f9f7499c611395e030783f1668b7569fdf7b7784aa643cf4e63913676883e63b",
+          "byte_range": {
+            "start": 2902,
+            "end": 2986
+          }
+        },
+        {
+          "id": "m9",
+          "path": "packages/client-runtime/src/mediaSource.ts",
+          "pattern": "_tag: \"media-file\"",
+          "source_sha256": "f9f7499c611395e030783f1668b7569fdf7b7784aa643cf4e63913676883e63b",
+          "byte_range": {
+            "start": 3391,
+            "end": 3460
+          }
+        },
+        {
+          "id": "m10",
+          "path": "packages/client-runtime/src/mediaReference.ts",
+          "pattern": "decoded exactly once",
+          "source_sha256": "980561aa78d88e9e91f6cf9775ed60694cd168e3da3f3fcdabb76a5a4cac14ad",
+          "byte_range": {
+            "start": 2521,
+            "end": 2607
+          }
+        },
+        {
+          "id": "m11",
+          "path": "packages/client-runtime/src/mediaReference.ts",
+          "pattern": "safeDecodeURIComponent\\(basename\\)",
+          "source_sha256": "980561aa78d88e9e91f6cf9775ed60694cd168e3da3f3fcdabb76a5a4cac14ad",
+          "byte_range": {
+            "start": 3117,
+            "end": 3182
+          }
+        },
+        {
+          "id": "m12",
+          "path": "packages/client-runtime/src/mediaReference.test.ts",
+          "pattern": "clip%2520\\.mp4",
+          "source_sha256": "2c253126566cab9055ae6ff72bfb68dcaab17360e1ea6b22eead7a92071dc394",
+          "byte_range": {
+            "start": 1562,
+            "end": 1641
+          }
+        },
+        {
+          "id": "m13",
+          "path": "packages/client-runtime/src/mediaReference.test.ts",
+          "pattern": "one%20\\.mp4",
+          "source_sha256": "2c253126566cab9055ae6ff72bfb68dcaab17360e1ea6b22eead7a92071dc394",
+          "byte_range": {
+            "start": 1258,
+            "end": 1332
+          }
+        },
+        {
+          "id": "m14",
+          "path": "packages/client-runtime/src/mediaReference.ts",
+          "pattern": "https\\?:\\\\/\\\\/",
+          "source_sha256": "980561aa78d88e9e91f6cf9775ed60694cd168e3da3f3fcdabb76a5a4cac14ad",
+          "byte_range": {
+            "start": 2219,
+            "end": 2279
+          }
+        }
+      ],
+      "relationships": [
+        {
+          "id": "r1",
+          "predicate": "IMPORTS",
+          "from_path": "packages/client-runtime/src/mediaSource.ts",
+          "to_path": "packages/client-runtime/src/mediaReference.ts",
+          "authority": "static_association"
+        }
+      ],
+      "claims": [
+        {
+          "id": "condition-containment",
+          "kind": "condition",
+          "text": "A file reference receives a relative path only when both paths are absolute in the same path family, the workspace root is a proper parent, and every workspace segment matches; otherwise the original path is preserved.",
+          "passages": [
+            "m1",
+            "m2",
+            "m3"
+          ],
+          "counterevidence": [
+            "m4",
+            "m5",
+            "m6"
+          ],
+          "relationships": []
+        },
+        {
+          "id": "consumer-selection",
+          "kind": "consumer",
+          "text": "The media source consumer chooses the URL-reference helper for direct URLs and the file-reference helper for local paths, and it uses the classified path for the resource while using the reference for the display name.",
+          "passages": [
+            "m7",
+            "m8",
+            "m9"
+          ],
+          "counterevidence": [
+            "m10"
+          ],
+          "relationships": [
+            "r1"
+          ]
+        },
+        {
+          "id": "counterevidence-decoding",
+          "kind": "counterevidence",
+          "text": "Filename decoding applies once to URL basenames and never to local paths, and the file-reference helper does not resolve filesystem symlinks.",
+          "passages": [
+            "m4",
+            "m10",
+            "m11",
+            "m12",
+            "m13"
+          ],
+          "counterevidence": [
+            "m14"
+          ],
+          "relationships": []
+        }
+      ],
+      "interpretation": "Lexical containment, consumer selection and decoding limits. The helper does not resolve symlinks or certify filesystem identity."
+    },
+    {
+      "id": "T3-P3-DEV3-shake-detector",
+      "passages": [
+        {
+          "id": "s1",
+          "path": "apps/mobile/src/features/devices/shakeDetector.ts",
+          "pattern": "two strong jolts within a short window",
+          "source_sha256": "d7b818271c67251243ddb3e1eda629adf33ab20b2c4c980ab6ed63cbe439819c",
+          "byte_range": {
+            "start": 219,
+            "end": 376
+          }
+        },
+        {
+          "id": "s2",
+          "path": "apps/mobile/src/features/devices/shakeDetector.ts",
+          "pattern": "jolts\\.length < 2",
+          "source_sha256": "d7b818271c67251243ddb3e1eda629adf33ab20b2c4c980ab6ed63cbe439819c",
+          "byte_range": {
+            "start": 659,
+            "end": 998
+          }
+        },
+        {
+          "id": "s3",
+          "path": "apps/mobile/src/features/devices/shakeDetector.test.ts",
+          "pattern": "ignores gravity and a single bump",
+          "source_sha256": "9710d3680b9bc405717b485de00dc53c24ec68bb3da22a3e5dbcb470a8747d7c",
+          "byte_range": {
+            "start": 299,
+            "end": 348
+          }
+        },
+        {
+          "id": "s4",
+          "path": "apps/mobile/src/features/devices/shakeDetector.test.ts",
+          "pattern": "jolt\\(900\\)",
+          "source_sha256": "9710d3680b9bc405717b485de00dc53c24ec68bb3da22a3e5dbcb470a8747d7c",
+          "byte_range": {
+            "start": 524,
+            "end": 566
+          }
+        },
+        {
+          "id": "s5",
+          "path": "apps/mobile/src/features/devices/shakeDetector.test.ts",
+          "pattern": "once, then cools down",
+          "source_sha256": "9710d3680b9bc405717b485de00dc53c24ec68bb3da22a3e5dbcb470a8747d7c",
+          "byte_range": {
+            "start": 574,
+            "end": 647
+          }
+        },
+        {
+          "id": "s6",
+          "path": "apps/mobile/src/features/devices/DevicePreviewRouteScreen.tsx",
+          "pattern": "!focused \\|\\| !foreground",
+          "source_sha256": "f82ebdbdabe551b41a06d8f5dbf4c8d9301de2c6f1b8bd43a5ecc24c4d74e4a4",
+          "byte_range": {
+            "start": 4730,
+            "end": 4812
+          }
+        },
+        {
+          "id": "s7",
+          "path": "apps/mobile/src/features/devices/DevicePreviewRouteScreen.tsx",
+          "pattern": "Haptics\\.selectionAsync",
+          "source_sha256": "f82ebdbdabe551b41a06d8f5dbf4c8d9301de2c6f1b8bd43a5ecc24c4d74e4a4",
+          "byte_range": {
+            "start": 4919,
+            "end": 5082
+          }
+        },
+        {
+          "id": "s8",
+          "path": "apps/mobile/src/features/devices/DevicePreviewRouteScreen.tsx",
+          "pattern": "subscription\\.remove\\(\\)",
+          "source_sha256": "f82ebdbdabe551b41a06d8f5dbf4c8d9301de2c6f1b8bd43a5ecc24c4d74e4a4",
+          "byte_range": {
+            "start": 4509,
+            "end": 4548
+          }
+        }
+      ],
+      "relationships": [
+        {
+          "id": "r1",
+          "predicate": "IMPORTS",
+          "from_path": "apps/mobile/src/features/devices/DevicePreviewRouteScreen.tsx",
+          "to_path": "apps/mobile/src/features/devices/shakeDetector.ts",
+          "authority": "static_association"
+        }
+      ],
+      "claims": [
+        {
+          "id": "condition-double-jolt",
+          "kind": "condition",
+          "text": "A shake is reported only after two samples above the acceleration threshold fall within the window and the cooldown has elapsed since the previous shake; a single bump or gravity alone is ignored.",
+          "passages": [
+            "s1",
+            "s2",
+            "s3"
+          ],
+          "counterevidence": [
+            "s4",
+            "s5"
+          ],
+          "relationships": []
+        },
+        {
+          "id": "consumer-preview",
+          "kind": "consumer",
+          "text": "The device preview screen installs the detector only while the screen is focused and foregrounded, and a reported shake toggles the controls and triggers haptic feedback; the listener is removed when the effect ends.",
+          "passages": [
+            "s6",
+            "s7",
+            "s8"
+          ],
+          "counterevidence": [
+            "s2"
+          ],
+          "relationships": [
+            "r1"
+          ]
+        },
+        {
+          "id": "counterevidence-one-shot",
+          "kind": "counterevidence",
+          "text": "A detected shake is one-shot: the jolt history is cleared and the cooldown starts immediately, so continuing motion does not report again until the cooldown elapses.",
+          "passages": [
+            "s2",
+            "s5"
+          ],
+          "counterevidence": [
+            "s3",
+            "s4"
+          ],
+          "relationships": []
+        }
+      ],
+      "interpretation": "Timing conditions, consumer installation and one-shot state. A reported shake is not proof of user intent."
+    }
+  ]
+}

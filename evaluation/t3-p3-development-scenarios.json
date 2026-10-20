@@ -1,0 +1,43 @@
+{
+  "method": "scale-priority3-development-v1",
+  "date": "2026-10-20",
+  "provenance": "Development obligation pilot authored after the round-4 results were known. Three modules were chosen for clear condition, consumer and counterevidence behavior, not sampled. This is not a held-out or promotion set. Oracle paths, patterns and labels remain scorer-only. Source files are pinned by SHA-256 in the oracle.",
+  "source_root": "/home/joshsimon/Projects/t3code-main",
+  "scenarios": [
+    {
+      "id": "T3-P3-DEV1-pasted-text-fold",
+      "duty": "explain",
+      "task": "Explain when pasted text is folded into an attachment instead of staying inline. Cover the byte-based threshold, the input-limit and bypass conditions, the web and mobile consumers, and the tests. State the limits of the rule.",
+      "required_paths": [
+        "packages/client-runtime/src/textPaste.ts",
+        "packages/client-runtime/src/textPaste.test.ts",
+        "apps/web/src/components/chat/ChatComposer.tsx",
+        "apps/mobile/src/state/use-thread-composer-state.ts",
+        "apps/mobile/src/native/T3ComposerEditor.native.tsx"
+      ],
+      "required_facts": []
+    },
+    {
+      "id": "T3-P3-DEV2-media-reference-scope",
+      "duty": "explain",
+      "task": "Explain how a local media path is labeled relative to a workspace root. Cover path normalization, Windows and UNC handling, the containment condition, filename decoding, and the media source consumer. State where the helper deliberately stops.",
+      "required_paths": [
+        "packages/client-runtime/src/mediaReference.ts",
+        "packages/client-runtime/src/mediaReference.test.ts",
+        "packages/client-runtime/src/mediaSource.ts"
+      ],
+      "required_facts": []
+    },
+    {
+      "id": "T3-P3-DEV3-shake-detector",
+      "duty": "explain",
+      "task": "Explain how the mobile device preview toggles its controls on a shake. Cover the two-jolt window, cooldown, gravity and single-bump rejection, and the consumer that installs the detector. Include the tests.",
+      "required_paths": [
+        "apps/mobile/src/features/devices/shakeDetector.ts",
+        "apps/mobile/src/features/devices/shakeDetector.test.ts",
+        "apps/mobile/src/features/devices/DevicePreviewRouteScreen.tsx"
+      ],
+      "required_facts": []
+    }
+  ]
+}

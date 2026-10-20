@@ -21,6 +21,91 @@ class EvidenceMetricsTests(unittest.TestCase):
             "basis": "retained_assertion", "from_files": ["a.ts"], "to_files": ["b.ts"]}]}
         return oracle, passages, ranges, identities, [response]
 
+    def counterevidence_fixture(self):
+        oracle, _, _, identities, responses = self.fixture()
+        oracle["passages"].append({"id": "p2", "path": "a.ts", "pattern": "fallback",
+            "source_sha256": "abc", "byte_range": {"start": 20, "end": 28}})
+        oracle["claims"][0]["counterevidence"] = ["p2"]
+        passages = {"a.ts": ["  guard then apply  ", "fallback"]}
+        ranges = {"a.ts": [{"start": 0, "end": 30}]}
+        return oracle, passages, ranges, identities, responses
+
+    def test_counterevidence_must_be_inspected_and_cited(self):
+        oracle, passages, ranges, identities, responses = self.counterevidence_fixture()
+        validate_oracles([oracle])
+        without = score(oracle, {"a.ts": ["  guard then apply  "]}, ranges, identities, responses)
+        self.assertEqual((without["counterevidence_inspected"], without["counterevidence_required"]), (0, 1))
+        self.assertEqual(without["claims_supportable"], 0)
+        inspected = score(oracle, passages, ranges, identities, responses)
+        self.assertEqual(inspected["counterevidence_inspected"], 1)
+        self.assertEqual(inspected["claims_supportable"], 1)
+        base = {"claim_id": "c", "text": oracle["claims"][0]["text"], "relationship_ids": ["task-link:one"]}
+        positive = {"path": "a.ts", "digest": "sha256:abc", "start_byte": 2, "end_byte": 18}
+        counter = {"path": "a.ts", "digest": "sha256:abc", "start_byte": 20, "end_byte": 28}
+        unsupported = score(oracle, passages, ranges, identities, responses,
+                            [{**base, "citations": [positive]}])
+        self.assertEqual(unsupported["conclusions"]["supported"], 0)
+        supported = score(oracle, passages, ranges, identities, responses,
+                          [{**base, "citations": [positive, counter]}])
+        self.assertEqual(supported["conclusions"]["supported"], 1)
+
+    def test_alternate_group_can_supply_its_own_evidence(self):
+        oracle, _, _, identities, responses = self.counterevidence_fixture()
+        oracle["claims"][0]["alternatives"] = [{"passages": ["p2"], "relationships": []}]
+        validate_oracles([oracle])
+        passages = {"a.ts": ["fallback"]}
+        ranges = {"a.ts": [{"start": 20, "end": 28}]}
+        result = score(oracle, passages, ranges, identities, responses)
+        self.assertEqual(result["claims_supportable"], 1)
+        conclusion = {"claim_id": "c", "text": oracle["claims"][0]["text"],
+            "citations": [{"path": "a.ts", "digest": "sha256:abc", "start_byte": 20, "end_byte": 28}]}
+        self.assertEqual(score(oracle, passages, ranges, identities, responses, [conclusion])
+                         ["conclusions"]["supported"], 1)
+
+    def test_counterevidence_obligations_are_validated(self):
+        oracle = self.fixture()[0]
+        oracle["claims"][0]["counterevidence"] = ["missing"]
+        with self.assertRaisesRegex(ValueError, "counterevidence"):
+            validate_oracles([oracle])
+        oracle["claims"][0]["counterevidence"] = ["p"]
+        with self.assertRaisesRegex(ValueError, "positive"):
+            validate_oracles([oracle])
+        oracle["claims"][0].pop("counterevidence")
+        oracle["claims"][0]["alternatives"] = {"passages": ["p"]}
+        with self.assertRaisesRegex(ValueError, "alternatives"):
+            validate_oracles([oracle])
+
+    def test_evaluate_keeps_error_denominators_for_counterevidence(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            results = root / "results.json"
+            results.write_text(json.dumps({"investigations": {"excerpt-first": [{
+                "id": "t", "status": "error", "calls": 0, "bytes": 0, "elapsed_seconds": 0}]}}))
+            oracle = {"id": "t", "passages": [
+                {"id": "p", "path": "a.ts", "pattern": "x"},
+                {"id": "p2", "path": "a.ts", "pattern": "y"}], "relationships": [],
+                "claims": [{"id": "c", "kind": "condition", "text": "x", "passages": ["p"],
+                            "counterevidence": ["p2"]}]}
+            mode = evaluate(results, [oracle])["modes"]["excerpt-first"]
+            self.assertEqual(mode["counterevidence_required"], 1)
+            self.assertEqual(mode["claim_kinds"]["condition"]["required"], 1)
+            self.assertEqual(mode["errors"], 1)
+
+    def test_development_obligation_pilot_is_schema_valid(self):
+        path = Path(__file__).resolve().parents[1] / "evaluation" / "t3-p3-development-oracles.json"
+        validate_oracles(json.loads(path.read_text())["scenarios"])
+
+    def test_claim_kinds_and_counterevidence_roll_up(self):
+        oracle, passages, ranges, identities, responses = self.counterevidence_fixture()
+        oracle["claims"][0]["kind"] = "condition"
+        result = score(oracle, passages, ranges, identities, responses)
+        result["effort"] = {"calls": 10, "bytes": 1024 * 1024, "elapsed_seconds": 1}
+        total = aggregate([result])
+        self.assertEqual((total["counterevidence_inspected"], total["counterevidence_required"]), (1, 1))
+        self.assertEqual(total["claim_kinds"]["condition"], {"required": 1, "supportable": 1, "coverage": 1.0})
+        self.assertEqual(total["coverage_per_effort"]["counterevidence_hits_per_call"], .1)
+        self.assertEqual(total["coverage_per_effort"]["counterevidence_hits_per_mib"], 1.0)
+
     def test_passages_and_relationships_do_not_automatically_submit_conclusions(self):
         args = self.fixture()
         validate_oracles([args[0]])
@@ -126,10 +211,14 @@ class EvidenceMetricsTests(unittest.TestCase):
         result = score(*args)
         self.assertEqual(result["claims_supportable"], 1)
         total = aggregate([result, {"id": "error", "status": "error", "passages_required": 3,
-            "relationships_required": 1, "claims_required": 2}])
+            "relationships_required": 1, "claims_required": 2, "counterevidence_required": 2,
+            "claim_kinds": {"condition": {"required": 1, "supportable": 0}}}])
         self.assertEqual(total["passages_required"], 4)
         self.assertEqual(total["micro_passage_coverage_lower_bound"], .25)
         self.assertIsNone(total["micro_passage_coverage"])
+        self.assertEqual(total["counterevidence_required"], 2)
+        self.assertEqual(total["micro_counterevidence_coverage_lower_bound"], 0)
+        self.assertIsNone(total["claim_kinds"]["condition"]["coverage"])
         self.assertFalse(total["comparison_eligible"])
 
 
