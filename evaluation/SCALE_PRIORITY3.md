@@ -1,7 +1,8 @@
 # Scale Priority 3: inspected evidence and supported conclusions
 
 Status: metric infrastructure implemented and exercised on round 4. Conclusion
-recording is now part of the investigation record. No answer quality or
+recording and counterevidence obligations are now part of the evidence schema.
+A development obligation pilot is authored but not run. No answer quality or
 behavioral sufficiency result has been established. See
 [round-4 results](priority2-r4-results.json) for counts, raw artifact paths and
 SHA-256 digests, and [serving reliability](SERVING_RELIABILITY.md) for the
@@ -19,8 +20,9 @@ identities, view/index pins and historical flags before scoring.
 | Path inspection | Some pinned bytes from the authored path were inspected; this alone does not establish a passage hit |
 | Passage coverage | Registered pattern in contiguous inspected bytes, expected source digest, and coverage of the authored byte range when supplied |
 | Relationship coverage | Delivered relationship record with the registered predicate and endpoint paths; optional basis, class and authority must match |
-| Claim supportability | Every passage/relationship obligation in a registered all-of group, or one explicit alternative group, is available |
-| Supported conclusions | Explicit submitted text matches a registered claim and cites inspected ranges/digests and delivered relationship IDs satisfying a complete group |
+| Counterevidence coverage | Authored limiting passage was inspected; it is a required part of the claim group, not an automatic refutation |
+| Claim supportability | Every passage/relationship and counterevidence obligation in a registered all-of group, or one explicit alternative group, is available |
+| Supported conclusions | Explicit submitted text matches a registered claim and cites inspected ranges/digests and delivered relationship IDs satisfying a complete group, including its counterevidence |
 
 An exact-key association has its own `EXACT_KEY_ASSOCIATION` identity and static
 authority. It cannot satisfy `CALLS_STATIC` or an execution obligation. Shared
@@ -28,12 +30,22 @@ paths do not imply a relationship. Static import/test associations do not prove
 runtime execution or test coverage. The conclusion scorer checks authored
 evidence obligations; it is not an unrestricted natural-language truth judge.
 
+Each claim has a primary all-of evidence group. It may list alternate witness
+groups under `alternatives`; one complete group is sufficient. A group may list
+`counterevidence` passage IDs. A claim is supportable only when its positive
+passages, relationships and counterevidence are inspected. A submitted
+conclusion must also cite the counterevidence. Counterevidence marks a limit or
+exception that the answer must acknowledge; it does not by itself refute the
+claim. A claim may carry a `kind` such as `condition`, `consumer` or
+`counterevidence` for reporting.
+
 Reports include micro coverage (total hits / total authored obligations), macro
 coverage (mean per-task coverage), and submitted/supported/unsupported conclusion
-counts with precision and supported-claim coverage. They also report actual
-calls, response bytes and elapsed seconds, plus coverage-per-effort ratios. A
-ratio is null when any arm has an error. No submitted conclusions means
-`not_submitted` and null precision/coverage. It is not perfect accuracy.
+counts with precision and supported-claim coverage. They also report
+counterevidence coverage, claim support by kind, actual calls, response bytes and
+elapsed seconds, plus coverage-per-effort ratios. A ratio is null when any arm
+has an error. No submitted conclusions means `not_submitted` and null
+precision/coverage. It is not perfect accuracy.
 Each arm must retain every authored task. Failed tasks retain their full
 obligation counts; comparable coverage becomes null, with observed lower bounds
 reported separately. These metric eligibility flags concern the scored evidence
@@ -57,9 +69,10 @@ The workflow rejects a duplicate claim ID in one investigation. Every citation
 must name pinned bytes already inspected and the retained digest. The cited
 range must fall inside an inspected range or excerpt. Every relationship ID must
 appear in the investigation event log. These checks prevent a conclusion from
-citing bytes that were never delivered. The scorer still checks the registered
-claim text and oracle obligations; a well-formed submission can remain
-unsupported.
+citing bytes that were never delivered. The scorer also requires a conclusion to
+cite the counterevidence in its chosen claim group. The scorer still checks the
+registered claim text and oracle obligations; a well-formed submission can
+remain unsupported.
 
 When `--conclusions` is omitted, `task-evidence-evaluate.py` reads conclusions
 from each investigation checkpoint. An external `--conclusions` file overrides
@@ -85,6 +98,29 @@ localization checks, not full behavioral explanations. No behavioral answers
 were submitted. Future tasks need independently authored obligations covering
 conditions, contracts, consumers and counterevidence, plus alternate valid
 witness sets and actual conclusion submissions.
+
+## Development obligation pilot
+
+[Tasks](t3-p3-development-scenarios.json),
+[oracles](t3-p3-development-oracles.json) and
+[freeze receipt](t3-p3-development-freeze.json) add a small development pilot.
+It has three tasks, 11 required paths and nine claims: three condition, three
+consumer and three counterevidence claims. Fifteen counterevidence obligations
+refer to 12 distinct limiting passages. Each claim also has positive passage or
+relationship obligations. One claim has an alternate implementation-only witness
+group; `alternatives` can carry a different complete group.
+
+The pilot was authored after the round-4 results were known. Modules were chosen
+for clear condition, consumer and counterevidence behavior, not sampled. It is
+not held-out and cannot support a promotion claim. Source files are pinned by
+SHA-256 in the oracle and freeze receipt. The tasks have no target anchors.
+
+A scorer self-check confirmed that every primary group becomes supportable when
+all of its passages are inspected and cited, and that omitting a counterevidence
+citation makes the conclusion unsupported. No investigation was run against
+this pilot, so it has no conclusion submissions, coverage or effort figures.
+Collect conclusions at equal effort only after the serving corruption blocker
+clears.
 
 ## Bounded structural exploration
 
@@ -156,6 +192,11 @@ Use a new disposable SQLite backup and new event directories. A repeated run
 on R4 is regression evidence. It is not a fresh held-out test. The raw primary
 and corrected runs, frozen source trees, diagnostic replay driver and final
 scoring artifact are named and hashed in `priority2-r4-results.json`.
+
+For the development obligation pilot, use
+`evaluation/t3-p3-development-scenarios.json` for the run and
+`evaluation/t3-p3-development-oracles.json` for scoring. The pilot is not a
+promotion gate. It is a schema and conclusion-collection exercise.
 
 Optional `--conclusions conclusions.json` accepts this shape:
 
