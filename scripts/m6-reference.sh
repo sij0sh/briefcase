@@ -24,7 +24,7 @@ OUT="$ROOT/evaluation/sources/m6"
 ENVIRONMENT=staging
 NAMESPACE=shop
 REPOSITORY_ID=m6-reference
-NODE_IMAGE=docker.io/library/node:24.10.0-bookworm-slim
+NODE_IMAGE=docker.io/library/node:24.22.1-bookworm-slim
 COLLECTOR_IMAGE=docker.io/otel/opentelemetry-collector-contrib:0.137.0
 POSTGRES_IMAGE=docker.io/library/postgres:16.10-alpine
 NET=m6-reference
@@ -68,7 +68,7 @@ print(json.dumps({
   "source_snapshot_id": snapshot, "repository": f"localhost/m6/{svc}", "tag": "staging",
   "dockerfile": {"path": f"Dockerfile.{svc}", "digest": sha(os.path.join(app, f"Dockerfile.{svc}"))},
   "context_files": files, "context_digest": "sha256:" + hashlib.sha256(canonical).hexdigest(),
-  "build_configuration": {"builder": builder, "platform": "linux/amd64", "base_image": f"docker.io/library/node:24.10.0-bookworm-slim@{base}", "build_args": {}},
+  "build_configuration": {"builder": builder, "platform": "linux/amd64", "base_image": f"docker.io/library/node:24.22.1-bookworm-slim@{base}", "build_args": {}},
   "image_digest": digest, "oci_manifest": f"{svc}.oci-manifest.json"}, indent=2))
 PY
 done
