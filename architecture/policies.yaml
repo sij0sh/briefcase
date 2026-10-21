@@ -1,0 +1,25 @@
+policies:
+- id: behavioral-verification
+  kind: required_verification
+  components:
+  - package
+  - cli
+  - contracts
+  - store
+  - capture
+  - analysis
+  - service
+  - retrieval
+  - history
+  - integrations
+  - reconcile
+  - tooling
+  checks:
+  - briefcase-lib
+  - briefcase-impact
+  - briefcase-tools
+  - briefcase-scripts
+  - briefcase-node-adapter
+  - briefcase-clippy
+  severity: error
+  decision: ADR-B4

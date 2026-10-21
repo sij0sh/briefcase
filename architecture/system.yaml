@@ -1,0 +1,8 @@
+schema_version: archctl.authoring.v1
+system_id: briefcase
+name: Briefcase
+domains:
+- id: architecture
+  name: Retained architecture evidence
+  owners:
+  - maintainers

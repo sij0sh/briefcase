@@ -1,0 +1,133 @@
+components:
+- id: package
+  name: Package root
+  domain: architecture
+  kind: library
+  paths:
+  - src/lib.rs
+  - src/architecture/mod.rs
+- id: cli
+  name: CLI
+  domain: architecture
+  kind: service
+  paths:
+  - src/bin/briefcase.rs
+  - src/bin/briefcase/**
+- id: contracts
+  name: Contracts and identity
+  domain: architecture
+  kind: library
+  paths:
+  - src/architecture/contracts.rs
+  - src/architecture/contracts/**
+  - src/architecture/identity.rs
+  - contracts/**
+- id: store
+  name: Knowledge store
+  domain: architecture
+  kind: library
+  paths:
+  - src/architecture/knowledge.rs
+  - src/architecture/ledger.rs
+  - src/architecture/ledger/**
+- id: capture
+  name: Capture and source pins
+  domain: architecture
+  kind: library
+  paths:
+  - src/architecture/capture.rs
+  - src/architecture/source.rs
+  - src/architecture/retained_source.rs
+  - src/architecture/native_source.rs
+  - src/architecture/freshness.rs
+  - src/architecture/external.rs
+- id: analysis
+  name: Language analysis
+  domain: architecture
+  kind: library
+  paths:
+  - src/architecture/analyzer.rs
+  - src/architecture/clang.rs
+  - src/architecture/csharp.rs
+  - src/architecture/data.rs
+  - src/architecture/data/**
+  - src/architecture/declarations.rs
+  - src/architecture/deployment.rs
+  - src/architecture/evidence_index.rs
+  - src/architecture/execution.rs
+  - src/architecture/go.rs
+  - src/architecture/inference.rs
+  - src/architecture/java.rs
+  - src/architecture/passes.rs
+  - src/architecture/python.rs
+  - src/architecture/runtime_observations.rs
+  - src/architecture/rust.rs
+  - src/architecture/typescript.rs
+  - src/architecture/*.py
+  - src/architecture/*.cjs
+  - src/architecture/*.go
+  - src/architecture/*.java
+  - src/architecture/*.cs
+  - src/architecture/*.cpp
+- id: service
+  name: Read service
+  domain: architecture
+  kind: service
+  paths:
+  - src/architecture/service.rs
+  - src/architecture/service/**
+  - src/architecture/response.rs
+- id: retrieval
+  name: Retrieval and reports
+  domain: architecture
+  kind: library
+  paths:
+  - src/architecture/query.rs
+  - src/architecture/query/**
+  - src/architecture/search.rs
+  - src/architecture/retrieval.rs
+  - src/architecture/reports.rs
+  - src/architecture/task/**
+- id: history
+  name: History and sessions
+  domain: architecture
+  kind: library
+  paths:
+  - src/architecture/git_history.rs
+  - src/architecture/history.rs
+  - src/architecture/lineage.rs
+  - src/architecture/evolution.rs
+  - src/architecture/session.rs
+  - src/architecture/session/**
+  - profiles/sessions/**
+- id: integrations
+  name: Integrations
+  domain: architecture
+  kind: library
+  paths:
+  - src/architecture/mcp.rs
+  - src/architecture/pi.rs
+  - src/architecture/hooks.rs
+  - src/architecture/native_host.rs
+  - src/architecture/sync.rs
+  - src/architecture/sync/**
+  - src/architecture/watch.rs
+  - src/architecture/scheduler.rs
+  - src/architecture/workspace.rs
+  - src/architecture/integrations.rs
+  - src/architecture/muse.rs
+  - extensions/**
+- id: reconcile
+  name: Reconciliation
+  domain: architecture
+  kind: library
+  paths:
+  - src/architecture/reconcile.rs
+  - src/architecture/adoption.rs
+- id: tooling
+  name: Repository tooling
+  domain: architecture
+  kind: library
+  paths:
+  - scripts/**
+  - tools/**

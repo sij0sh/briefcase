@@ -1,0 +1,10 @@
+workflows:
+- id: cli-read
+  participants:
+  - cli
+  - service
+  - retrieval
+  verification:
+  - briefcase-lib
+  - briefcase-node-adapter
+  decision: ADR-B3

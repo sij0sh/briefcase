@@ -1,0 +1,145 @@
+verification:
+- id: briefcase-lib
+  kind: architecture
+  command:
+  - cargo
+  - test
+  - --locked
+  - --lib
+  cwd: .
+  timeout_seconds: 300
+  components:
+  - package
+  - cli
+  - contracts
+  - store
+  - capture
+  - analysis
+  - service
+  - retrieval
+  - history
+  - integrations
+  - reconcile
+  - tooling
+- id: briefcase-impact
+  kind: integration
+  command:
+  - cargo
+  - test
+  - --locked
+  - --test
+  - impact
+  cwd: .
+  timeout_seconds: 300
+  components:
+  - package
+  - cli
+  - contracts
+  - store
+  - capture
+  - analysis
+  - service
+  - retrieval
+  - history
+  - integrations
+  - reconcile
+  - tooling
+- id: briefcase-tools
+  kind: integration
+  command:
+  - python3
+  - -B
+  - -m
+  - unittest
+  - discover
+  - -s
+  - tools
+  - -p
+  - test_*.py
+  cwd: .
+  timeout_seconds: 120
+  components:
+  - package
+  - cli
+  - contracts
+  - store
+  - capture
+  - analysis
+  - service
+  - retrieval
+  - history
+  - integrations
+  - reconcile
+  - tooling
+- id: briefcase-scripts
+  kind: integration
+  command:
+  - python3
+  - -B
+  - -m
+  - unittest
+  - discover
+  - -s
+  - scripts
+  - -p
+  - test_*.py
+  cwd: .
+  timeout_seconds: 300
+  components:
+  - package
+  - cli
+  - contracts
+  - store
+  - capture
+  - analysis
+  - service
+  - retrieval
+  - history
+  - integrations
+  - reconcile
+  - tooling
+- id: briefcase-node-adapter
+  kind: integration
+  command:
+  - node
+  - --test
+  - tests/briefcase-task-adapter.test.mjs
+  cwd: .
+  timeout_seconds: 120
+  components:
+  - package
+  - cli
+  - contracts
+  - store
+  - capture
+  - analysis
+  - service
+  - retrieval
+  - history
+  - integrations
+  - reconcile
+  - tooling
+- id: briefcase-clippy
+  kind: architecture
+  command:
+  - cargo
+  - clippy
+  - --locked
+  - --lib
+  - --bins
+  - --tests
+  cwd: .
+  timeout_seconds: 300
+  components:
+  - package
+  - cli
+  - contracts
+  - store
+  - capture
+  - analysis
+  - service
+  - retrieval
+  - history
+  - integrations
+  - reconcile
+  - tooling
