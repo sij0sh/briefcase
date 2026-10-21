@@ -25,6 +25,7 @@ pub(super) fn examples(name:&str)->Vec<Value>{
         "expand_case"=>json!({"case_id":"<retained task-case id>","paths":["src/consumer.rs"]}),
         "explain"=>json!({"report_id":"<retained report id>","ref":"<task-link id>"}),
         "worktree"=>json!({"case_id":"<retained task-case id>","limit":100}),
+        "impact"=>json!({"mode":"pre","task":"change the authentication token format","view":"<captured source view id>","targets":["src/auth.rs"]}),
         "reachability"=>json!({"from":"orders::create","to":"payments::authorize"}),
         "compare"|"history_lineage"=>json!({"base":"before","view":"latest"}),
         "describe"=>json!({"query":"what calls this function","limit":5}),
@@ -54,6 +55,7 @@ fn search_terms(name:&str)->&'static str{
         "evolution"|"compare"|"history_lineage"=>"history changes revisions snapshots rename correspondence",
         "status"=>"ready readiness initialized diagnostics database",
         "worktree"=>"current dirty untracked added deleted modified freshness working tree diff outside initial slice",
+        "impact"=>"architectural change impact contract planned targets base candidate snapshots consumers governing constraints verification obligations blast radius pre post",
         _=>"",
     }
 }

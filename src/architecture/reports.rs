@@ -102,7 +102,8 @@ pub fn explain(l:&Ledger,a:&Value) -> Result<Value> {
     }
     let report=a["report_id"].as_str();
     let doc=report.map(|id|load_report(l,id)).transpose()?;
-    let index=a["index_id"].as_str().or_else(||doc.as_ref().and_then(|d|d["index_id"].as_str()));
+    let index=a["index_id"].as_str().or_else(||doc.as_ref().and_then(|d|d["index_id"].as_str()))
+        .or_else(||report.filter(|id|id.starts_with("task-index:")));
     if reference.starts_with("task-link:") {
         return task::explain(l,&json!({"index_id":index.ok_or("ARGUMENTS: Report has no relationship index")?,
             "link_id":reference,"limit":a["limit"],"offset":a["offset"]}));

@@ -400,7 +400,7 @@ const CONVERGENCE_UNANCHORED_SUBJECTS: usize = 2;
 
 /// Source paths carrying producer-unresolved dependency references; their
 /// files cannot be counted as conforming or deviating in a cohort.
-fn unresolved_dependency_paths(s: &Snapshot) -> BTreeSet<String> {
+pub(super) fn unresolved_dependency_paths(s: &Snapshot) -> BTreeSet<String> {
     let b = &s.view.bundle;
     let artifacts: BTreeMap<String, String> = rows(b, "artifacts").iter().map(|a| (text(a, "id"), text(a, "path"))).collect();
     let refs: BTreeMap<String, String> = rows(b, "evidence_refs").iter().map(|e| (text(e, "id"), text(e, "artifact_id"))).collect();

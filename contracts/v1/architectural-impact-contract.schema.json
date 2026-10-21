@@ -1,0 +1,790 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://briefcase.local/contracts/v1/architectural-impact-contract.schema.json",
+  "title": "Briefcase Architectural Change Impact Contract",
+  "description": "Retained read-only report. Affected relationships retain evidence authority; all checks are suggestions and have not executed. ADR integration is explicitly unconnected in v1.",
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "const": "1.0"
+    },
+    "kind": {
+      "const": "architectural_impact_contract"
+    },
+    "method": {
+      "const": "architectural-impact-v1"
+    },
+    "report_id": {
+      "type": "string",
+      "pattern": "^impact-contract:"
+    },
+    "mode": {
+      "type": "string",
+      "enum": [
+        "pre",
+        "post"
+      ]
+    },
+    "task": {
+      "type": "string",
+      "minLength": 1
+    },
+    "case_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "view_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "index_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "pinned_views": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "source": {
+      "$ref": "#/$defs/Source"
+    },
+    "request": {
+      "type": "object",
+      "properties": {
+        "targets": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "depth": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 3
+        },
+        "max_nodes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100000
+        }
+      },
+      "required": [
+        "targets",
+        "depth",
+        "max_nodes"
+      ],
+      "additionalProperties": false
+    },
+    "sides": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/Side"
+      }
+    },
+    "changes": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/Change"
+      }
+    },
+    "resolutions": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/Resolution"
+      }
+    },
+    "affected_components": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/Component"
+      }
+    },
+    "relationship_changes": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/RelationshipChange"
+      }
+    },
+    "correspondence": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/Correspondence"
+      }
+    },
+    "constraints": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/Constraint"
+      }
+    },
+    "verification": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/Verification"
+      }
+    },
+    "findings": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/Finding"
+      }
+    },
+    "governing_decisions": {
+      "type": "array",
+      "maxItems": 0
+    },
+    "governing_decisions_status": {
+      "const": "not_connected"
+    },
+    "unknowns": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/Unknown"
+      }
+    },
+    "assessment": {
+      "const": "partial"
+    },
+    "assessment_scope": {
+      "const": "retained_evidence_for_captured_source_only"
+    },
+    "coverage": {
+      "type": "object",
+      "properties": {
+        "granularity": {
+          "type": "string",
+          "minLength": 1
+        },
+        "source_delta": {
+          "type": "string",
+          "minLength": 1
+        },
+        "graph": {
+          "type": "string",
+          "minLength": 1
+        },
+        "comparison": {
+          "type": "string",
+          "minLength": 1
+        },
+        "verification": {
+          "const": "not_executed"
+        },
+        "decision_registry": {
+          "const": "not_connected"
+        }
+      },
+      "required": [
+        "granularity",
+        "source_delta",
+        "graph",
+        "comparison",
+        "verification",
+        "decision_registry"
+      ],
+      "additionalProperties": false
+    },
+    "retraction_epoch": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "provenance": {
+      "type": "object",
+      "properties": {
+        "implementation_digest": {
+          "type": "string",
+          "minLength": 1
+        },
+        "schema_digest": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "implementation_digest",
+        "schema_digest"
+      ],
+      "additionalProperties": false
+    },
+    "instruction": {
+      "type": "string",
+      "minLength": 1
+    }
+  },
+  "required": [
+    "schema_version",
+    "kind",
+    "method",
+    "report_id",
+    "mode",
+    "task",
+    "case_id",
+    "view_id",
+    "index_id",
+    "pinned_views",
+    "source",
+    "request",
+    "sides",
+    "changes",
+    "resolutions",
+    "affected_components",
+    "relationship_changes",
+    "correspondence",
+    "constraints",
+    "verification",
+    "findings",
+    "governing_decisions",
+    "governing_decisions_status",
+    "unknowns",
+    "assessment",
+    "assessment_scope",
+    "coverage",
+    "retraction_epoch",
+    "provenance",
+    "instruction"
+  ],
+  "additionalProperties": false,
+  "$defs": {
+    "EvidenceRef": {
+      "type": "object",
+      "properties": {
+        "report_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "ref": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "report_id",
+        "ref"
+      ],
+      "additionalProperties": false
+    },
+    "Source": {
+      "type": "object",
+      "properties": {
+        "repository_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "base_view": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "candidate_view": {
+          "type": "string",
+          "minLength": 1
+        },
+        "base_snapshot": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "candidate_snapshot": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "repository_id",
+        "base_view",
+        "candidate_view",
+        "base_snapshot",
+        "candidate_snapshot"
+      ],
+      "additionalProperties": false
+    },
+    "Side": {
+      "type": "object",
+      "properties": {
+        "side": {
+          "type": "string",
+          "enum": [
+            "base",
+            "candidate"
+          ]
+        },
+        "view_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "index_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "snapshot_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "repository_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "captured_files": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "capture_complete": {
+          "type": "boolean"
+        },
+        "dependencies_complete_for_producer_scope": {
+          "type": "boolean"
+        },
+        "coverage_ref": {
+          "$ref": "#/$defs/EvidenceRef"
+        }
+      },
+      "required": [
+        "side",
+        "view_id",
+        "index_id",
+        "snapshot_id",
+        "repository_id",
+        "captured_files",
+        "capture_complete",
+        "dependencies_complete_for_producer_scope",
+        "coverage_ref"
+      ],
+      "additionalProperties": false
+    },
+    "Change": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "state": {
+          "type": "string",
+          "enum": [
+            "planned",
+            "added",
+            "modified",
+            "deleted",
+            "unavailable"
+          ]
+        },
+        "before_digest": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "after_digest": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "outside_initial_slice": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "evidence_refs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/EvidenceRef"
+          }
+        }
+      },
+      "required": [
+        "path",
+        "state",
+        "before_digest",
+        "after_digest",
+        "outside_initial_slice",
+        "evidence_refs"
+      ],
+      "additionalProperties": false
+    },
+    "Resolution": {
+      "type": "object",
+      "properties": {
+        "target": {
+          "type": "string",
+          "minLength": 1
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "resolved",
+            "ambiguous",
+            "unresolved"
+          ]
+        },
+        "candidates": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "paths": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "target",
+        "status",
+        "candidates",
+        "paths"
+      ],
+      "additionalProperties": false
+    },
+    "Component": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "path": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "kind": {
+          "type": "string"
+        },
+        "side": {
+          "type": "string",
+          "enum": [
+            "base",
+            "candidate"
+          ]
+        },
+        "view_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "index_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "relationship": {
+          "type": "string",
+          "enum": [
+            "direct_change",
+            "candidate_target",
+            "possible_consumer",
+            "dependency_context",
+            "declared_binding"
+          ]
+        },
+        "depth": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "candidate",
+            "supported_in_retained_scope",
+            "requires_investigation"
+          ]
+        },
+        "evidence_refs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/EvidenceRef"
+          }
+        }
+      },
+      "required": [
+        "id",
+        "path",
+        "kind",
+        "side",
+        "view_id",
+        "index_id",
+        "relationship",
+        "depth",
+        "status",
+        "evidence_refs"
+      ],
+      "additionalProperties": false
+    },
+    "RelationshipChange": {
+      "type": "object",
+      "properties": {
+        "state": {
+          "type": "string",
+          "enum": [
+            "observed_only_in_base",
+            "observed_only_in_candidate"
+          ]
+        },
+        "predicate": {
+          "type": "string",
+          "minLength": 1
+        },
+        "from": {
+          "type": "string",
+          "minLength": 1
+        },
+        "to": {
+          "type": "string",
+          "minLength": 1
+        },
+        "class": {
+          "type": "string",
+          "enum": [
+            "evidence",
+            "derived",
+            "declaration"
+          ]
+        },
+        "evidence_refs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/EvidenceRef"
+          }
+        }
+      },
+      "required": [
+        "state",
+        "predicate",
+        "from",
+        "to",
+        "class",
+        "evidence_refs"
+      ],
+      "additionalProperties": false
+    },
+    "Correspondence": {
+      "type": "object",
+      "properties": {
+        "status": {
+          "type": "string"
+        },
+        "detail": {
+          "type": "object"
+        },
+        "evidence_refs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/EvidenceRef"
+          }
+        }
+      },
+      "required": [
+        "status",
+        "detail",
+        "evidence_refs"
+      ],
+      "additionalProperties": false
+    },
+    "Constraint": {
+      "type": "object",
+      "properties": {
+        "side": {
+          "type": "string",
+          "enum": [
+            "base",
+            "candidate"
+          ]
+        },
+        "rule_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "pass",
+            "violation",
+            "unknown"
+          ]
+        },
+        "mode": {
+          "const": "report-only"
+        },
+        "detail": {
+          "type": "object"
+        },
+        "evidence_refs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/EvidenceRef"
+          }
+        }
+      },
+      "required": [
+        "side",
+        "rule_id",
+        "status",
+        "mode",
+        "detail",
+        "evidence_refs"
+      ],
+      "additionalProperties": false
+    },
+    "Verification": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "side": {
+          "type": "string",
+          "enum": [
+            "base",
+            "candidate"
+          ]
+        },
+        "path": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "basis": {
+          "type": "string",
+          "enum": [
+            "static_test_association",
+            "declared_constraint",
+            "interface_relationship"
+          ]
+        },
+        "requirement": {
+          "const": "suggested"
+        },
+        "execution_status": {
+          "const": "not_executed"
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1
+        },
+        "evidence_refs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/EvidenceRef"
+          }
+        }
+      },
+      "required": [
+        "id",
+        "side",
+        "path",
+        "basis",
+        "requirement",
+        "execution_status",
+        "description",
+        "evidence_refs"
+      ],
+      "additionalProperties": false
+    },
+    "Finding": {
+      "type": "object",
+      "properties": {
+        "side": {
+          "type": "string",
+          "enum": [
+            "base",
+            "candidate"
+          ]
+        },
+        "view_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "index_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "finding": {
+          "type": "object"
+        },
+        "evidence_refs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/EvidenceRef"
+          }
+        }
+      },
+      "required": [
+        "side",
+        "view_id",
+        "index_id",
+        "finding",
+        "evidence_refs"
+      ],
+      "additionalProperties": false
+    },
+    "Unknown": {
+      "type": "object",
+      "properties": {
+        "area": {
+          "type": "string",
+          "enum": [
+            "targets",
+            "capture",
+            "traversal",
+            "declarations",
+            "dependencies",
+            "static_calls",
+            "retractions",
+            "resolution",
+            "profiles",
+            "graph",
+            "policy",
+            "correspondence",
+            "design_decisions",
+            "verification",
+            "findings"
+          ]
+        },
+        "side": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            "base",
+            "candidate",
+            null
+          ]
+        },
+        "status": {
+          "const": "unknown"
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1
+        },
+        "evidence_refs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/EvidenceRef"
+          }
+        }
+      },
+      "required": [
+        "area",
+        "side",
+        "status",
+        "reason",
+        "evidence_refs"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

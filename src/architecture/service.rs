@@ -125,6 +125,7 @@ impl Gateway {
         validate(&operation.schema,&normalized)?;
         if operation.kind==Kind::Describe {return discover(&normalized);}
         if matches!(operation.kind,Kind::Brief|Kind::AgentContext) {super::task::validate_request(&normalized)?;}
+        if operation.kind==Kind::Impact {super::task::validate_impact_request(&normalized)?;}
         let root=self.root.as_deref();
         let context=matches!(operation.kind,Kind::Brief|Kind::AgentContext|Kind::Search|Kind::Occurrences|Kind::Neighbors);
         match (context,root) {

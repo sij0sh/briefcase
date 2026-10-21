@@ -9,6 +9,7 @@
 | `identity-vectors.json` | Independent canonical JSON literals and expected SHA-256 values |
 | `architecture-declaration.schema.json` | The `scan --policy` authority artifact: domain assignments, report-only rules, the declared application and the feature/workflow catalog (ADR-0028, ADR-0029) |
 | `task-case.schema.json` | Retained task authority, request, role slices, relationships, typed gaps and completeness |
+| `architectural-impact-contract.schema.json` | Retained change-specific composition: source pins, affected components, declared constraints, suggested verification, observed relationship deltas and typed unknowns; not a knowledge assertion or execution result |
 | `task-brief.schema.json` | V1 presentation of a retained case, with case ID, ranking, delivery counts and continuation |
 | `agent-context.schema.json` | V2 disposable harness routing projection: target anchor, ranked supplemental files, primary reason strings, shared source fetch template and pinned evidence handles; case/brief contracts remain v1 |
 | `session-activity.schema.json` | Derived cross-session activity per repository path in a time window, with net change and retained commits kept separate (ADR-0030; not a knowledge record) |

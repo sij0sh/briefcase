@@ -20,9 +20,13 @@ mod joins;
 mod producers;
 mod queries;
 mod worktree;
+mod impact;
 mod continuation;
 pub use continuation::{inventory,expand_case};
 pub use worktree::worktree;
+pub use impact::impact;
+pub(crate) use impact::trim as trim_impact;
+pub(crate) use impact::validate_request as validate_impact_request;
 
 pub use agent::agent_context;
 pub(crate) use brief::table_paths as report_sections;

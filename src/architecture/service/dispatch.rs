@@ -24,6 +24,7 @@ pub(super) fn dispatch(l:&Ledger,op:&Operation,a:&Value,root:Option<&std::path::
             task::brief(l,&arguments)
         },
         AgentContext=>task::agent_context(l,a),
+        Impact=>task::impact(l,a),
         Inventory=>task::inventory(l,a),
         ExpandCase=>task::expand_case(l,a),
         Search=>search::search(l,a),

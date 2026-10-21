@@ -415,6 +415,9 @@ fn notice(
         if let Some(outcome)=value.get("outcome") {result["outcome"]=outcome.clone();}
         result["report_id"]=value["id"].clone();
         result["continue_with"]=json!({"operation":"page","arguments":{"report_id":value["id"],"section":"/slice/impl","offset":0}});
+    } else if value["kind"] == "architectural_impact_contract" {
+        result["assessment"]=value["assessment"].clone();
+        result["continue_with"]=super::reports::continuation(value["report_id"].as_str().unwrap_or(""),"/affected_components",0,20);
     }
     if let Some(id) = value["response"]["id"].as_str() {
         result["report_id"] = json!(id);
@@ -536,11 +539,12 @@ pub(crate) fn bounded_with(
             value["freshness"]=super::freshness::brief_summary(full,&value);
         }
     }
+    while measure(&mut value,max_bytes,size_of)? > max_bytes && super::task::trim_impact(&mut value) {}
     if measure(&mut value,max_bytes,size_of)? <= max_bytes {return Ok(value);}
     // Required case metadata can itself exceed a small presentation budget.
     // Return its pins and a restart, rather than making the retained case
     // inaccessible because the brief has a schema_version/sessions field.
-    if value["kind"]=="brief" {return notice(&value,max_bytes,original,size_of);}
+    if value["kind"]=="brief" || value["kind"]=="architectural_impact_contract" {return notice(&value,max_bytes,original,size_of);}
     if original <= max_bytes {
         return Ok(value);
     }

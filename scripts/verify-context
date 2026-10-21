@@ -2,7 +2,7 @@
 # Self-contained context gate. The original conformance archive is separate.
 set -eu
 cd "$(dirname "$0")/.."
-cargo test --locked --lib --test context --test stage2 --test stage3 --test stage4 --test p0p1 --test p2 "$@"
+cargo test --locked --lib --test context --test stage2 --test stage3 --test stage4 --test p0p1 --test p2 --test impact "$@"
 python3 -B -m unittest discover -s scripts -p 'test_*.py'
 python3 -B -m unittest discover -s tools -p 'test_*.py'
 node --test tests/briefcase-task-adapter.test.mjs

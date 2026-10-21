@@ -1,5 +1,9 @@
 # Briefcase
 
+See [Architectural Change Impact](ARCHITECTURAL_IMPACT.md) for the retained
+`impact` contract: prospective targets, full captured source deltas, affected
+components, declared constraints, suggested checks and explicit unknowns.
+
 See [P0/P1 implementation and validation](P0_P1_IMPLEMENTATION.md) for candidate
 source recovery, the resumable investigation CLI, and current-source rechecks.
 See [P2 implementation](P2_IMPLEMENTATION.md) for resumable discovery, lazy
@@ -47,6 +51,7 @@ readiness, pending captures and the relationship to live Git state stay visible.
 | --- | --- |
 | `brief` | A presentation of a retained task case: ranked files by role, relationships, history, sessions and typed gaps |
 | `agent_context` | A compact routing manifest over the same case, with a separate target anchor, ranked supplemental files and shared pinned fetch instructions |
+| `impact` | A retained Architectural Change Impact Contract before editing or between two captured source snapshots; evidence, report-only constraints and suggested verification stay separate |
 | `search` | One lexical ranking over retained text, Git history and optional session requests; eligible assertion annotations keep their own authority |
 | `occurrences` | Exhaustive retained literal matches, including overlaps, in path/byte order |
 | `neighbors` | Shared incoming/outgoing adjacency for source, test, configuration, data, deployment and runtime relationships |

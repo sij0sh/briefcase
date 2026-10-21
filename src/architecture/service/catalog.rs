@@ -7,6 +7,7 @@ pub enum Kind {
     Describe,
     Brief,
     AgentContext,
+    Impact,
     Inventory,
     ExpandCase,
     Search,
@@ -81,6 +82,7 @@ pub fn catalog() -> Vec<Operation> {
         (Describe,"describe","Discover supported read operations and their arguments without a database."),
         (Brief,"brief","Trace retained evidence to build a case around a task, delivered as a brief: exact anchors, role-based files, relationships, history, sessions and typed coverage gaps. Feature and endpoint identities are optional targets."),
         (AgentContext,"agent_context","Compact coding-harness routing manifest: separate target anchor, ranked supplemental files, primary reasons, shared pinned source fetch and complete evidence continuations. Fills the final byte budget; shares the brief's case."),
+        (Impact,"impact","Assess a proposed change or the full delta between two captured source snapshots. Retains affected components, dependency witnesses, declared constraints, suggested verification and typed unknowns. Does not execute tests, approve decisions or enforce policy."),
         (Inventory,"inventory","Read compact filtered candidates, lexical matches, or complete remaining work for an immutable case. Filters apply before paging; reading does not expand assembly."),
         (ExpandCase,"expand_case","Explicitly promote retained candidates or lexical-tail paths and assemble a new immutable case revision. Source inspection and full-file verification are independent."),
         (Search,"search","Rank retained text, evidence, Git history and optional session requests. A match is a candidate, never proof of ownership; use occurrences for exhaustive matching."),
@@ -114,6 +116,10 @@ pub fn catalog() -> Vec<Operation> {
                     "selection_variant":{"type":"string","enum":crate::architecture::task::selection_variants()},
                     "exclude_facets":{"type":"array","items":{"type":"string","enum":crate::architecture::task::retrieval_facets()},"uniqueItems":true}})),
             Search=>common(&["text","classes"],&["text"]),
+            Impact=>schema(&["task","case_id","target","view","base"],&["mode"],json!({
+                "mode":{"type":"string","enum":["pre","post"]},
+                "targets":{"type":"array","items":{"type":"string","minLength":1,"maxLength":4096},"uniqueItems":true,"maxItems":1000},
+                "depth":integer(1,3),"max_nodes":integer(1,100000),"limit":integer(1,1000)})),
             Occurrences=>schema(&["text","path","view"],&["text"],json!({"limit":integer(1,1000),"offset":integer(0,u64::MAX)})),
             Neighbors=>schema(&["target","direction","predicate","view","index_id","deployment_view","runtime_environment","runtime_from","runtime_to"],&["target"],
                 json!({"relationship_scope":{"type":"string","enum":["hot","all","overflow"]},"depth":integer(1,3),"limit":integer(1,1000),"offset":integer(0,u64::MAX)})),
@@ -153,7 +159,7 @@ pub fn catalog() -> Vec<Operation> {
             }
             s["properties"]["component"]["description"]=json!("Retained file or directory path prefix; filtering follows bounded lexical candidate selection.");
         }
-        let text_field=match kind {Brief|AgentContext=>Some(("task",16384)),Search|Occurrences=>Some(("text",4096)),_=>None};
+        let text_field=match kind {Brief|AgentContext|Impact=>Some(("task",16384)),Search|Occurrences=>Some(("text",4096)),_=>None};
         if let Some((field,max))=text_field {
             s["properties"][field]["minLength"]=json!(1);
             s["properties"][field]["maxLength"]=json!(max);

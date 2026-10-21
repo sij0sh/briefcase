@@ -1,0 +1,156 @@
+{
+  "date": "2026-10-21",
+  "feature": "Architectural Change Impact Contract",
+  "status": "rust_validated_on_local_host; behavioral outcomes not measured",
+  "implemented": [
+    "Shared impact operation for pre-change tasks/Cases and full post-change source snapshot deltas",
+    "Versioned schema, content-addressed retention, index-qualified source/link proofs, paging and byte-budget continuations",
+    "Directional consumer/dependency traversal including overflow; declared semantics, existing report-only policy and behavior/convention findings",
+    "Suggested tests, endpoint/domain interface reviews and policy reviews with not_executed status",
+    "Typed unknowns for capture/analysis/resolution/traversal/correspondence/retractions and unconnected decision/behavioral validation",
+    "Explicit Cargo test target, context gate registration, usage guide and design decision"
+  ],
+  "executed_checks": [
+    {
+      "command": "python3 -B -m unittest discover -s tools -p 'test_*.py'",
+      "exit_code": 0,
+      "tests": 17,
+      "passed": 17,
+      "new_impact_schema_tests": 9,
+      "scope": "Independent Python tooling/wire checks; does not execute Rust"
+    },
+    {
+      "command": "python3 -B tools/check_package.py --schemas-only",
+      "exit_code": 0,
+      "schemas": 11,
+      "scope": "Owned schema vocabulary and local references"
+    },
+    {
+      "command": "node --test --test-reporter=spec tests/briefcase-task-adapter.test.mjs",
+      "exit_code": 0,
+      "tests": 17,
+      "passed": 17,
+      "scope": "Existing adapter regressions; does not execute the Rust engine"
+    },
+    {
+      "command": "git diff --check",
+      "exit_code": 0,
+      "scope": "Patch whitespace"
+    },
+    {
+      "command": "bash -n scripts/verify-context",
+      "exit_code": 0,
+      "scope": "Verification script syntax"
+    },
+    {
+      "check": "Explicit Cargo target paths and impact inclusion in scripts/verify-context",
+      "status": "passed"
+    },
+    {
+      "command": "python3 -B -m unittest discover -s scripts -p 'test_*.py'",
+      "exit_code": 1,
+      "tests": 116,
+      "passed": 113,
+      "errors": 2,
+      "skipped": 1,
+      "baseline": "Same two missing-file errors and one skip before and after implementation",
+      "missing": [
+        "evaluation/t3-p3-development-oracles.json",
+        "evaluation/outcome-protocol.json"
+      ]
+    },
+    {
+      "command": "python3 -B tools/check_package.py",
+      "exit_code": 2,
+      "status": "blocked",
+      "missing": [
+        "evaluation/fixtures/index.json"
+      ],
+      "baseline": "Historical evaluation archive was omitted from the supplied bundle"
+    },
+    {
+      "command": "cargo test --locked --lib --test impact",
+      "exit_code": 0,
+      "tests": 17,
+      "passed": 17,
+      "scope": "Rust integration regressions; also exercises the private traversal unit tests through the library target"
+    },
+    {
+      "command": "cargo build --locked",
+      "exit_code": 0,
+      "scope": "Release compilation of the library and CLI"
+    },
+    {
+      "command": "./scripts/verify-context",
+      "exit_code": 0,
+      "scope": "Registered Rust integration targets, Python tests and Node adapter checks"
+    },
+    {
+      "command": "cargo clippy --locked --lib --bins --tests",
+      "exit_code": 0,
+      "scope": "No lints in the impact implementation; remaining warnings are pre-existing"
+    },
+    {
+      "command": "cargo fmt --all -- --check",
+      "exit_code": 1,
+      "status": "pre-existing formatting differences across the repository; no impact file was reformatted"
+    },
+    {
+      "command": "./scripts/verify-core",
+      "exit_code": 1,
+      "tests": 47,
+      "passed": 47,
+      "failed": 8,
+      "baseline": "Missing evaluation/sources and evaluation/fixtures archive; same missing-archive condition recorded above"
+    }
+  ],
+  "rust_regressions_authored": {
+    "integration_target": "impact",
+    "integration_file": "tests/briefcase_impact_contract.rs",
+    "integration_tests": 17,
+    "private_traversal_unit_tests": 5,
+    "executed": true,
+    "coverage": [
+      "direct and indirect consumers and full proof trails",
+      "declared domains/features/workflows and report-only violation evidence",
+      "static tests and interface candidates remain suggestions",
+      "identity across limits and target order",
+      "retained Case pin and live-byte isolation",
+      "all captured source changes outside initial selection and deleted consumers",
+      "text-only analysis gaps",
+      "ambiguous/unresolved target handling",
+      "depth/node bounds",
+      "retractions and historical report paging",
+      "scope and snapshot validation",
+      "invalid request and execution argument rejection",
+      "CLI/MCP parity",
+      "prepared exact correspondence",
+      "recoverable byte-budget output",
+      "incomplete inventories do not prove deletion",
+      "declaration-only changes preserve base constraints"
+    ]
+  },
+  "not_verified": [
+    "Native producer, original/held-out corpus and controlled architectural coding outcomes",
+    "Measured large-repository runtime, memory, impact recall or report determinism"
+  ],
+  "remaining_release_commands": [
+    "./scripts/verify-core after restoring the original evaluation archive",
+    "python3 -B tools/check_package.py after restoring the original evaluation archive",
+    "cargo fmt on a tree that already matches the repository formatting baseline"
+  ],
+  "scope_limits": [
+    "File/localized-entity impact, not semantic API diff or runtime effect proof",
+    "No authenticated external decision registry; governing_decisions stays empty",
+    "All verification entries are suggested and not_executed; external systems own enforcement, approval and behavioral checks",
+    "Overall assessment is partial in the initial contract"
+  ],
+  "compatibility": {
+    "database_migration": "none",
+    "dependencies_added": false,
+    "existing_case_and_knowledge_schemas": "unchanged",
+    "declaration_schema_and_authority": "unchanged; report-only rules do not become mandatory obligations",
+    "cli_mcp": "Additive shared operation; existing command/tool families remain usable",
+    "retention": "Existing ledger reports, Cases, task indexes, page and explain; no new graph or evidence authority"
+  }
+}
