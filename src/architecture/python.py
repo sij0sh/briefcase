@@ -16,7 +16,7 @@ from pathlib import PurePosixPath
 
 MAX_FILES = 4096
 MAX_DEFINITIONS = 4096
-MAX_OCCURRENCES = 16384
+MAX_OCCURRENCES = 65536
 EXTENSIONS = {".py", ".pyi", ".pyw"}
 
 
@@ -962,7 +962,7 @@ class Analysis:
     def output(self):
         self.load()
         if len(self.import_nodes) + len(self.callsites) + len(self.references) > MAX_OCCURRENCES:
-            raise ValueError("Python source occurrence limit exceeded (16384)")
+            raise ValueError(f"Python source occurrence limit exceeded ({MAX_OCCURRENCES})")
         # Populate module namespace visibility before resolving cross-file re-exports.
         for scope, node in self.import_nodes:
             if id(node) not in self.unconditional_imports:
@@ -996,7 +996,7 @@ class Analysis:
             (self.imports, self.calls, self.resolved_references, self.unresolved),
         )
         if len(imports) + len(calls) + len(references) + len(unresolved) > MAX_OCCURRENCES:
-            raise ValueError("Python source occurrence limit exceeded (16384)")
+            raise ValueError(f"Python source occurrence limit exceeded ({MAX_OCCURRENCES})")
         return {
             "schema_version": "1.0",
             "provider": provider(self.roots, self.syntax_only),

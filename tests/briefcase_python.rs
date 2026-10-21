@@ -914,6 +914,26 @@ fn python_cache_directories_are_excluded_and_quota_failure_cannot_publish() {
     .contains("definition limit"));
 }
 
+#[test]
+#[ignore = "conformance: not in the required PR suite; run via the conformance lane"]
+fn python_source_occurrence_quota_allows_medium_repositories() {
+    let temp = tempfile::tempdir().unwrap();
+    let root = temp.path().join("source");
+    let code: String = (0..17_000)
+        .map(|i| format!("value.attribute_{i}\n"))
+        .collect();
+    source(&root, &[("lib.py", &code)]);
+    let p = python::produce(
+        Capture::read(&root, None).unwrap(),
+        "occurrence-limit",
+        1,
+        &ScanOptions::default(),
+    )
+    .expect("a source file above the legacy occurrence quota must publish");
+    contracts::validate(&p.bundle, &p.payloads).unwrap();
+    assert!(!rows(&p.bundle, "assertions").is_empty());
+}
+
 #[cfg(unix)]
 #[test]
 #[ignore = "conformance: not in the required PR suite; run via the conformance lane"]

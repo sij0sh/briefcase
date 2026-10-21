@@ -103,7 +103,7 @@ impl Publisher {
                     .iter()
                     .map(|k| rows(&out, k).len())
                     .sum::<usize>()
-                    <= 16384,
+                    <= 65536,
             "ANALYZER",
             "native source quotas exceeded",
         )?;
