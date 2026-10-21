@@ -1,8 +1,9 @@
 # Serving and retained-JSON corruption investigation
 
 Status on 2026-10-20: unresolved. Evaluation accounting and failure capture
-have been repaired. A hardware memory fault is now confirmed; the failing
-component is not isolated. Neither a toolchain pin nor an allocator switch is
+have been repaired. A hardware memory fault is now confirmed and reproduced
+after a CMOS reset at stock BIOS defaults; the failing component is not
+isolated. Neither a toolchain pin nor an allocator switch is
 supported as a fix. No promotion comparison should use incomplete arms. See
 [round-4 results](priority2-r4-results.json) for frozen experiment hashes.
 
@@ -97,19 +98,40 @@ least two physical pages and several bits are affected. The failing virtual
 addresses were reproduced on CPU 0, 2, 4, 6, 8, 16, 18 and 22, so this is not one
 core's arithmetic error.
 
-The host is already conservative. CPU boost was disabled for the baseline and
-actual single-core and all-core frequency is 4.2 GHz. Memory runs at 2133 MT/s
+The baseline was conservative: CPU boost was disabled and actual single-core
+and all-core frequency was 4.2 GHz. Memory runs at 2133 MT/s
 JEDEC, not the 3600 rating of the four G.Skill modules. ECC is absent. Tctl was
 about 41 C at the failure and package power was about 63 W. No MCE or EDAC
-record exists because the memory is non-ECC. A BIOS PBO/Curve Optimizer or SoC
-undervolt setting is not visible from the OS and is not yet excluded.
+record exists because the memory is non-ECC. A residual BIOS PBO, Curve
+Optimizer or SoC undervolt setting was not visible from the OS before the
+reset. Stock defaults were then loaded; the fault persisted.
 
-A later sysfs boost probe left the software flag at 1. Actual frequency stayed
-at 4.2 GHz and dmesg reported that the kernel could not enable or disable boost.
-A reboot restores the prior state.
+The reboot also restored stock CPU defaults: boost is enabled and active with a
+4.95 GHz limit. The memory remains at 2133 MT/s and 1.2 V. This is not an
+overclock.
 
 This confirms a hardware memory fault. It does not yet identify a DIMM, slot,
 CPU IMC or board trace.
+
+### Post-CMOS retest
+
+A 10-minute `stressapptest -s 600 -M 4096 -W` run passed with 0 incidents. Four
+GiB is only a small fraction of the 62 GiB installed, so this pass does not
+cover enough memory to rule out the fault and is not evidence of repair.
+
+A 30 GiB run with the original thread and pattern options failed after 31
+seconds. It found two miscompares on the same physical word `0x9b2853a08`, at
+page offset `0xa0d`, bit 43:
+
+| Read | Expected |
+| --- | --- |
+| `0x0001080000010000` | `0x0001000000010000` |
+| `0x4000080040000000` | `0x4000000040000000` |
+
+A repeat run resolved the failing virtual address through `/proc/<pid>/pagemap`
+to the same physical word `0x9b2853a08`. The bad byte was `0x9b2853a0d`, again
+matching the JSON chunk-size corruption. The fault therefore persists at stock
+BIOS defaults.
 
 Native ASAN replay completed 13 of 16 requests before being deliberately
 stopped for diagnostic cost, with no sanitizer finding. One optimized targeted
@@ -146,15 +168,17 @@ stderr file; use the bounded diagnostic for subsequent reproduction.
 Hardware-fault logs are under `.agents/artifacts/scale-next/host-diag/`:
 `stressapptest.log`, `stressapptest-2.log`, `stressapptest-root.log`,
 `physical-addresses.txt`, `capture-phys.py`, `pagemap-capture.sh` and
-`summary.txt`. The full write-up is
+`summary.txt`. The post-CMOS run is under `host-diag-post-cmos/`:
+`stressapptest-post-cmos.log`. The full write-up is
 `.agents/artifacts/NATIVE_CORRUPTION_HARDWARE_ANALYSIS.md`.
 
-Next work is to isolate the failing component. Record the BIOS settings, then
-clear CMOS or load optimized defaults. Disable PBO, EXPO/XMP, Curve Optimizer and
-manual voltage offsets, keep memory at 2133 MT/s, and rerun `stressapptest` for
-at least 10 minutes. If errors persist, test one DIMM at a time in the same slot
-with MemTest86+ for at least four passes. Reseat the CPU, DIMMs and cooler, and
-update the BIOS. If every module passes alone, suspect the CPU IMC or the board.
+CMOS defaults did not repair the fault. Next work is component isolation. Power
+off and test one DIMM at a time in the same slot with MemTest86+ for at least
+four passes. Replace any failing module. Reseat the CPU, DIMMs and cooler. Do
+not flash the BIOS while the memory fault is present; a bit flip during a flash
+can brick the board. Update the BIOS after the memory is stable. If every module
+passes alone, test slots and combinations, then suspect the CPU IMC or the
+board.
 
 Do not use this host for new evaluation until the fault is repaired and a clean
 `stressapptest` run plus a full MemTest86+ pass are recorded. Keep all R4 tasks
