@@ -97,7 +97,6 @@ components:
   - src/architecture/history.rs
   - src/architecture/lineage.rs
   - src/architecture/evolution.rs
-  - src/architecture/session.rs
   - src/architecture/session/**
   - profiles/sessions/**
 - id: integrations
