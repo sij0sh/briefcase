@@ -37,6 +37,15 @@ assets are experimental until built and validated by its release lane.
 A checksum identifies downloaded bytes; trust comes from selecting the reviewed
 release. Install outside source checkouts and retain release/hash provenance.
 
+## TypeScript analysis
+
+Native archives ship no JavaScript dependencies. Analyze TypeScript or JavaScript
+only with `--typescript-compiler <PATH>` or `BRIEFCASE_TYPESCRIPT_COMPILER`
+pointing at a `typescript.js` module. Without either, sync reports
+`needs_configuration` and names both knobs; it never guesses an install or build
+location. A source checkout installs the pin from `tools/typescript/package.json`
+with `npm ci --ignore-scripts --prefix tools/typescript`.
+
 ## Publication source
 
 The canonical public source and releases are at https://github.com/sij0sh/briefcase.

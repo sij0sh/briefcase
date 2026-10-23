@@ -52,14 +52,17 @@ Rust or other external compiler toolchains; inspect their readiness explicitly.
 ## Develop
 
 ```sh
-cargo build --locked
-cargo test --locked --lib
-cargo test --locked --test impact
-python3 -B -m unittest discover -s tools -p 'test_*.py'
-python3 -B -m unittest discover -s scripts -p 'test_*.py'
-node --test tests/briefcase-task-adapter.test.mjs
-cargo clippy --locked --lib --bins --tests
+npm ci --ignore-scripts --prefix tools/typescript
+bash scripts/verify-context
+bash scripts/verify-lint
+cargo build --locked --release --bin briefcase
 ```
+
+`scripts/verify-context` is the required lane and needs Node plus the pinned
+TypeScript compiler. `scripts/verify-core` needs evaluation fixtures that this
+checkout does not ship, so it stays opt-in. `scripts/verify-mvp` runs every lane
+and skips the opt-in one. TypeScript analysis always needs an explicit compiler:
+`--typescript-compiler` or `BRIEFCASE_TYPESCRIPT_COMPILER`.
 
 Rust and a C/C++ toolchain are needed for source builds. The standard source
 crate includes the embedded adapters, contracts and extension templates. It
