@@ -320,7 +320,10 @@ while True:
     if method == 'initialized':
         send({'jsonrpc':'2.0','method':'experimental/serverStatus','params':{'health':'ok','quiescent':True}})
     if 'id' not in message:continue
-    if method == 'textDocument/definition' and MODE == 'stalled':time.sleep(30)
+    if method == 'initialize' and MODE == 'stalled':time.sleep(1)
+    if method == 'textDocument/definition' and MODE == 'stalled':
+        with open(__file__+'.definition','w') as marker:marker.write('started')
+        time.sleep(30)
     send({'jsonrpc':'2.0','id':message['id'],'result':{'capabilities':{}} if method=='initialize' else None})
 "#.replace("__MODE__",mode);
         std::fs::write(&executable,script).unwrap();std::fs::set_permissions(&executable,std::fs::Permissions::from_mode(0o700)).unwrap();
@@ -341,13 +344,25 @@ while True:
     fn one_deadline_bounds_version_startup_and_a_stalled_definition() {
         for mode in ["slow_version","stalled"] {
             let (dir,exe)=server(mode);let started=Instant::now();
-            let result=Analyzer::start(&exe,dir.path(),Duration::from_millis(250),&[]);
-            if mode=="slow_version" {assert!(result.is_err());}
-            else {
+            let timeout=if mode=="slow_version" {Duration::from_millis(250)} else {Duration::from_secs(10)};
+            let result=Analyzer::start(&exe,dir.path(),timeout,&[]);
+            if mode=="slow_version" {
+                assert!(result.is_err());
+                assert!(started.elapsed()<Duration::from_secs(2),"{mode}");
+            } else {
                 let mut analyzer=result.unwrap();let file=dir.path().join("lib.rs");
-                analyzer.open(&file,"fn a() {}\n").unwrap();assert!(analyzer.definition(&file,"fn a() {}\n",3).is_err());
+                // The delayed initialization makes a renewed startup budget observable.
+                assert!(analyzer.deadline<=started+timeout+Duration::from_millis(500));
+                analyzer.open(&file,"fn a() {}\n").unwrap();
+                // Exercise a request near the shared deadline after cold startup completes.
+                let deadline=Instant::now()+Duration::from_millis(250);
+                analyzer.deadline=deadline;
+                let request_started=Instant::now();
+                assert!(analyzer.definition(&file,"fn a() {}\n",3).is_err());
+                assert!(exe.with_extension("definition").is_file(),"the stalled request must reach the server");
+                assert_eq!(analyzer.deadline,deadline,"a request cannot renew the shared budget");
+                assert!(request_started.elapsed()<Duration::from_secs(2),"{mode}");
             }
-            assert!(started.elapsed()<Duration::from_secs(2),"{mode}");
         }
     }
 }
