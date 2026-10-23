@@ -29,8 +29,8 @@ pub(crate) use impact::trim as trim_impact;
 pub(crate) use impact::validate_request as validate_impact_request;
 
 pub use agent::agent_context;
-pub(crate) use brief::table_paths as report_sections;
-pub use brief::{brief, page};
+pub(crate) use case::sections as report_sections;
+pub use brief::brief;
 pub(crate) use index::{precompute, BINDING_SCOPE};
 pub use findings::compare as compare_findings;
 pub use queries::{explain, neighbors, occurrences};

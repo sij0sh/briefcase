@@ -2,7 +2,7 @@
 use super::{
     contracts::{rows, text},
     ledger::View,
-    query, require, source, Result,
+    query, require, Result,
 };
 use serde_json::Value;
 use std::collections::{BTreeMap, BTreeSet};
@@ -86,21 +86,6 @@ impl SourceFiles {
             modules,
         })
     }
-}
-
-/// Symbols each module declares, with the DECLARES assertion.
-pub(crate) fn declared_symbols_of(v: &View) -> BTreeMap<String, Vec<(String, String, String)>> {
-    let mut out: BTreeMap<String, Vec<(String, String, String)>> = BTreeMap::new();
-    for (symbol, owner) in symbol_owners(v) {
-        out.entry(owner.module)
-            .or_default()
-            .push((symbol, owner.symbol_id, owner.declares));
-    }
-    for v in out.values_mut() {
-        v.sort();
-        v.dedup();
-    }
-    out
 }
 
 /// Module key → the retained files that hold it. A file that only declares
@@ -211,22 +196,11 @@ fn module_layout(v: &View) -> Layout {
     (out, containing)
 }
 
-/// The category of a module by the file that holds it (a crate-named fixture
-/// module is not application code), or by its key without one.
-pub(crate) fn module_category(files: Option<&BTreeSet<String>>, key: &str) -> &'static str {
-    match files.and_then(|f| f.iter().next()) {
-        Some(path) => source::category(path),
-        None => source::category(key),
-    }
-}
-
-/// The module a symbol belongs to, the file that declares it (when DECLARES
-/// names a file) and the DECLARES assertion.
+/// The module a symbol belongs to and the file that declares it (when
+/// DECLARES names a file).
 pub(crate) struct SymbolOwner {
     pub module: String,
     pub file: Option<String>,
-    pub symbol_id: String,
-    pub declares: String,
 }
 
 /// Symbol key → its owning module, for every language. DECLARES Evidence
@@ -271,12 +245,7 @@ pub(crate) fn symbol_owners(v: &View) -> BTreeMap<String, SymbolOwner> {
         let file = (declarer["kind"] == "file").then(|| declared_by.clone());
         out.insert(
             key,
-            SymbolOwner {
-                module,
-                file,
-                symbol_id: text(symbol, "id"),
-                declares: text(a, "id"),
-            },
+            SymbolOwner { module, file },
         );
     }
     out

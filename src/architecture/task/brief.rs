@@ -48,33 +48,9 @@ pub(super) fn render(case: &case::Case, presentation: Presentation) -> Result<Va
     Ok(doc)
 }
 
-pub(crate) fn table_paths(doc: &Value) -> Vec<String> {
-    let mut tables = source::ARTIFACT_ROLES
-        .iter()
-        .map(|r| format!("/slice/{r}"))
-        .collect::<Vec<_>>();
-    for field in [
-        "neighborhood",
-        "history",
-        "sessions",
-        "errors",
-        "joins",
-        "cochange",
-        "external_touchpoints",
-        "lexical_candidates",
-        "candidates",
-        "findings",
-        "not_covered",
-    ] {
-        if doc[field].is_array() {
-            tables.push(format!("/{field}"));
-        }
-    }
-    tables
-}
 fn preview(doc: &mut Value, limit: usize) {
     let mut delivery = serde_json::Map::new();
-    for pointer in table_paths(doc) {
+    for pointer in super::case::sections(doc) {
         if let Some(items) = doc.pointer_mut(&pointer).and_then(Value::as_array_mut) {
             let total = items.len();
             items.truncate(limit);
@@ -102,11 +78,6 @@ fn preview(doc: &mut Value, limit: usize) {
         .unwrap_or(Value::Null);
 }
 
-/// Unadvertised compatibility wrapper for the shared report protocol.
-pub fn page(l: &Ledger, a: &Value) -> Result<Value> {
-    crate::architecture::reports::page(l, a)
-}
-
 /// Preserve the packet contract while reducing presentation. Full tables stay
 /// in the retained case; every dropped row updates its section cursor.
 pub(crate) fn trim(value: &mut Value) -> bool {
@@ -116,7 +87,7 @@ pub(crate) fn trim(value: &mut Value) -> bool {
     if value["kind"] != "brief" {
         return false;
     }
-    let largest = table_paths(value)
+    let largest = super::case::sections(value)
         .into_iter()
         .filter(|p| p != "/not_covered")
         .filter_map(|p| {

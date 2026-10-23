@@ -185,7 +185,6 @@ impl Analyzer {
     pub fn request(&mut self, method: &str, params: Value) -> Result<Value> {
         self.request_until(method,params,self.deadline)
     }
-    pub fn expired(&self) -> bool {Instant::now()>=self.deadline}
     pub fn workspace_ready(&self)->bool {self.quiescent && self.workspace_status["health"]!="error"}
     fn handle_server_message(&mut self,message:&Value) -> Result<()> {
         if message["method"]=="experimental/serverStatus" {

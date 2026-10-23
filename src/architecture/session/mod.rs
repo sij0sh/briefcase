@@ -503,19 +503,6 @@ pub fn import(l: &mut Ledger, raw: &[u8], o: &ImportOptions) -> Result<Value> {
     result
 }
 
-/// Read-only discovery and idempotent import of Pi history for one repository.
-/// Directory names are hints only: selection uses the retained header cwd.
-/// Symlinked directories/files are skipped; unrelated histories are never imported.
-pub fn import_pi(
-    l: &mut Ledger,
-    dir: &std::path::Path,
-    root: &str,
-    retention: Retention,
-    dry_run: bool,
-) -> Result<Value> {
-    import_local(l, Harness::Pi, dir, root, retention, dry_run)
-}
-
 /// Read-only discovery and idempotent import of one harness's local
 /// history for one repository, selected by the exact recorded cwd.
 pub fn import_local(

@@ -1,14 +1,14 @@
-//! Codex history: header shape, store location and materialization.
+//! Codex history: header shape and store location.
 //!
 //! Codex records its working directory and session id in the first line's
-//! `session_meta` payload. Transcripts are single JSONL files, so
-//! materialization is the identity: the retained bytes are the file bytes.
+//! `session_meta` payload. Transcripts are single JSONL files, so the
+//! registry's shared materialization is the identity: the retained bytes are
+//! the file bytes.
 
-use super::Materialized;
 use crate::architecture::Result;
 
 /// Leading lines read to find the recorded cwd.
-const HEADER_LINES: usize = 1;
+pub(super) const HEADER_LINES: usize = 1;
 
 /// The default history root: `$CODEX_HOME/sessions` or
 /// `~/.codex/sessions`.
@@ -30,20 +30,4 @@ pub fn cwd(lines: &[&str]) -> Option<Option<String>> {
         .ok()
         .filter(|v| v["type"] == "session_meta")
         .map(|v| v["payload"]["cwd"].as_str().map(str::to_owned))
-}
-
-/// Every `.jsonl` transcript under `dir`.
-pub fn candidates(dir: &std::path::Path) -> Result<Vec<std::path::PathBuf>> {
-    super::files_with_extension(dir, "jsonl")
-}
-
-/// The recorded cwd from the transcript's leading lines.
-pub fn recorded_cwd(path: &std::path::Path) -> Result<Option<Option<String>>> {
-    let lines = super::leading_lines(path, HEADER_LINES)?;
-    Ok(cwd(&lines.iter().map(String::as_str).collect::<Vec<_>>()))
-}
-
-/// Identity materialization: the transcript is already canonical JSONL.
-pub fn materialize(path: &std::path::Path) -> Result<Materialized> {
-    super::identity(path)
 }

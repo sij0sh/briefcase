@@ -33,6 +33,9 @@ pub mod pi;
 use crate::architecture::{session::MAX_BYTES, Result};
 use std::path::{Path, PathBuf};
 
+/// A harness's recorded-cwd parser over its leading lines.
+type CwdParser = fn(&[&str]) -> Option<Option<String>>;
+
 /// A history candidate converted to the canonical JSONL bytes the core ingests.
 pub struct Materialized {
     /// The JSONL bytes fed to `jsonl::read` and retained by `import`.
@@ -106,34 +109,28 @@ impl Harness {
         }
     }
 
-    /// Every session candidate in this harness's store under `dir`, sorted.
-    /// Symlinks are never followed.
+    /// Every `.jsonl` session candidate in this harness's store under `dir`,
+    /// sorted. Symlinks are never followed.
     pub fn candidates(self, dir: &Path) -> Result<Vec<PathBuf>> {
-        match self {
-            Self::Pi => pi::candidates(dir),
-            Self::Codex => codex::candidates(dir),
-            Self::ClaudeCode => claude_code::candidates(dir),
-        }
+        files_with_extension(dir, "jsonl")
     }
 
     /// The recorded working directory of one candidate, read without
     /// materializing it. `None` is a malformed header; `Some(None)` is a
     /// well-formed header without a cwd.
     pub fn recorded_cwd(self, candidate: &Path) -> Result<Option<Option<String>>> {
-        match self {
-            Self::Pi => pi::recorded_cwd(candidate),
-            Self::Codex => codex::recorded_cwd(candidate),
-            Self::ClaudeCode => claude_code::recorded_cwd(candidate),
-        }
+        let (count, parse): (usize, CwdParser) = match self {
+            Self::Pi => (pi::HEADER_LINES, pi::cwd),
+            Self::Codex => (codex::HEADER_LINES, codex::cwd),
+            Self::ClaudeCode => (claude_code::HEADER_LINES, claude_code::cwd),
+        };
+        let lines = leading_lines(candidate, count)?;
+        Ok(parse(&lines.iter().map(String::as_str).collect::<Vec<_>>()))
     }
 
     /// Convert one candidate to canonical JSONL bytes, bounded by `MAX_BYTES`.
     pub fn materialize(self, candidate: &Path) -> Result<Materialized> {
-        let m = match self {
-            Self::Pi => pi::materialize(candidate),
-            Self::Codex => codex::materialize(candidate),
-            Self::ClaudeCode => claude_code::materialize(candidate),
-        }?;
+        let m = identity(candidate)?;
         crate::architecture::require(
             m.bytes.len() <= MAX_BYTES,
             "SESSION",
@@ -243,6 +240,35 @@ mod tests {
             claude_code::cwd(&[r#"{"type":"summary","leafUuid":"x"}"#]),
             Some(None)
         );
+    }
+
+    #[test]
+    fn registry_reads_each_harness_recorded_cwd() {
+        for (harness, body) in [
+            (
+                Harness::Pi,
+                "{\"type\":\"session\",\"cwd\":\"/work/shop\"}\n",
+            ),
+            (
+                Harness::Codex,
+                "{\"type\":\"session_meta\",\"payload\":{\"cwd\":\"/work/shop\"}}\n",
+            ),
+            (
+                Harness::ClaudeCode,
+                "{\"type\":\"summary\"}\n{\"type\":\"user\",\"cwd\":\"/work/shop\"}\n",
+            ),
+        ] {
+            let dir = tempfile::tempdir().unwrap();
+            let path = dir.path().join("session.jsonl");
+            std::fs::write(&path, body).unwrap();
+            assert_eq!(
+                harness.recorded_cwd(&path).unwrap(),
+                Some(Some("/work/shop".to_owned())),
+                "{harness:?}"
+            );
+            std::fs::write(&path, "not JSON\n").unwrap();
+            assert_eq!(harness.recorded_cwd(&path).unwrap(), None, "{harness:?}");
+        }
     }
 
     #[test]
