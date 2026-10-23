@@ -7,7 +7,10 @@ permissions:
   contents: read
 jobs:
   build:
+    env:
+      RUST_TEST_THREADS: '1'
     strategy:
+      fail-fast: false
       matrix:
         include:
           - runner: ubuntu-22.04
