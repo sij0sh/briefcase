@@ -16,6 +16,9 @@ manifest excludes retained evidence, local validation and evaluation outputs. St
 protocol/oracle and synthetic repair fixtures remain because the reviewed script
 tests need them. Generated evaluation results and real session captures are excluded.
 
+The repository evaluation tests also require ripgrep; release runners install
+it explicitly alongside Python, Node and Rust.
+
 The release workflow builds Linux x64/ARM64 and macOS x64/ARM64 on native runners.
 It runs the reviewed behavioral checks and maps a real Python import through
 Archclt 0.2.0 using the extracted release executable, then uploads

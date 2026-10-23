@@ -31,6 +31,16 @@ jobs:
         with:
           node-version: '22'
       - uses: dtolnay/rust-toolchain@stable
+      - name: Install evaluation test tools on Linux
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes ripgrep
+      - name: Install evaluation test tools on macOS
+        if: runner.os == 'macOS'
+        env:
+          HOMEBREW_NO_AUTO_UPDATE: '1'
+        run: brew install ripgrep
       - run: cargo test --locked --lib
       - run: cargo test --locked --test impact
       - run: python3 -B -m unittest discover -s tools -p 'test_*.py'
