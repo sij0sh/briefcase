@@ -4,6 +4,8 @@ mod context_support;
 use context_support::Fixture;
 use serde_json::json;
 use briefcase::architecture::{capture::Capture,contracts::{self,rows,text},data,query::Options,typescript};
+/// The vendored compiler pin: `npm ci --ignore-scripts --prefix tools/typescript`.
+fn compiler()->std::path::PathBuf{std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tools/typescript/node_modules/typescript/lib/typescript.js")}
 fn fixture()->Fixture{
     let mut f=Fixture::new();
     for (path,body) in [
@@ -14,7 +16,7 @@ fn fixture()->Fixture{
         ("prisma/migrations/001_init/migration.sql","CREATE TABLE \"users\" (\"id\" TEXT NOT NULL PRIMARY KEY);\n"),
     ]{let path=f.root.join(path);std::fs::create_dir_all(path.parent().unwrap()).unwrap();std::fs::write(path,body).unwrap();}
     let repo=f.ledger.repository().unwrap();let generation=f.ledger.begin(&repo,None).unwrap();
-    let options=typescript::ScanOptions{calls:true,..Default::default()};
+    let options=typescript::ScanOptions{calls:true,compiler:Some(compiler()),..Default::default()};
     let produced=typescript::produce(Capture::read(&f.root,None).unwrap(),&repo,generation,&options).unwrap();
     f.view=f.ledger.commit(generation,&produced).unwrap();f.ledger.publish(&f.view,true).unwrap();
     data::analyze(&mut f.ledger,&Options{view:f.view.clone(),..Default::default()},&options).unwrap();

@@ -53,6 +53,27 @@ fn invalid_profile_preflight_reports_configuration_without_creating_a_database()
     }
 }
 
+#[test]
+fn typescript_sync_names_both_compiler_knobs_instead_of_a_path_error() {
+    use std::process::Command;
+    let mut f=Fixture::new();std::fs::create_dir_all(f.root.join("src")).unwrap();
+    std::fs::write(f.root.join("tsconfig.json"),r#"{"include":["src/**/*.ts"]}"#).unwrap();
+    std::fs::write(f.root.join("src/a.ts"),"export const a = 1;\n").unwrap();f.recapture();
+    let database=f.dir.path().join("compiler.db");
+    let output=Command::new(env!("CARGO_BIN_EXE_briefcase")).current_dir(&f.root)
+        .env_remove("BRIEFCASE_DB").env_remove("BRIEFCASE_SYNC").env_remove("BRIEFCASE_TYPESCRIPT_COMPILER")
+        .args(["--db",database.to_str().unwrap(),"--project-root",f.root.to_str().unwrap(),"--json","sync","--language","typescript"])
+        .output().unwrap();
+    let text=String::from_utf8_lossy(&output.stdout).into_owned();
+    let result:Value=serde_json::from_str(&text).unwrap_or_else(|e|panic!("{e}: {text} {}",String::from_utf8_lossy(&output.stderr)));
+    assert_eq!(result["sync"],"needs_configuration","{result}");
+    assert_eq!(result["ready"],false);
+    let message=result["message"].as_str().unwrap();
+    assert!(message.contains("--typescript-compiler"),"{message}");
+    assert!(message.contains("BRIEFCASE_TYPESCRIPT_COMPILER"),"{message}");
+    assert!(!message.contains("No such file"),"{message}");
+}
+
 #[cfg(unix)]
 #[test]
 fn recall_policy_switches_do_not_make_alignment_dirty_or_enqueue_the_watcher() {

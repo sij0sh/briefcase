@@ -13,6 +13,17 @@ use native_language_support::assert_retained_retrieval;
 use serde_json::{json, Value};
 use std::{collections::BTreeSet, path::Path};
 
+/// The vendored compiler pin: `npm ci --ignore-scripts --prefix tools/typescript`.
+fn compiler() -> std::path::PathBuf {
+    std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("tools/typescript/node_modules/typescript/lib/typescript.js")
+}
+fn scan_options() -> ScanOptions {
+    ScanOptions {
+        compiler: Some(compiler()),
+        ..Default::default()
+    }
+}
 fn options(view: &str) -> Options {
     Options {
         view: view.into(),
@@ -36,6 +47,7 @@ fn scan(l: &mut Ledger, root: &Path, label: &str, calls: bool) -> Value {
         generation,
         &ScanOptions {
             calls,
+            compiler: Some(compiler()),
             ..Default::default()
         },
     )
@@ -108,7 +120,7 @@ fn compiler_aliases_reexports_commonjs_calls_and_retained_only_extension() {
     }
     std::fs::remove_dir_all(&root).unwrap();
     assert_eq!(
-        typescript::analyze(&mut l, &options("base"), &ScanOptions::default()).unwrap()["reused"],
+        typescript::analyze(&mut l, &options("base"), &scan_options()).unwrap()["reused"],
         false
     );
     let v = l.load("base").unwrap();
@@ -141,7 +153,7 @@ fn compiler_aliases_reexports_commonjs_calls_and_retained_only_extension() {
         .iter()
         .all(|a| a["class"] == "evidence" && a["resolution"]["method"] == "compiler"));
     assert_eq!(
-        typescript::analyze(&mut l, &options("base"), &ScanOptions::default()).unwrap()["reused"],
+        typescript::analyze(&mut l, &options("base"), &scan_options()).unwrap()["reused"],
         true
     );
     let report = query::reachability(
@@ -257,7 +269,7 @@ fn complete_project_supports_policy_passes_negative_paths_and_stable_identity() 
         "unknown"
     );
     assert_eq!(
-        typescript::analyze(&mut l, &options("base"), &ScanOptions::default()).unwrap()["coverage"]
+        typescript::analyze(&mut l, &options("base"), &scan_options()).unwrap()["coverage"]
             ["resolution_complete"],
         true
     );
@@ -279,7 +291,7 @@ fn complete_project_supports_policy_passes_negative_paths_and_stable_identity() 
     );
     scan(&mut l, &root, "repeat", false);
     assert_eq!(
-        typescript::analyze(&mut l, &options("repeat"), &ScanOptions::default()).unwrap()["reused"],
+        typescript::analyze(&mut l, &options("repeat"), &scan_options()).unwrap()["reused"],
         false
     );
     let repeat = l.load("repeat").unwrap();
@@ -374,7 +386,7 @@ fn missing_compiler_bad_config_and_project_reference_fail_before_publication() {
         &[("src/lib.ts", "export function function_name(){}")],
     );
     let missing = ScanOptions {
-        compiler: temp.path().join("absent.js"),
+        compiler: Some(temp.path().join("absent.js")),
         ..Default::default()
     };
     assert!(
@@ -389,7 +401,7 @@ fn missing_compiler_bad_config_and_project_reference_fail_before_publication() {
             Capture::read(&root, None).unwrap(),
             "tests",
             1,
-            &ScanOptions::default()
+            &scan_options()
         )
         .is_err());
     }
@@ -623,7 +635,7 @@ fn cli_tsjs_policy_claim_routing_rebuild_and_retraction_share_authority() {
             .iter()
             .any(|s| s["currently_retracted"] == true)
     );
-    assert!(typescript::analyze(&mut l, &options("base"), &ScanOptions::default()).is_err());
+    assert!(typescript::analyze(&mut l, &options("base"), &scan_options()).is_err());
 }
 
 #[test]
@@ -659,6 +671,7 @@ fn workspace_partitions_resolve_manifests_barrels_and_classify_calls() {
         &ScanOptions {
             project: "workspace".into(),
             calls: true,
+            compiler: Some(compiler()),
             ..Default::default()
         },
     )
@@ -753,6 +766,7 @@ fn workspace_binding_references_resolve_uses_through_barrels_namespaces_and_heri
     let generation_options = |references| ScanOptions {
         project: "workspace".into(),
         references,
+        compiler: Some(compiler()),
         ..Default::default()
     };
     let mut l = Ledger::open(&temp.path().join("knowledge.db")).unwrap();

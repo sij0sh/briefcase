@@ -51,6 +51,8 @@ pub(crate) struct TypeScript {
     pub(crate) project: String,
     #[arg(long, default_value = "node")]
     pub(crate) node: PathBuf,
+    /// TypeScript compiler module. Default: BRIEFCASE_TYPESCRIPT_COMPILER, else
+    /// none, reported as needs_configuration.
     #[arg(long)]
     pub(crate) typescript_compiler: Option<PathBuf>,
     /// Workspace partitions: resolve identifier uses of imported bindings to
@@ -69,7 +71,7 @@ impl TypeScript {
             ..Default::default()
         };
         if let Some(compiler) = self.typescript_compiler {
-            options.compiler = compiler;
+            options.compiler = Some(compiler);
         }
         options
     }

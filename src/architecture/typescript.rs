@@ -10,7 +10,7 @@ use super::{
 use serde_json::{json, Value};
 use std::{
     collections::BTreeMap,
-    path::PathBuf,
+    path::{Path, PathBuf},
     process::Command,
     time::{Duration, Instant},
 };
@@ -18,8 +18,9 @@ use std::{
 #[derive(Clone)]
 pub struct ScanOptions {
     pub node: PathBuf,
-    /// Explicit compiler module, independently pinned by retained byte digest.
-    pub compiler: PathBuf,
+    /// Compiler module, independently pinned by retained byte digest. `None`
+    /// leaves resolution to the caller, so no constructor bakes a build path.
+    pub compiler: Option<PathBuf>,
     pub project: String,
     pub timeout: Duration,
     pub calls: bool,
@@ -31,12 +32,7 @@ impl Default for ScanOptions {
     fn default() -> Self {
         Self {
             node: "node".into(),
-            compiler: std::env::var_os("BRIEFCASE_TYPESCRIPT_COMPILER")
-                .map(Into::into)
-                .unwrap_or_else(|| {
-                    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-                        .join("tools/typescript/node_modules/typescript/lib/typescript.js")
-                }),
+            compiler: None,
             project: "tsconfig.json".into(),
             timeout: Duration::from_secs(60),
             calls: false,
@@ -44,6 +40,24 @@ impl Default for ScanOptions {
         }
     }
 }
+/// Resolve the compiler module: explicit choice, then environment, then
+/// nothing. Never guesses a build or install location; a missing compiler is a
+/// configuration value the caller reports, not a path failure.
+pub(crate) fn resolve_compiler(requested: Option<&Path>) -> Option<PathBuf> {
+    requested
+        .map(PathBuf::from)
+        .or_else(|| std::env::var_os("BRIEFCASE_TYPESCRIPT_COMPILER").map(Into::into))
+}
+
+const NO_COMPILER: &str = "ANALYZER: TypeScript analysis needs the compiler module: pass --typescript-compiler <PATH> or set BRIEFCASE_TYPESCRIPT_COMPILER (npm ci --ignore-scripts --prefix tools/typescript installs the vendored pin)";
+
+fn require_compiler(options: &ScanOptions) -> Result<PathBuf> {
+    let Some(compiler) = resolve_compiler(options.compiler.as_deref()) else {
+        return Err(NO_COMPILER.into());
+    };
+    Ok(compiler.canonicalize()?)
+}
+
 fn compiler_output(c: &Capture, options: &ScanOptions) -> Result<Value> {
     node_adapter(
         c,
@@ -119,7 +133,7 @@ fn node_adapter_mode(
         "ANALYZER",
         "Project configuration must be a retained input",
     )?;
-    let compiler = options.compiler.canonicalize()?;
+    let compiler = require_compiler(options)?;
     let digest = identity::bytes_digest(&std::fs::read(&compiler)?);
     let temp = native_host::scratch()?;
     let script = temp.path().join(name);
@@ -497,4 +511,44 @@ pub fn analyze(l: &mut Ledger, o: &query::Options, options: &ScanOptions) -> Res
         &["typescript", "javascript"],
         |capture, repository, generation| produce(capture, repository, generation, &options),
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn no_constructor_bakes_a_build_path() {
+        assert_eq!(ScanOptions::default().compiler, None);
+    }
+
+    #[test]
+    fn both_configuration_knobs_are_named_when_nothing_is_chosen() {
+        assert!(NO_COMPILER.contains("--typescript-compiler"), "{NO_COMPILER}");
+        assert!(
+            NO_COMPILER.contains("BRIEFCASE_TYPESCRIPT_COMPILER"),
+            "{NO_COMPILER}"
+        );
+        if std::env::var_os("BRIEFCASE_TYPESCRIPT_COMPILER").is_none() {
+            assert_eq!(resolve_compiler(None), None);
+            let error = require_compiler(&ScanOptions::default()).unwrap_err().to_string();
+            assert!(error.contains("--typescript-compiler"), "{error}");
+        }
+    }
+
+    #[test]
+    fn an_explicit_compiler_wins_over_the_environment() {
+        let chosen = PathBuf::from("chosen/typescript.js");
+        assert_eq!(resolve_compiler(Some(&chosen)), Some(chosen));
+    }
+
+    #[test]
+    fn a_configured_compiler_must_still_exist() {
+        let options = ScanOptions {
+            compiler: Some(PathBuf::from("absent/typescript.js")),
+            ..Default::default()
+        };
+        let error = require_compiler(&options).unwrap_err().to_string();
+        assert!(!error.contains("--typescript-compiler"), "{error}");
+    }
 }

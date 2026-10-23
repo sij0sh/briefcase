@@ -584,11 +584,7 @@ fn profile(o: &SyncOptions, deadline: Instant) -> std::result::Result<Profile, P
             python = Some(options);
         }
         Language::Typescript => {
-            let path = o
-                .compiler
-                .clone()
-                .unwrap_or_else(|| typescript::ScanOptions::default().compiler);
-            compiler = Some(path);
+            compiler = typescript::resolve_compiler(o.compiler.as_deref());
         }
     }
     let summary = json!({
@@ -832,7 +828,7 @@ fn apply_one(o: &SyncOptions, _lock: &WriterLock, started: Instant, slot:Option<
             &capture,
             &typescript::ScanOptions {
                 node: o.node.clone(),
-                compiler: profile.compiler.clone().unwrap(),
+                compiler: profile.compiler.clone(),
                 project: profile.project.clone(),
                 timeout: remaining.min(Duration::from_secs(600)),
                 calls: profile.calls,
@@ -899,7 +895,7 @@ fn apply_one(o: &SyncOptions, _lock: &WriterLock, started: Instant, slot:Option<
             generation,
             &typescript::ScanOptions {
                 node: o.node.clone(),
-                compiler: profile.compiler.clone().unwrap(),
+                compiler: profile.compiler.clone(),
                 project: profile.project.clone(),
                 timeout: analysis_timeout,
                 calls: profile.calls,
@@ -994,12 +990,18 @@ fn prepare(o: &SyncOptions, started: Instant) -> Result<std::result::Result<Inpu
                 },
             )));
         }
-        let compiler = profile.compiler.as_ref().unwrap();
-        if !compiler.is_file() {
-            return Ok(Err(
-                json!({"sync":"needs_configuration", "message":bounded(&format!(
-                "TS/JS sync needs the pinned TypeScript compiler; set BRIEFCASE_TYPESCRIPT_COMPILER (missing {})", compiler.display()))}),
-            ));
+        match profile.compiler.as_deref() {
+            None => {
+                return Ok(Err(json!({"sync":"needs_configuration", "message":bounded(
+                "TS/JS sync needs a TypeScript compiler module; pass --typescript-compiler or set BRIEFCASE_TYPESCRIPT_COMPILER (npm ci --ignore-scripts --prefix tools/typescript installs the vendored pin)")})))
+            }
+            Some(compiler) if !compiler.is_file() => {
+                return Ok(Err(
+                    json!({"sync":"needs_configuration", "message":bounded(&format!(
+                    "TS/JS sync needs the pinned TypeScript compiler; set BRIEFCASE_TYPESCRIPT_COMPILER (missing {})", compiler.display()))}),
+                ));
+            }
+            Some(_) => {}
         }
     }
     let repository = identity::id("repository", &json!({"root":o.root.to_string_lossy()}))?;

@@ -10,6 +10,12 @@ use briefcase::architecture::{ledger::Ledger, mcp, service, workspace};
 
 const TOKEN: &str = "zanzibarquux";
 
+/// The vendored compiler pin: `npm ci --ignore-scripts --prefix tools/typescript`.
+fn typescript_compiler() -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tools/typescript/node_modules/typescript/lib/typescript.js")
+}
+
 struct Repo {
     _dir: tempfile::TempDir,
     root: PathBuf,
@@ -74,6 +80,7 @@ impl Repo {
             .env("CLAUDE_CONFIG_DIR", self._dir.path().join("claude"))
             .env("MUSE_HOME", self._dir.path().join("muse"))
             .env("PATH", &self.empty_path)
+            .env("BRIEFCASE_TYPESCRIPT_COMPILER", typescript_compiler())
             .args(args)
             .output()
             .unwrap();
