@@ -262,7 +262,12 @@ fn sync_is_idempotent_rebuilds_projections_and_never_undoes_retractions() {
     // even though sync no longer audits every historical publication.
     let connection = rusqlite::Connection::open(repo.db()).unwrap();
     connection
-        .execute_batch("DELETE FROM graph; UPDATE retrieval_fts SET evidence_text='damaged';")
+        .execute_batch(
+            "DELETE FROM retrieval_fts;
+             DELETE FROM retrieval_units;
+             DELETE FROM projections WHERE kind='graph'
+               AND view_id=(SELECT current_view FROM namespace);",
+        )
         .unwrap();
     assert_eq!(repo.sync()["sync"], "rebuilt");
     assert_eq!(repo.sync()["sync"], "up-to-date");

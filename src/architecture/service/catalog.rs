@@ -85,7 +85,7 @@ pub fn catalog() -> Vec<Operation> {
         (Impact,"impact","Assess a proposed change or the full delta between two captured source snapshots. Retains affected components, dependency witnesses, declared constraints, suggested verification and typed unknowns. Does not execute tests, approve decisions or enforce policy."),
         (Inventory,"inventory","Read compact filtered candidates, lexical matches, or complete remaining work for an immutable case. Filters apply before paging; reading does not expand assembly."),
         (ExpandCase,"expand_case","Explicitly promote retained candidates or lexical-tail paths and assemble a new immutable case revision. Source inspection and full-file verification are independent."),
-        (Search,"search","Rank retained text, evidence, Git history and optional session requests. A match is a candidate, never proof of ownership; use occurrences for exhaustive matching."),
+        (Search,"search","Rank retained text, evidence, Git history and optional recorded session facts. A match is a candidate, never proof of ownership; use occurrences for exhaustive matching."),
         (Occurrences,"occurrences","Enumerate every retained literal match in path and byte order, including overlaps. Continue with the returned pinned view."),
         (Neighbors,"neighbors","Incoming/outgoing adjacency for any retained entity or file. Filter predicates for dependencies, callers, tests, data, deployment or runtime relationships."),
         (Reachability,"reachability","Transitive static call paths between two identities; dynamic behavior and observed calls remain separate."),

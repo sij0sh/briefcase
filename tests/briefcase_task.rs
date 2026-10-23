@@ -106,7 +106,9 @@ fn response_budget_pagination_does_not_skip_undelivered_matches() {
 #[test]
 fn text_and_task_queries_survive_graph_projection_loss() {
     let f=Fixture::new();assert!(!f.ledger.load(&f.view).unwrap().stale);
-    let connection=rusqlite::Connection::open(&f.db).unwrap();connection.execute_batch("DELETE FROM graph; DELETE FROM search;").unwrap();
+    let connection=rusqlite::Connection::open(&f.db).unwrap();
+    connection.execute_batch("DELETE FROM retrieval_fts; DELETE FROM retrieval_units;").unwrap();
+    connection.execute("DELETE FROM projections WHERE view_id=? AND kind='graph'",[&f.view]).unwrap();
     assert!(f.ledger.load(&f.view).unwrap().stale,"external SQLite changes must invalidate verified-view cache");
     let result=f.call("occurrences",json!({"text":"save","path":"src/store.rs"}));assert!(result["page"]["total"].as_u64().unwrap()>0);
     let packet=f.call("brief",json!({"task":"debug storage","target":"src/store.rs","max_bytes":1048576}));

@@ -1,7 +1,7 @@
 use super::*;
 impl Ledger {
-    /// Read durable capture records without requiring rebuildable graph/search
-    /// projections. Used for literal queries and degraded task packets only.
+    /// Read durable capture records without requiring rebuildable projections.
+    /// Used for literal queries and degraded task packets only.
     /// This does not grant a negative architecture guarantee.
     pub(crate) fn retained(&self, selector: &str) -> Result<View> {
         let id = self.resolve(selector)?;
@@ -68,30 +68,52 @@ impl Ledger {
                 .any(|p| p["ledger_watermark"].as_u64().unwrap_or(0) < last_retraction)
             || projections[0]["ledger_watermark"] != projections[1]["ledger_watermark"]
             || projections[0]["input_assertion_ids"] != projections[1]["input_assertion_ids"];
+        let fact_configuration = super::super::evidence_index::configuration_digest()?;
         for p in &projections {
-            let expected: BTreeSet<String> =
-                strings(&p["input_assertion_ids"]).into_iter().collect();
-            let sql = if p["kind"] == "graph" {
-                "SELECT assertion_id FROM graph WHERE projection_id=?"
-            } else {
-                "SELECT assertion_id FROM search WHERE projection_id=?"
-            };
-            let mut index = self.db.prepare(sql)?;
-            let actual = index
-                .query_map([text(p, "id")], |r| r.get::<_, String>(0))?
-                .collect::<rusqlite::Result<BTreeSet<_>>>()?;
-            stale |= actual != expected;
-            if p["kind"] == "retrieval" && !p["unit_ids"].is_null() {
-                let mut statement=self.db.prepare("SELECT u.body FROM retrieval_units u JOIN retrieval_fts f ON u.id=f.unit_id AND u.projection_id=f.projection_id WHERE u.projection_id=?")?;
-                let raw = statement
-                    .query_map([text(p, "id")], |r| r.get::<_, String>(0))?
-                    .collect::<rusqlite::Result<Vec<_>>>()?;
-                let actual = raw
-                    .iter()
-                    .map(|r| identity::parse(r.as_bytes()).map(|r| text(&r, "id")))
-                    .collect::<Result<BTreeSet<_>>>()?;
-                stale |= actual != strings(&p["unit_ids"]).into_iter().collect();
+            if p["kind"] != "retrieval" {
+                continue;
             }
+            let current_configuration =
+                p["configuration_digest"].as_str() == Some(fact_configuration.as_str());
+            stale |= !current_configuration || p["unit_ids"].is_null();
+            if !current_configuration || p["unit_ids"].is_null() {
+                continue;
+            }
+            let expected: BTreeSet<String> = strings(&p["unit_ids"]).into_iter().collect();
+            let fts_rows: u64 = self.db.query_row(
+                "SELECT COUNT(*) FROM retrieval_fts WHERE projection_id=?",
+                [text(p, "id")],
+                |r| r.get(0),
+            )?;
+            stale |= fts_rows as usize != expected.len();
+            let mut statement = self.db.prepare(
+                "SELECT u.id,u.body,f.evidence_text,f.routing_text
+                 FROM retrieval_units u
+                 JOIN retrieval_fts f ON u.id=f.unit_id AND u.projection_id=f.projection_id
+                 WHERE u.projection_id=? ORDER BY u.id",
+            )?;
+            let stored = statement
+                .query_map([text(p, "id")], |r| {
+                    Ok((
+                        r.get::<_, String>(0)?,
+                        r.get::<_, String>(1)?,
+                        r.get::<_, String>(2)?,
+                        r.get::<_, String>(3)?,
+                    ))
+                })?
+                .collect::<rusqlite::Result<Vec<_>>>()?;
+            let mut actual = BTreeSet::new();
+            for (stored_id, raw, evidence, routing) in stored {
+                let unit = identity::parse(raw.as_bytes())?;
+                let uid = text(&unit, "id");
+                let mut body = unit.clone();
+                body.as_object_mut().unwrap().remove("id");
+                stale |= uid != identity::id("retrieval-unit", &body)?;
+                stale |= stored_id != format!("{}/{}", text(p, "id"), uid);
+                stale |= unit["text"] != evidence || unit["routing_text"] != routing;
+                actual.insert(uid.to_owned());
+            }
+            stale |= actual != expected;
         }
         let mut bundle = identity::parse(body.as_bytes())?;
         for overlay in self.source_overlays(&id)? {
@@ -113,35 +135,6 @@ impl Ledger {
                 || p["generation"].as_u64() != Some(stored.1)
                 || p["ledger_watermark"].as_u64() != Some(stored.2)
                 || id != stored.3;
-        }
-        if let Some(p) = projections
-            .iter()
-            .find(|p| p["kind"] == "retrieval" && !p["unit_ids"].is_null())
-        {
-            let mut statement=self.db.prepare("SELECT u.body,f.evidence_text,f.routing_text FROM retrieval_units u JOIN retrieval_fts f ON u.id=f.unit_id AND u.projection_id=f.projection_id WHERE u.projection_id=? ORDER BY u.id")?;
-            let stored = statement
-                .query_map([text(p, "id")], |r| {
-                    Ok((
-                        r.get::<_, String>(0)?,
-                        r.get::<_, String>(1)?,
-                        r.get::<_, String>(2)?,
-                    ))
-                })?
-                .collect::<rusqlite::Result<Vec<_>>>()?;
-            let expected_units =
-                super::super::evidence_index::build_units(&bundle, &self.payloads(&bundle)?, &eligible)?;
-            let expected_units: BTreeMap<_, _> = expected_units
-                .into_iter()
-                .map(|u| (text(&u, "id"), u))
-                .collect();
-            for (raw, evidence, routing) in stored {
-                let unit = identity::parse(raw.as_bytes())?;
-                stale |= unit["evidence_text"] != evidence
-                    || unit["routing_text"] != routing
-                    || expected_units.get(&text(&unit, "id")) != Some(&unit);
-            }
-            stale |= strings(&p["unit_ids"]).into_iter().collect::<BTreeSet<_>>()
-                != expected_units.keys().cloned().collect();
         }
         let removed = self.retracted()?;
         let current_inputs: BTreeSet<_> = rows(&bundle, "assertions")

@@ -1,6 +1,7 @@
-//! Narrow reads of retained session metadata and recorded user requests.
-//! Listing/lexical recall does not hydrate transcripts or rebuild architecture
-//! projections. Architecture Evidence queries still use the validated View.
+//! Narrow reads of retained session metadata and the session fact index.
+//! Listing does not hydrate transcripts. Fact search returns only persisted
+//! assertion literals; architecture Evidence queries still use the validated
+//! View.
 use super::*;
 impl Ledger {
     pub(crate) fn session_publications(&self) -> Result<Vec<Value>> {
@@ -21,32 +22,89 @@ impl Ledger {
             .collect()
     }
 
-    /// JSON1 selects only normalized user-message records. Large tool results
-    /// and the raw transcript never cross this read boundary. Metadata retention
-    /// has no text and therefore cannot become a lexical request hit.
-    pub(crate) fn session_request_events(&self, limit: usize) -> Result<Vec<Value>> {
-        for publication in self.session_publications()? {
-            let id = text(&publication["context"], "normalized_artifact_id");
-            let (body,raw):(String,Vec<u8>)=self.db.query_row("SELECT r.body,p.bytes FROM records r JOIN payloads p ON p.artifact_id=r.id WHERE r.id=?",[&id],|r|Ok((r.get(0)?,r.get(1)?)))?;
-            let artifact = identity::parse(body.as_bytes())?;
-            require(
-                identity::bytes_digest(&raw) == artifact["digest"],
-                "DIGEST",
-                "Retained normalized session payload is corrupted",
-            )?;
-        }
-        let mut statement = self.db.prepare("SELECT v.id,json_extract(v.bundle,'$.session_contexts[0].id'),json_extract(v.bundle,'$.session_contexts[0].harness'),e.value FROM views v JOIN scans s ON s.generation=v.generation JOIN payloads p ON p.artifact_id=json_extract(v.bundle,'$.session_contexts[0].normalized_artifact_id') JOIN json_each(CAST(p.bytes AS TEXT),'$.events') e WHERE s.scope='session' AND v.projection_generation>0 AND json_extract(e.value,'$.kind')='user_message' AND json_type(e.value,'$.text')='text' ORDER BY v.generation DESC,CAST(json_extract(e.value,'$.ordinal') AS INTEGER) LIMIT ?")?;
-        let raw = statement
-            .query_map([limit as i64], |r| {
+    /// Rank persisted session facts over current publications. Old span
+    /// representations and views waiting for a fact rebuild are excluded.
+    pub(crate) fn session_fact_search(
+        &self,
+        expression: &str,
+        configuration: &str,
+        limit: usize,
+    ) -> Result<Vec<(String, Value)>> {
+        let mut statement = self.db.prepare(
+            "SELECT v.id,p.id,u.id,u.body,f.evidence_text,f.routing_text
+             FROM retrieval_fts f
+             JOIN retrieval_units u ON u.id=f.unit_id AND u.projection_id=f.projection_id
+             JOIN projections p ON p.id=f.projection_id
+             JOIN views v ON v.id=p.view_id AND v.projection_generation=p.generation
+             JOIN scans s ON s.generation=v.generation
+             WHERE retrieval_fts MATCH ?
+               AND s.scope='session'
+               AND p.kind='retrieval'
+               AND json_extract(p.body,'$.configuration_digest')=?
+               AND p.watermark >=
+                   (SELECT COALESCE(MAX(watermark),0) FROM retractions)
+               AND json_array_length(p.body,'$.unit_ids')=
+                   (SELECT COUNT(*) FROM retrieval_units u2 WHERE u2.projection_id=p.id)
+               AND json_array_length(p.body,'$.unit_ids')=
+                   (SELECT COUNT(*) FROM retrieval_fts f2 WHERE f2.projection_id=p.id)
+             ORDER BY bm25(retrieval_fts), v.generation DESC, f.unit_id
+             LIMIT ?",
+        )?;
+        let rows = statement
+            .query_map(params![expression, configuration, limit as i64], |r| {
                 Ok((
                     r.get::<_, String>(0)?,
                     r.get::<_, String>(1)?,
                     r.get::<_, String>(2)?,
                     r.get::<_, String>(3)?,
+                    r.get::<_, String>(4)?,
+                    r.get::<_, String>(5)?,
                 ))
             })?
             .collect::<rusqlite::Result<Vec<_>>>()?;
-        raw.into_iter().map(|(view,context,harness,event)|Ok(json!({"view_id":view,"session_context_id":context,
-            "harness":identity::parse(harness.as_bytes())?,"event":identity::parse(event.as_bytes())?}))).collect()
+        rows.into_iter()
+            .map(|(view, projection, stored_id, raw, evidence, routing)| {
+                let unit = identity::parse(raw.as_bytes())?;
+                let uid = text(&unit, "id");
+                let mut body = unit.clone();
+                body.as_object_mut().unwrap().remove("id");
+                require(
+                    uid == identity::id("retrieval-unit", &body)?,
+                    "FRESHNESS",
+                    "Session fact projection needs rebuild",
+                )?;
+                require(
+                    stored_id == format!("{projection}/{uid}")
+                        && unit["text"] == evidence
+                        && unit["routing_text"] == routing,
+                    "FRESHNESS",
+                    "Session fact projection needs rebuild",
+                )?;
+                Ok((view, unit))
+            })
+            .collect()
+    }
+
+    /// `(indexed, total)` session publications for one fact configuration.
+    pub(crate) fn session_fact_coverage(&self, configuration: &str) -> Result<(usize, usize)> {
+        let total = self.session_publications()?.len();
+        let indexed: i64 = self.db.query_row(
+            "SELECT COUNT(DISTINCT v.id)
+             FROM projections p
+             JOIN views v ON v.id=p.view_id AND v.projection_generation=p.generation
+             JOIN scans s ON s.generation=v.generation
+             WHERE s.scope='session'
+               AND p.kind='retrieval'
+               AND json_extract(p.body,'$.configuration_digest')=?
+               AND p.watermark >=
+                   (SELECT COALESCE(MAX(watermark),0) FROM retractions)
+               AND json_array_length(p.body,'$.unit_ids')=
+                   (SELECT COUNT(*) FROM retrieval_units u2 WHERE u2.projection_id=p.id)
+               AND json_array_length(p.body,'$.unit_ids')=
+                   (SELECT COUNT(*) FROM retrieval_fts f2 WHERE f2.projection_id=p.id)",
+            [configuration],
+            |r| r.get(0),
+        )?;
+        Ok((indexed as usize, total))
     }
 }

@@ -15,7 +15,8 @@ impl Ledger {
     }
     pub fn publish(&mut self, view_id: &str, select_current: bool) -> Result<Vec<Value>> {
         let mut view = self.load(view_id)?;
-        contracts::validate(&view.bundle, &self.payloads(&view.bundle)?)?;
+        let payloads = self.payloads(&view.bundle)?;
+        contracts::validate(&view.bundle, &payloads)?;
         let removed = self.retracted()?;
         let retraction_epoch = self.retraction_epoch()?;
         let inputs: Vec<_> = rows(&view.bundle, "assertions")
@@ -23,11 +24,12 @@ impl Ledger {
             .filter(|a| !removed.contains(&text(a, "id")))
             .map(|r| text(r, "id"))
             .collect();
-        let input_set: std::collections::HashSet<String> = inputs.iter().cloned().collect();
+        let input_set: BTreeSet<String> = inputs.iter().cloned().collect();
         let units = super::super::evidence_index::build_units(
             &view.bundle,
-            &self.payloads(&view.bundle)?,
-            &inputs.iter().cloned().collect(),
+            &payloads,
+            &input_set,
+            &view.scope,
         )?;
         let retrieval_configuration = super::super::evidence_index::configuration();
         let context = rows(&view.bundle, "runs")[0]["context"].clone();
@@ -65,6 +67,19 @@ impl Ledger {
             |r| r.get(0),
         )?;
         let generation = old + 1;
+        // Manifests remain resolvable for pinned reports. Superseded derived
+        // units do not: keeping every generation would preserve the exact span
+        // cost this projection change is meant to remove.
+        tx.execute(
+            "DELETE FROM retrieval_fts WHERE projection_id IN
+             (SELECT id FROM projections WHERE view_id=?)",
+            [view_id],
+        )?;
+        tx.execute(
+            "DELETE FROM retrieval_units WHERE projection_id IN
+             (SELECT id FROM projections WHERE view_id=?)",
+            [view_id],
+        )?;
         let mut manifests = Vec::new();
         for kind in ["graph", "retrieval"] {
             let mut m = json!({"kind":kind,"context":context,"ledger_watermark":watermark,"generation":generation,"input_assertion_ids":inputs,"eligible_classes":["evidence","derived","declaration","claim"]});
@@ -86,25 +101,6 @@ impl Ledger {
             )?);
             let id = text(&m, "id");
             tx.execute("INSERT INTO projections(id,view_id,generation,kind,watermark,body) VALUES(?,?,?,?,?,?)",params![id,view_id,generation,kind,watermark,m.to_string()])?;
-            for a in rows(&view.bundle, "assertions")
-                .iter()
-                .filter(|a| input_set.contains(&text(a, "id")))
-            {
-                let aid = text(a, "id");
-                if kind == "graph" {
-                    tx.execute(
-                        "INSERT INTO graph(projection_id,assertion_id) VALUES(?,?)",
-                        params![id, aid],
-                    )?;
-                } else {
-                    // Membership remains one row per assertion even when a
-                    // declaration has no source text of its own.
-                    tx.execute(
-                        "INSERT INTO search(projection_id,assertion_id,terms) VALUES(?,?,?)",
-                        params![id, aid, text(&a["proposition"], "predicate")],
-                    )?;
-                }
-            }
             if kind == "retrieval" {
                 for unit in &units {
                     let uid = text(unit, "id");
@@ -116,7 +112,7 @@ impl Ledger {
                         params![stored_id, id, unit.to_string()],
                     )?;
                     tx.execute("INSERT INTO retrieval_fts(unit_id,projection_id,evidence_text,routing_text) VALUES(?,?,?,?)",
-                        params![stored_id,id,text(unit,"evidence_text"),text(unit,"routing_text")])?;
+                        params![stored_id,id,text(unit,"text"),text(unit,"routing_text")])?;
                 }
             }
             manifests.push(m);

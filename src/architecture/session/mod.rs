@@ -607,7 +607,7 @@ pub fn load(l: &Ledger, o: &Options) -> Result<Session> {
     from_view(l, view)
 }
 
-/// Task composition reads the durable recording independently of graph/search
+/// Task composition reads the durable recording independently of projection
 /// readiness. Retractions and byte integrity still apply.
 pub(crate) fn load_retained(l: &Ledger, selector: &str) -> Result<Session> {
     let id = resolve(l, selector)?;

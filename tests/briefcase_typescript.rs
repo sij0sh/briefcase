@@ -188,8 +188,9 @@ fn compiler_aliases_reexports_commonjs_calls_and_retained_only_extension() {
         .collect();
     rusqlite::Connection::open(temp.path().join("knowledge.db"))
         .unwrap()
-        .execute_batch(
-            "DELETE FROM search; DELETE FROM retrieval_units; DELETE FROM retrieval_fts;",
+        .execute(
+            "DELETE FROM projections WHERE view_id=? AND kind='retrieval'",
+            [&v.id],
         )
         .unwrap();
     assert!(retrieval::retrieve(&l, "submit", &options("base"), 16384, 1).is_err());

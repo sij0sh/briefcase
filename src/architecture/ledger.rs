@@ -236,7 +236,8 @@ mod tests {
     use super::*;
     use crate::architecture::{
         capture::Capture,
-        query,
+        query, search,
+        session::{self, ImportOptions, Retention},
         rust::{self, ScanOptions},
     };
     use std::{
@@ -365,10 +366,241 @@ mod tests {
                 assert!(count > 0);
                 assert_eq!(l.resolve("latest").unwrap(), "view:1");
                 assert!(!l.load("latest").unwrap().stale);
-                assert!(query::dependencies(&l, &Default::default()).is_ok());
+                let deps = query::dependencies(&l, &Default::default());
+                assert!(deps.is_ok(), "{deps:?}");
             }
         }
     }
+    #[test]
+    fn session_facts_are_published_and_searchable_without_membership_tables() {
+        let dir = tempfile::tempdir().unwrap();
+        let db = dir.path().join("facts.db");
+        let mut l = Ledger::open(&db).unwrap();
+        let g = l.begin("fact-test", None).unwrap();
+        let source_view = l.commit(g, &prepared(g)).unwrap();
+        l.publish(&source_view, true).unwrap();
+        let raw = br#"{"type":"session","id":"s1","cwd":"/work/shop","timestamp":"2026-01-01T00:00:00Z"}
+{"type":"message","id":"m1","timestamp":"2026-01-01T00:00:01Z","message":{"role":"user","content":"Please run cargo test and update src/store.rs"}}
+{"type":"message","id":"m2","timestamp":"2026-01-01T00:00:02Z","message":{"role":"assistant","content":[{"type":"toolCall","id":"c1","name":"bash","arguments":{"command":"cargo test --locked"}}]}}
+{"type":"message","id":"m3","timestamp":"2026-01-01T00:00:03Z","message":{"role":"toolResult","toolCallId":"c1","isError":false,"content":"ok","details":{"exitCode":0}}}
+{"type":"message","id":"m4","timestamp":"2026-01-01T00:00:04Z","message":{"role":"assistant","content":[{"type":"toolCall","id":"c2","name":"read","arguments":{"path":"src/store.rs"}}]}}
+{"type":"message","id":"m5","timestamp":"2026-01-01T00:00:05Z","message":{"role":"toolResult","toolCallId":"c2","isError":false,"content":"ok"}}
+{"type":"message","id":"m6","timestamp":"2026-01-01T00:00:06Z","message":{"role":"assistant","content":[{"type":"toolCall","id":"c3","name":"edit","arguments":{"path":"src/store.rs"}}]}}
+{"type":"message","id":"m7","timestamp":"2026-01-01T00:00:07Z","message":{"role":"toolResult","toolCallId":"c3","isError":false,"content":"ok"}}
+"#;
+        let imported = session::import(
+            &mut l,
+            raw,
+            &ImportOptions {
+                profile: "pi-v1".into(),
+                repository_root: "/work/shop".into(),
+                label: Some("s1".into()),
+                repository_id: Some("fact-test".into()),
+                source_name: "session.jsonl".into(),
+                retention: Retention::Full,
+            },
+        )
+        .unwrap();
+        let session_view = imported["view_id"].as_str().unwrap();
+        let view = l.load(session_view).unwrap();
+        assert!(!view.stale, "{view:?}");
+        assert_eq!(view.projections.len(), 2);
+        let facts: u64 = l
+            .db
+            .query_row(
+                "SELECT COUNT(*) FROM retrieval_units u
+                 JOIN projections p ON p.id=u.projection_id WHERE p.view_id=?",
+                [session_view],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(facts, 4, "user, command, read and confirmed edit");
+        let source_facts: u64 = l
+            .db
+            .query_row(
+                "SELECT COUNT(*) FROM retrieval_units u
+                 JOIN projections p ON p.id=u.projection_id WHERE p.view_id=?",
+                [&source_view],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(source_facts, 0, "source views use source recall, not facts");
+        let tables: i64 = l
+            .db
+            .query_row(
+                "SELECT COUNT(*) FROM sqlite_master WHERE name IN ('graph','search')",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(tables, 0, "membership tables are not required");
+
+        let result = search::recall_with_sessions(
+            &l,
+            "cargo test",
+            &query::Options {
+                view: source_view.clone(),
+                ..Default::default()
+            },
+            20000,
+            false,
+            true,
+        )
+        .unwrap();
+        let hit = rows(&result, "items")
+            .iter()
+            .find(|i| i["source_kind"] == "session")
+            .expect("a session command fact");
+        assert_eq!(hit["predicate"], "RAN_COMMAND");
+        assert_eq!(hit["assertion_id"].as_str().is_some(), true);
+        assert_eq!(hit["event_id"].as_str().is_some(), true);
+        assert!(text(hit, "text").contains("cargo test"));
+        assert_eq!(result["coverage"]["sessions"]["publications_indexed"], 1);
+        assert_eq!(
+            result["coverage"]["sessions"]["publications_pending_rebuild"],
+            0
+        );
+
+        let result = search::recall_with_sessions(
+            &l,
+            "src/store.rs",
+            &query::Options {
+                view: source_view.clone(),
+                ..Default::default()
+            },
+            20000,
+            false,
+            true,
+        )
+        .unwrap();
+        let predicates: BTreeSet<String> = rows(&result, "items")
+            .iter()
+            .filter(|i| i["source_kind"] == "session")
+            .map(|i| text(i, "predicate"))
+            .collect();
+        assert!(predicates.contains("READ_PATH"), "{predicates:?}");
+        assert!(predicates.contains("EDITED_PATH"), "{predicates:?}");
+
+        // A missing fact is a projection fault, not an empty answer.
+        l.db.execute(
+            "DELETE FROM retrieval_units WHERE projection_id IN
+             (SELECT id FROM projections WHERE view_id=? AND kind='retrieval')",
+            [session_view],
+        )
+        .unwrap();
+        assert!(l.load(session_view).unwrap().stale);
+        let result = search::recall_with_sessions(
+            &l,
+            "cargo",
+            &query::Options {
+                view: source_view.clone(),
+                ..Default::default()
+            },
+            20000,
+            false,
+            true,
+        )
+        .unwrap();
+        assert_eq!(result["coverage"]["sessions"]["publications_indexed"], 0);
+        assert_eq!(
+            result["coverage"]["sessions"]["publications_pending_rebuild"],
+            1
+        );
+        l.rebuild(session_view).unwrap();
+        assert!(!l.load(session_view).unwrap().stale);
+
+        // Corrupting the FTS copy is also a projection fault.
+        l.db.execute(
+            "UPDATE retrieval_fts SET evidence_text='fabricated'
+             WHERE projection_id IN
+             (SELECT id FROM projections WHERE view_id=? AND kind='retrieval')",
+            [session_view],
+        )
+        .unwrap();
+        assert!(l.load(session_view).unwrap().stale);
+        l.rebuild(session_view).unwrap();
+        assert!(!l.load(session_view).unwrap().stale);
+
+        // An old span representation is reported as pending, never searched.
+        l.db.execute(
+            "UPDATE projections SET body=json_set(body,'$.configuration_digest','old')
+             WHERE view_id=? AND kind='retrieval'",
+            [session_view],
+        )
+        .unwrap();
+        assert!(l.load(session_view).unwrap().stale);
+        let result = search::recall_with_sessions(
+            &l,
+            "cargo",
+            &query::Options {
+                view: l.load(&source_view).unwrap().id,
+                ..Default::default()
+            },
+            20000,
+            false,
+            true,
+        )
+        .unwrap();
+        assert_eq!(result["coverage"]["sessions"]["publications_indexed"], 0);
+        assert_eq!(
+            result["coverage"]["sessions"]["publications_pending_rebuild"],
+            1
+        );
+        l.rebuild(session_view).unwrap();
+        assert!(!l.load(session_view).unwrap().stale);
+        let facts_after: u64 = l
+            .db
+            .query_row(
+                "SELECT COUNT(*) FROM retrieval_units u
+                 JOIN projections p ON p.id=u.projection_id WHERE p.view_id=?",
+                [session_view],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(facts_after, 4, "superseded units are removed on rebuild");
+
+        // A retraction excludes the view until its fact projection is rebuilt.
+        let command = rows(&l.load(session_view).unwrap().bundle, "assertions")
+            .iter()
+            .find(|a| a["proposition"]["predicate"] == "RAN_COMMAND")
+            .map(|a| text(a, "id"))
+            .unwrap();
+        l.retract(&command, "test retraction").unwrap();
+        let result = search::recall_with_sessions(
+            &l,
+            "locked",
+            &query::Options {
+                view: source_view.clone(),
+                ..Default::default()
+            },
+            20000,
+            false,
+            true,
+        )
+        .unwrap();
+        assert_eq!(result["coverage"]["sessions"]["publications_indexed"], 0);
+        assert!(rows(&result, "items")
+            .iter()
+            .all(|i| i["source_kind"] != "session"));
+        l.rebuild(session_view).unwrap();
+        let result = search::recall_with_sessions(
+            &l,
+            "locked",
+            &query::Options {
+                view: source_view,
+                ..Default::default()
+            },
+            20000,
+            false,
+            true,
+        )
+        .unwrap();
+        assert_eq!(result["coverage"]["sessions"]["publications_indexed"], 1);
+        assert!(rows(&result, "items")
+            .iter()
+            .all(|i| i["source_kind"] != "session"));
+    }
+
     #[test]
     fn projection_fault_and_index_loss_never_erase_ledger_or_advertise_complete() {
         let dir = tempfile::tempdir().unwrap();
@@ -388,8 +620,11 @@ mod tests {
         assert!(!l.load("latest").unwrap().stale);
         let sources = l.payloads(&p.bundle).unwrap();
         assert_eq!(sources, p.payloads);
-        l.db.execute_batch("DELETE FROM graph; DELETE FROM search;")
-            .unwrap();
+        l.db.execute(
+            "DELETE FROM projections WHERE view_id=(SELECT id FROM views LIMIT 1) AND kind='graph'",
+            [],
+        )
+        .unwrap();
         assert!(l.load("latest").unwrap().stale);
         assert!(query::dependencies(&l, &Default::default()).is_err());
         l.recover().unwrap();
@@ -407,7 +642,7 @@ mod tests {
         let g = l.begin("crash-test", None).unwrap();
         let current = l.commit(g, &prepared(g)).unwrap();
         l.db.execute(
-            "DELETE FROM graph WHERE projection_id IN (SELECT id FROM projections WHERE view_id=?)",
+            "DELETE FROM projections WHERE view_id=? AND kind='graph'",
             [&old],
         )
         .unwrap();

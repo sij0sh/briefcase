@@ -1,5 +1,6 @@
 //! Retained-source recall: a rebuildable lexical projection over the code,
 //! documentation and configuration bytes that a source capture retained.
+//! Opt-in session hits read a separate, bounded fact index.
 //!
 //! A match shows that a retained file contains text. It is not evidence that
 //! the text is true, and it never becomes an architecture assertion. Policy
@@ -158,60 +159,90 @@ fn disposable_count(v: &View) -> usize {
         .count()
 }
 
-/// Labelled hits over imported sessions' recorded user requests. Session
-/// text is what a user asked an agent to do; it is never source evidence.
-const SESSION_REQUEST_LIMIT: usize = 10000;
-fn session_hits(l: &Ledger, text_query: &str) -> Result<(Vec<Value>, usize, bool)> {
+/// Labelled hits over persisted session facts. A fact is what the harness
+/// recorded as a user request, command, read path, or confirmed edit.
+const SESSION_FACT_LIMIT: usize = 1000;
+
+fn session_excerpt(literal: &str, terms: &[String]) -> (String, usize, usize) {
+    if literal.is_empty() {
+        return (String::new(), 0, 0);
+    }
+    let lowered = literal.to_lowercase();
+    let Some(position) = terms.iter().filter_map(|term| lowered.find(term)).min() else {
+        let end = literal
+            .char_indices()
+            .nth(500)
+            .map(|(index, _)| index)
+            .unwrap_or(literal.len());
+        return (literal[..end].to_owned(), 0, end);
+    };
+    let mut lower_bytes = 0;
+    let mut matched_at = 0;
+    for (index, character) in literal.char_indices() {
+        if lower_bytes > position {
+            break;
+        }
+        matched_at = index;
+        lower_bytes += character.to_lowercase().collect::<String>().len();
+    }
+    let mut start = matched_at.saturating_sub(160);
+    while !literal.is_char_boundary(start) {
+        start += 1;
+    }
+    let mut end = (start + 500).min(literal.len());
+    while !literal.is_char_boundary(end) {
+        end -= 1;
+    }
+    (literal[start..end].to_owned(), start, end)
+}
+
+fn session_hits(l: &Ledger, text_query: &str) -> Result<(Vec<Value>, usize, usize, bool)> {
     let terms: Vec<String> = text_query
         .to_lowercase()
         .split_whitespace()
         .map(str::to_owned)
         .collect();
-    let searched = l.session_publications()?.len();
-    let events = l.session_request_events(SESSION_REQUEST_LIMIT + 1)?;
-    let bounded = events.len() > SESSION_REQUEST_LIMIT;
+    let configuration = super::evidence_index::configuration_digest()?;
+    let (indexed, searched) = l.session_fact_coverage(&configuration)?;
+    let Some(expression) = source::fts_expression(text_query) else {
+        return Ok((Vec::new(), searched, indexed, false));
+    };
+    let facts = l.session_fact_search(&expression, &configuration, SESSION_FACT_LIMIT + 1)?;
+    let bounded = facts.len() > SESSION_FACT_LIMIT;
     let mut hits = Vec::new();
-    for record in events.into_iter().take(SESSION_REQUEST_LIMIT) {
-        let event = &record["event"];
-        let request = text(event, "text");
-        let lowered = request.to_lowercase();
-        let matched_terms = terms.iter().filter(|term| lowered.contains(*term)).count();
-        let Some(position) = terms.iter().filter_map(|term| lowered.find(term)).min() else {
+    for (view, unit) in facts.into_iter().take(SESSION_FACT_LIMIT) {
+        let literal = text(&unit, "text");
+        if literal.is_empty() {
             continue;
-        };
-        // Lowercasing can expand a Unicode character. Map the match back to
-        // the original bytes before choosing a UTF-8-safe excerpt window.
-        let mut lower_bytes = 0;
-        let mut matched_at = 0;
-        for (index, character) in request.char_indices() {
-            if lower_bytes > position {
-                break;
-            }
-            matched_at = index;
-            lower_bytes += character.to_lowercase().collect::<String>().len();
         }
-        let mut start = matched_at.saturating_sub(160);
-        while !request.is_char_boundary(start) {
-            start += 1;
+        let lowered = literal.to_lowercase();
+        let matched_terms = terms.iter().filter(|term| lowered.contains(*term)).count();
+        let (excerpt, start, end) = session_excerpt(&literal, &terms);
+        let omitted = unit["omitted_bytes"].as_u64().unwrap_or(0)
+            + (literal.len().saturating_sub(end - start)) as u64;
+        let predicate = text(&unit, "predicate");
+        let mut hit = json!({
+            "source_kind":"session",
+            "path":format!("session:{view}"),
+            "session":view,
+            "session_context_id":unit["session_context_id"],
+            "harness":unit["harness"],
+            "event_id":unit["event_id"],
+            "ordinal":unit["ordinal"],
+            "timestamp":unit["timestamp"],
+            "predicate":predicate,
+            "assertion_id":unit["assertion_ids"][0],
+            "text":excerpt,
+            "omitted_bytes":omitted,
+            "matched_terms":matched_terms
+        });
+        if predicate == "RECORDED_USER_MESSAGE" {
+            hit["request_byte_range"] = json!({"start":start,"end":end});
         }
-        let mut end = (start + 500).min(request.len());
-        while !request.is_char_boundary(end) {
-            end -= 1;
-        }
-        hits.push(json!({"source_kind":"session","path":format!("session:{}",text(&record,"view_id")),
-            "session":record["view_id"],"session_context_id":record["session_context_id"],"harness":record["harness"],
-            "event_id":event["id"],"ordinal":event["ordinal"],"timestamp":event["timestamp"],
-            "text":&request[start..end],"request_byte_range":{"start":start,"end":end},
-            "omitted_bytes":request.len()-(end-start),"matched_terms":matched_terms}));
+        hits.push(hit);
     }
-    // Requests matching more query terms rank first; ties keep newest first.
-    hits.sort_by(|a, b| {
-        b["matched_terms"]
-            .as_u64()
-            .cmp(&a["matched_terms"].as_u64())
-            .then_with(|| text(b, "timestamp").cmp(&text(a, "timestamp")))
-    });
-    Ok((hits, searched, bounded))
+    // The ledger query already ranks by FTS5 bm25, then newest publication.
+    Ok((hits, searched, indexed, bounded))
 }
 
 /// Build the recall projection for a pinned source view when it is absent.
@@ -291,7 +322,7 @@ pub fn recall(
     )
 }
 
-/// Recall with opt-in labelled hits over imported sessions' user requests.
+/// Recall with opt-in labelled hits over imported session facts.
 pub fn recall_with_sessions(
     l: &Ledger,
     text_query: &str,
@@ -381,10 +412,10 @@ fn recall_unbounded_with_policy(
         .into_iter()
         .map(|a| (text(a, "id"), a["digest"].clone()))
         .collect();
-    let (session_items, sessions_searched, sessions_bounded) = if include_sessions {
+    let (session_items, sessions_searched, sessions_indexed, sessions_bounded) = if include_sessions {
         session_hits(l, text_query)?
     } else {
-        (Vec::new(), 0, false)
+        (Vec::new(), 0, 0, false)
     };
     // Opt-in session hits are ranked after source and commit hits, but a
     // share of the item and byte budgets is reserved so matched requests are
@@ -464,7 +495,8 @@ fn recall_unbounded_with_policy(
     let session_matches: Vec<Value> = session_items
         .iter()
         .take(10)
-        .map(|h| json!({"session":h["session"],"harness":h["harness"],"event_id":h["event_id"],"timestamp":h["timestamp"]}))
+        .map(|h| json!({"session":h["session"],"harness":h["harness"],"event_id":h["event_id"],
+            "predicate":h["predicate"],"assertion_id":h["assertion_id"],"timestamp":h["timestamp"]}))
         .collect();
     let mut session_delivered = 0;
     for hit in session_items {
@@ -567,10 +599,13 @@ fn recall_unbounded_with_policy(
             "not_included":not_included,
             "history":history_coverage,
             "sessions":{"included":include_sessions,"publications_searched":sessions_searched,
+                "publications_indexed":sessions_indexed,
+                "publications_pending_rebuild":sessions_searched.saturating_sub(sessions_indexed),
+                "facts_searched":session_matched,
                 "matched_requests":session_matched,"delivered_requests":session_delivered,
                 "omitted_requests":session_matched-session_delivered,"matches":session_matches,
-                "request_limit":SESSION_REQUEST_LIMIT,"request_limit_reached":sessions_bounded,
-            "scope":"Imported normalized user requests only; omitted retention text and requests beyond the scan limit are unavailable, not absent."},
+                "request_limit":SESSION_FACT_LIMIT,"request_limit_reached":sessions_bounded,
+            "scope":"Recorded session facts: user messages, commands, read paths and confirmed edits. Assistant messages, tool output and transcript text beyond the per-fact cap are unavailable, not absent."},
             "terms":{"matched":matched_terms,"unmatched":unmatched_terms},
             "excluded_disposable_artifacts":disposable_count(&v),
             "demoted_evaluation_candidates":demoted_evaluation,

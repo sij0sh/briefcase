@@ -59,13 +59,12 @@ impl Ledger {
           CREATE TABLE IF NOT EXISTS view_capture_states (view_id TEXT PRIMARY KEY REFERENCES views(id), capture_state TEXT);
           CREATE TABLE IF NOT EXISTS view_summaries (view_id TEXT NOT NULL REFERENCES views(id), kind TEXT NOT NULL, key TEXT NOT NULL, body TEXT NOT NULL, PRIMARY KEY(view_id,kind));
           CREATE TABLE IF NOT EXISTS projections (id TEXT PRIMARY KEY, view_id TEXT NOT NULL REFERENCES views(id), generation INTEGER NOT NULL, kind TEXT NOT NULL, watermark INTEGER NOT NULL, body TEXT NOT NULL, UNIQUE(view_id,generation,kind));
-          CREATE TABLE IF NOT EXISTS graph (projection_id TEXT NOT NULL REFERENCES projections(id), assertion_id TEXT NOT NULL REFERENCES records(id), PRIMARY KEY(projection_id,assertion_id));
-          CREATE VIRTUAL TABLE IF NOT EXISTS search USING fts5(projection_id UNINDEXED, assertion_id UNINDEXED, terms);
           CREATE TABLE IF NOT EXISTS retractions (assertion_id TEXT PRIMARY KEY REFERENCES records(id), watermark INTEGER NOT NULL REFERENCES events(watermark), reason TEXT NOT NULL);
           CREATE TABLE IF NOT EXISTS overlays (id TEXT PRIMARY KEY, scope TEXT NOT NULL, watermark INTEGER NOT NULL REFERENCES events(watermark), bundle TEXT NOT NULL, assertion_ids TEXT NOT NULL);
           CREATE TABLE IF NOT EXISTS view_overlays (view_id TEXT NOT NULL REFERENCES views(id), overlay_id TEXT NOT NULL REFERENCES overlays(id), PRIMARY KEY(view_id,overlay_id));
           CREATE TABLE IF NOT EXISTS executions (id INTEGER PRIMARY KEY AUTOINCREMENT, view_id TEXT NOT NULL REFERENCES views(id), body TEXT NOT NULL);
           CREATE TABLE IF NOT EXISTS retrieval_units (id TEXT PRIMARY KEY, projection_id TEXT NOT NULL REFERENCES projections(id), body TEXT NOT NULL);
+          CREATE INDEX IF NOT EXISTS retrieval_units_projection ON retrieval_units(projection_id);
           CREATE VIRTUAL TABLE IF NOT EXISTS retrieval_fts USING fts5(unit_id UNINDEXED, projection_id UNINDEXED, evidence_text, routing_text);
           CREATE TABLE IF NOT EXISTS reports (id TEXT PRIMARY KEY, body TEXT NOT NULL);
           CREATE TABLE IF NOT EXISTS explanations (handle TEXT PRIMARY KEY, body TEXT NOT NULL);
@@ -528,61 +527,6 @@ impl Ledger {
         }
         tx.commit()?;
         Ok(())
-    }
-    pub(crate) fn retrieval_channel(
-        &self,
-        projection: &str,
-        expression: &str,
-        limit: usize,
-    ) -> Result<Vec<(i64, String)>> {
-        let mut s=self.db.prepare("SELECT retrieval_fts.rowid,unit_id FROM retrieval_fts WHERE retrieval_fts MATCH ? AND projection_id=? ORDER BY bm25(retrieval_fts),unit_id LIMIT ?")?;
-        let values = s
-            .query_map(params![expression, projection, limit], |r| {
-                Ok((r.get(0)?, r.get(1)?))
-            })?
-            .collect::<rusqlite::Result<_>>()?;
-        Ok(values)
-    }
-    /// Hydrate many retrieval rows with one statement. Results preserve the
-    /// input order; a missing row is a projection integrity failure.
-    pub(crate) fn retrieval_units_batch(
-        &self,
-        row_ids: &[i64],
-        projection: &str,
-    ) -> Result<Vec<Value>> {
-        if row_ids.is_empty() {
-            return Ok(vec![]);
-        }
-        let placeholders = row_ids.iter().map(|_| "?").collect::<Vec<_>>().join(",");
-        let sql = format!("SELECT f.rowid,u.body FROM retrieval_units u JOIN retrieval_fts f ON u.id=f.unit_id AND u.projection_id=f.projection_id WHERE f.projection_id=? AND f.rowid IN ({placeholders})");
-        let mut statement = self.db.prepare(&sql)?;
-        let mut params: Vec<&dyn rusqlite::ToSql> = vec![&projection];
-        for id in row_ids {
-            params.push(id);
-        }
-        let rows = statement
-            .query_map(params.as_slice(), |r| {
-                Ok((r.get::<_, i64>(0)?, r.get::<_, String>(1)?))
-            })?
-            .collect::<rusqlite::Result<Vec<_>>>()?;
-        require(
-            rows.len() == row_ids.len(),
-            "FRESHNESS",
-            "Retrieval projection contents need rebuild before retrieval",
-        )?;
-        let bodies: BTreeMap<i64, String> = rows.into_iter().collect();
-        row_ids
-            .iter()
-            .map(|id| {
-                bodies
-                    .get(id)
-                    .ok_or_else(|| {
-                        "FRESHNESS: Retrieval projection contents need rebuild before retrieval"
-                            .into()
-                    })
-                    .and_then(|body| identity::parse(body.as_bytes()))
-            })
-            .collect()
     }
     pub(crate) fn record_execution(&self, view: &str, body: &Value) -> Result<String> {
         self.db.execute(

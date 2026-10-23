@@ -144,9 +144,9 @@ impl Ledger {
         body.map(|raw|identity::parse(raw.as_bytes()).map(|value|value["result"].clone())).transpose()
     }
     /// Inputs that can change a summary derived from an immutable view: its
-    /// source overlays and, with `projections`, the retraction epoch, the
-    /// current projection rows with their graph counts, and the index tables'
-    /// newest rowids (a cheap guard; query paths still verify in full).
+    /// source overlays and, with `projections`, the retraction epoch and the
+    /// current projection rows with their fact counts (a cheap guard; query
+    /// paths still verify in full).
     pub(crate) fn view_summary_key(&self, view_id: &str, projections: bool) -> Result<String> {
         let mut s = self.db.prepare("SELECT overlay_id FROM view_overlays WHERE view_id=? ORDER BY overlay_id")?;
         let overlays = s.query_map([view_id], |r| r.get::<_, String>(0))?.collect::<rusqlite::Result<Vec<_>>>()?;
@@ -154,14 +154,12 @@ impl Ledger {
         if projections {
             let mut s = self.db.prepare(
                 "SELECT p.id,p.kind,p.generation,p.watermark,length(p.body),
-                   (SELECT COUNT(*) FROM graph g WHERE g.projection_id=p.id),
-                   (SELECT COALESCE(MAX(rowid),0) FROM search),
-                   (SELECT COALESCE(MAX(rowid),0) FROM retrieval_units),
-                   (SELECT COALESCE(MAX(rowid),0) FROM retrieval_fts)
+                   (SELECT COUNT(*) FROM retrieval_units u WHERE u.projection_id=p.id),
+                   (SELECT COUNT(*) FROM retrieval_fts f WHERE f.projection_id=p.id)
                  FROM projections p JOIN views v ON v.id=p.view_id AND v.projection_generation=p.generation
                  WHERE p.view_id=? ORDER BY p.kind")?;
             let rows = s.query_map([view_id], |r| Ok(json!([r.get::<_,String>(0)?,r.get::<_,String>(1)?,r.get::<_,u64>(2)?,
-                r.get::<_,u64>(3)?,r.get::<_,u64>(4)?,r.get::<_,u64>(5)?,r.get::<_,u64>(6)?,r.get::<_,u64>(7)?,r.get::<_,u64>(8)?])))?
+                r.get::<_,u64>(3)?,r.get::<_,u64>(4)?,r.get::<_,u64>(5)?,r.get::<_,u64>(6)?])))?
                 .collect::<rusqlite::Result<Vec<_>>>()?;
             key["projections"] = json!(rows);
             key["retraction_epoch"] = json!(self.retraction_epoch()?);

@@ -138,7 +138,9 @@ fn retrieval_rebuild_preserves_identity_and_evidence() {
     Connection::open(&db)
         .unwrap()
         .execute_batch(
-            "DELETE FROM search; DELETE FROM retrieval_units; DELETE FROM retrieval_fts;",
+            "DELETE FROM retrieval_fts;
+             DELETE FROM retrieval_units;
+             DELETE FROM projections WHERE view_id=(SELECT id FROM views LIMIT 1);",
         )
         .unwrap();
     assert!(retrieval::retrieve(&l, "charge", &opts("captured"), 16384, 1).is_err());

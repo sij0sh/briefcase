@@ -1,143 +1,209 @@
-//! Rebuildable, digest-verified evidence spans used by ledger projection checks.
+//! Rebuildable session fact units used by the retrieval projection.
 //! Query ranking belongs to the shared search engine. Projection IDs never
 //! become canonical entity or assertion identities.
-use super::source as units;
-use super::{contracts::{rows, strings, text, Payloads},identity,knowledge,require,Result};
-use serde_json::{json,Value};
-use std::collections::{BTreeMap,BTreeSet};
+use super::{
+    contracts::{rows, text, Payloads},
+    identity, knowledge, source, Result,
+};
+use serde_json::{json, Value};
+use std::collections::{BTreeMap, BTreeSet};
+
+/// One fact is one assertion. Long literals are capped so a pasted transcript
+/// cannot turn a bounded session index into a second copy of the transcript.
+pub(crate) const MAX_FACT_BYTES: usize = 16 * 1024;
 
 pub(crate) fn configuration() -> Value {
-    json!({"chunker":"briefcase-retained-span-v1","tokenizer":"sqlite-fts5-unicode61-v1","embedding_mode":"disabled",
-        "dimensions":0,"sqlite_version":rusqlite::version(),"max_chunk_chars":1024,
-        "implementation_digest":identity::bytes_digest(include_bytes!("evidence_index.rs")),
-        "source_implementation_digest":identity::bytes_digest(include_bytes!("source.rs"))})
+    json!({"chunker":"briefcase-session-fact-v1","tokenizer":"sqlite-fts5-unicode61-v1",
+        "embedding_mode":"disabled","dimensions":0,"sqlite_version":rusqlite::version(),
+        "max_fact_bytes":MAX_FACT_BYTES,
+        "implementation_digest":identity::bytes_digest(include_bytes!("evidence_index.rs"))})
 }
+pub(crate) fn configuration_digest() -> Result<String> {
+    identity::digest(&configuration())
+}
+
+/// The fact represented by one normalized event, using the same conditions as
+/// session import. A failed read or edit attempt is not a fact.
+fn event_fact(e: &Value) -> Option<(&'static str, &str)> {
+    match e["kind"].as_str()? {
+        "user_message" => Some(("RECORDED_USER_MESSAGE", e["text"].as_str()?)),
+        "file_read"
+            if e["outcome"] == "succeeded" && e["path"]["location"] != "unresolved" =>
+        {
+            Some(("READ_PATH", e["path"]["path"].as_str()?))
+        }
+        "file_edit_confirmed" if e["path"]["location"] != "unresolved" => {
+            Some(("EDITED_PATH", e["path"]["path"].as_str()?))
+        }
+        "command_finished" => Some(("RAN_COMMAND", e["command"].as_str()?)),
+        _ => None,
+    }
+}
+
+fn key(predicate: &str, literal: &str) -> (String, String) {
+    (
+        predicate.to_owned(),
+        identity::bytes_digest(literal.as_bytes()),
+    )
+}
+
+fn capped(literal: &str) -> (String, bool) {
+    let mut end = 0;
+    for (index, character) in literal.char_indices() {
+        let next = index + character.len_utf8();
+        if next > MAX_FACT_BYTES {
+            break;
+        }
+        end = next;
+    }
+    (literal[..end].to_owned(), end < literal.len())
+}
+
+fn predicate_words(predicate: &str) -> &'static str {
+    match predicate {
+        "RECORDED_USER_MESSAGE" => "user message request",
+        "READ_PATH" => "read path file",
+        "EDITED_PATH" => "edited path file",
+        "RAN_COMMAND" => "ran command shell",
+        _ => "session fact",
+    }
+}
+
 pub(crate) fn build_units(
     b: &Value,
     payloads: &Payloads,
     eligible: &BTreeSet<String>,
+    scope: &str,
 ) -> Result<Vec<Value>> {
-    let ctx = knowledge::context(b);
-    let entities: BTreeMap<_, _> = rows(b, "entity_versions")
-        .iter()
-        .map(|e| (text(e, "id"), e))
-        .collect();
-    // Evidence has direct source references. Index those immutable records once
-    // instead of tracing/re-hashing the same file for every source declaration
-    // during projection construction and query freshness verification.
-    let references: BTreeMap<_, _> = rows(b, "evidence_refs")
-        .iter()
-        .map(|r| (text(r, "id"), r))
-        .collect();
-    let artifacts: BTreeMap<_, _> = rows(b, "artifacts")
-        .iter()
-        .map(|r| (text(r, "id"), r))
-        .collect();
-    let mut verified_artifacts = BTreeSet::new();
-    let mut labels: BTreeMap<String, Vec<Value>> = BTreeMap::new();
-    for a in rows(b, "assertions").iter().filter(|a| {
-        eligible.contains(&text(a, "id"))
-            && a["class"] == "declaration"
-            && a["proposition"]["predicate"] == "BELONGS_TO_DOMAIN"
-    }) {
-        let subject = text(&a["proposition"], "subject_id");
-        let domain =
-            &entities[&text(&a["proposition"]["object"], "entity_version_id")]["canonical_key"];
-        if let Some(s) = knowledge::module_source(b, payloads, &subject)? {
-            labels
-                .entry(s.path)
-                .or_default()
-                .push(json!({"assertion_id":a["id"],"class":"declaration",
-                "domain":domain,"entity_version_id":subject,"origin":a["origin"]}));
-        }
+    if scope != "session" {
+        return Ok(Vec::new());
     }
-    let mut out = BTreeMap::new();
+    let ctx = knowledge::context(b);
+    let session = rows(b, "session_contexts")
+        .first()
+        .ok_or("SESSION: Missing session context")?;
+    let session_id = text(session, "id");
+    let harness = session["harness"].clone();
+    let normalized_id = text(session, "normalized_artifact_id");
+
+    // Index assertions by the event fact they represent. One assertion can be
+    // supported by several recorded lines; the first line is the display handle.
+    let mut facts: BTreeMap<(String, String), (&Value, &str)> = BTreeMap::new();
     for a in rows(b, "assertions")
         .iter()
         .filter(|a| eligible.contains(&text(a, "id")) && a["class"] == "evidence")
     {
-        let aid = text(a, "id");
-        let p = &a["proposition"];
-        let entity_ids: Vec<_> = [
-            text(p, "subject_id"),
-            text(&p["object"], "entity_version_id"),
-        ]
-        .into_iter()
-        .filter(|id| !id.is_empty())
-        .collect();
-        for eid in strings(&a["evidence_ref_ids"]) {
-            let er = references
-                .get(&eid)
-                .ok_or("UNKNOWN_REFERENCE: Missing source evidence")?;
-            if er["locator"]["kind"] != "span" {
-                continue;
-            }
-            let artifact_id = text(er, "artifact_id");
-            let ar = artifacts
-                .get(&artifact_id)
-                .ok_or("UNKNOWN_REFERENCE: Missing source artifact")?;
-            let Some(bytes) = payloads.get(&artifact_id) else {
+        let predicate = text(&a["proposition"], "predicate");
+        if !super::session::PREDICATES.contains(&predicate.as_str()) {
+            continue;
+        }
+        let Some(literal) = a["proposition"]["object"]["value"].as_str() else {
+            continue;
+        };
+        facts
+            .entry(key(&predicate, literal))
+            .or_insert((a, literal));
+    }
+
+    let mut handles: BTreeMap<(String, String), Value> = BTreeMap::new();
+    if let Some(bytes) = payloads.get(&normalized_id) {
+        let normalized = identity::parse(bytes)?;
+        for e in rows(&normalized, "events") {
+            let Some((predicate, literal)) = event_fact(e) else {
                 continue;
             };
-            if verified_artifacts.insert(artifact_id.clone()) {
-                require(
-                    identity::bytes_digest(bytes) == ar["digest"],
-                    "DIGEST",
-                    "Retained source payload is corrupted",
-                )?;
-            }
-            let start = er["locator"]["start"]
-                .as_u64()
-                .ok_or("ANCHOR: Missing start")? as usize;
-            let end = er["locator"]["end"].as_u64().ok_or("ANCHOR: Missing end")? as usize;
-            require(
-                start < end && end <= bytes.len(),
-                "ANCHOR",
-                "Retained span is invalid",
-            )?;
-            require(
-                super::contracts::char_boundary(bytes, start),
-                "ANCHOR",
-                "Span splits UTF-8 codepoint",
-            )?;
-            let s = knowledge::Source {
-                assertion_id: aid.clone(),
-                evidence_id: eid,
-                artifact_id,
-                path: text(ar, "path"),
-                start,
-                end,
-                text: std::str::from_utf8(&bytes[start..end])?.to_owned(),
-            };
-            let routing_support = labels.get(&s.path).cloned().unwrap_or_default();
-            let keys = entity_ids
-                .iter()
-                .filter_map(|id| entities.get(id))
-                .map(|e| text(e, "canonical_key"))
-                .collect::<Vec<_>>()
-                .join(" ");
-            let routing = format!(
-                "{} {} {} {}",
-                s.path,
-                keys,
-                text(p, "predicate"),
-                routing_support
-                    .iter()
-                    .map(|r| text(r, "domain"))
-                    .collect::<Vec<_>>()
-                    .join(" ")
-            );
-            for (evidence, start, end) in units::split_oversized(&s.text, 1024) {
-                let mut unit = json!({"schema_version":"1.0","context":ctx,"assertion_ids":[aid],"entity_version_ids":entity_ids,
-                    "evidence_ref_ids":[s.evidence_id],"artifact_id":s.artifact_id,"source_locator":s.path,
-                    "source_byte_range":{"start":s.start+start,"end":s.start+end},"evidence_text":evidence,
-                    "routing_text":routing,"routing_support":routing_support,"evidence_class":"evidence",
-                    "token_count":units::estimate_tokens(&evidence)});
-                let id = identity::id("retrieval-unit", &unit)?;
-                unit["id"] = json!(id);
-                out.insert(id, unit);
+            let fact_key = key(predicate, literal);
+            if facts.contains_key(&fact_key) {
+                let mut handle = json!({
+                    "event_id": e["id"],
+                    "ordinal": e["ordinal"],
+                    "timestamp": e["timestamp"],
+                });
+                if handle["event_id"].is_null() {
+                    handle.as_object_mut().unwrap().remove("event_id");
+                }
+                if handle["timestamp"].is_null() {
+                    handle.as_object_mut().unwrap().remove("timestamp");
+                }
+                handles.entry(fact_key).or_insert(handle);
             }
         }
     }
+
+    let mut out = BTreeMap::new();
+    for (fact_key, (a, literal)) in facts {
+        let (body_text, truncated) = capped(literal);
+        let omitted = literal.len().saturating_sub(body_text.len());
+        let predicate = text(&a["proposition"], "predicate");
+        let harness_name = text(&harness, "name");
+        let external_id = session["external_session_id"].as_str().unwrap_or("");
+        let routing = format!(
+            "{} {} {} {}",
+            predicate_words(&predicate),
+            predicate,
+            harness_name,
+            external_id
+        );
+        let mut unit = json!({
+            "schema_version":"1.0",
+            "context":ctx,
+            "assertion_ids":[text(a,"id")],
+            "entity_version_ids":[text(&a["proposition"],"subject_id")],
+            "evidence_ref_ids":a["evidence_ref_ids"].clone(),
+            "evidence_class":"evidence",
+            "predicate":predicate,
+            "session_context_id":session_id,
+            "harness":harness,
+            "text":body_text,
+            "routing_text":routing,
+            "omitted_bytes":omitted,
+            "truncated":truncated,
+            "token_count":source::estimate_tokens(&body_text)
+        });
+        if !truncated {
+            unit["literal"] = json!(literal);
+        }
+        if let Some(handle) = handles.get(&fact_key) {
+            for (k, v) in handle.as_object().unwrap() {
+                unit[k] = v.clone();
+            }
+        }
+        let id = identity::id("retrieval-unit", &unit)?;
+        unit["id"] = json!(id);
+        out.insert(id, unit);
+    }
     Ok(out.into_values().collect())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn caps_on_a_character_boundary_and_keeps_the_omitted_byte_count() {
+        let literal = "a".repeat(MAX_FACT_BYTES) + "é";
+        let (body, truncated) = capped(&literal);
+        assert!(truncated);
+        assert_eq!(body.len(), MAX_FACT_BYTES);
+        assert_eq!(literal.len() - body.len(), "é".len());
+
+        let (body, truncated) = capped("short");
+        assert!(!truncated);
+        assert_eq!(body, "short");
+    }
+
+    #[test]
+    fn only_completed_and_resolved_events_are_facts() {
+        let read = json!({"kind":"file_read","outcome":"succeeded",
+            "path":{"location":"repository","path":"src/lib.rs"}});
+        assert_eq!(event_fact(&read), Some(("READ_PATH", "src/lib.rs")));
+        let failed = json!({"kind":"file_read","outcome":"failed",
+            "path":{"location":"repository","path":"src/lib.rs"}});
+        assert_eq!(event_fact(&failed), None);
+        let unresolved = json!({"kind":"file_read","outcome":"succeeded",
+            "path":{"location":"unresolved","path":"src/lib.rs"}});
+        assert_eq!(event_fact(&unresolved), None);
+        let command = json!({"kind":"command_finished","command":"cargo test"});
+        assert_eq!(event_fact(&command), Some(("RAN_COMMAND", "cargo test")));
+    }
 }

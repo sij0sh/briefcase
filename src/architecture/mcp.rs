@@ -67,13 +67,13 @@ pub fn tools() -> Value {
 pub fn tools_for(surface: Surface) -> Value {
     match surface {
         Surface::Gateway => json!({"tools":[
-            tool("briefcase_search", "Find retained code, documentation, configuration and Git history by keywords. Matches are text, not architecture proof; agent sessions join only when sessions is requested, as labelled hits.", search_schema()),
+            tool("briefcase_search", "Find retained code, documentation, configuration and Git history by keywords. Matches are text, not architecture proof; recorded agent-session facts join only when sessions is requested, as labelled hits.", search_schema()),
             tool("briefcase_query", "Run a captured-architecture read operation. Use briefcase_describe to choose an operation and inspect its arguments. Results retain coverage and provenance; unknown does not mean absent.", query_schema()),
             tool("briefcase_describe", "Discover operations by query, list compact summaries or names, or get one operation's full schema and examples. Works without a database.", service::discovery_schema()),
             tool("briefcase_status", "Inspect database publication and run diagnostics. Capture and sync are explicit CLI lifecycle actions.", service::find("status").unwrap().schema)
         ]}),
         Surface::Compact => json!({"tools":[
-            tool("context", "Search the code, documentation and configuration text that Briefcase retained from this repository's latest capture, and the Git commits (messages and diffs) reachable from the synced HEAD. Results are file excerpts with paths and line ranges, or commit excerpts with hashes. Earlier agent sessions are searched only when sessions is true, as labelled session hits. For budgeted task context, use the briefcase tool with operation agent_context; brief exposes full case sections.", search_schema()),
+            tool("context", "Search the code, documentation and configuration text that Briefcase retained from this repository's latest capture, and the Git commits (messages and diffs) reachable from the synced HEAD. Results are file excerpts with paths and line ranges, or commit excerpts with hashes. Earlier recorded agent-session facts are searched only when sessions is true, as labelled session hits. For budgeted task context, use the briefcase tool with operation agent_context; brief exposes full case sections.", search_schema()),
             tool("briefcase", "Start coding duties with operation agent_context or brief: anchors, implementation/tests/config/scripts/docs/plans, history, sessions/errors, external touchpoints and not_covered. Use occurrences for exhaustive literal search and neighbors for reverse callers/dependents/tests. page and explain expand retained reports; describe discovers schemas. Answers keep pins, coverage and provenance; unknown does not mean absent.", query_schema())
         ]}),
     }

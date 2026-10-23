@@ -499,7 +499,8 @@ pub(crate) enum Command {
         /// Search only the source capture, not retained Git history.
         #[arg(long)]
         no_history: bool,
-        /// Also search imported agent sessions' user requests (labelled hits).
+        /// Also search imported agent sessions' recorded facts: user messages,
+        /// commands, read paths and confirmed edits (labelled hits).
         #[arg(long)]
         sessions: bool,
     },
@@ -523,6 +524,8 @@ pub(crate) enum Command {
         force: bool,
     },
     Recover,
+    /// Republish one view's projections. Run per view after a fact-index
+    /// configuration change; reads never rebuild implicitly.
     Rebuild {
         #[arg(long, default_value = "latest")]
         view: String,

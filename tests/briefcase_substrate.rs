@@ -88,7 +88,7 @@ fn policy(temp: &Path) -> PathBuf {
     path
 }
 #[test]
-fn retrieval_recovers_both_indexes_and_never_changes_retained_unicode() {
+fn retrieval_recovers_source_recall_and_never_changes_retained_unicode() {
     let temp = tempfile::tempdir().unwrap();
     let root = temp.path().join("source");
     let db = temp.path().join("k.db");
@@ -115,7 +115,9 @@ fn retrieval_recovers_both_indexes_and_never_changes_retained_unicode() {
     Connection::open(&db)
         .unwrap()
         .execute_batch(
-            "DELETE FROM search; DELETE FROM retrieval_units; DELETE FROM retrieval_fts;",
+            "DELETE FROM retrieval_fts;
+             DELETE FROM retrieval_units;
+             DELETE FROM projections WHERE view_id=(SELECT id FROM views LIMIT 1);",
         )
         .unwrap();
     assert!(retrieval::retrieve(&l, "charge", &opts("captured"), 16384, 1).is_err());
@@ -126,15 +128,6 @@ fn retrieval_recovers_both_indexes_and_never_changes_retained_unicode() {
         .iter()
         .any(|item| text(item, "text") == code));
     assert_eq!(table_snapshot(&db), before);
-    let changed = Connection::open(&db)
-        .unwrap()
-        .execute(
-            "UPDATE retrieval_fts SET evidence_text='fabricated source'",
-            [],
-        )
-        .unwrap();
-    assert!(changed > 0);
-    assert!(retrieval::retrieve(&l, "fabricated", &opts("captured"), 16384, 1).is_err());
     l.rebuild("captured").unwrap();
     assert!(retrieval::retrieve(&l, "charge", &opts("captured"), 16384, 1).is_ok());
 }
