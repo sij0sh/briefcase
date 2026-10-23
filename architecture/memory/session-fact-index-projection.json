@@ -1,0 +1,46 @@
+{
+  "id": "session-fact-index-projection",
+  "statement": "Keep both projection manifests, store one bounded session fact unit per evidence assertion, and remove graph/search membership writes.",
+  "rationale": "Session assertions already contain commands, read paths, confirmed edits and user messages that no global query could reach. Reusing the retrieval projection closes that gap without a new table. Source span units duplicate source recall and had no reader. Graph and search membership rows had no adjacency or text consumer. The P1 deletion remains correct only if session-fact recall is out of scope. Revisit if measured use does not justify the index, if the 16 KiB fact cap hides needed text, or if a future consumer needs persisted adjacency.",
+  "origin": "agent_chosen",
+  "references": [
+    "plan:.agents/artifacts/p1-session-fact-index-plan-2026-10-23.md",
+    "audit:.agents/artifacts/simplification-audit-2026-10-23.md",
+    "adr:ADR-B1",
+    "adr:ADR-B2",
+    "adr:ADR-B5"
+  ],
+  "components": [],
+  "paths": [
+    "src/architecture/evidence_index.rs",
+    "src/architecture/ledger/publish.rs",
+    "src/architecture/ledger/views.rs",
+    "src/architecture/ledger/sessions.rs",
+    "src/architecture/ledger/storage.rs",
+    "src/architecture/search.rs"
+  ],
+  "topics": [
+    "session-recall",
+    "projection",
+    "retrieval",
+    "simplification"
+  ],
+  "assumptions": [
+    "Old span representations are reported as pending and require an explicit rebuild.",
+    "Existing graph and search tables may remain for one release but are no longer read or written.",
+    "The live database was not migrated as part of implementation.",
+    "Source recall remains the authority for source text; session facts cover recorded session literals only."
+  ],
+  "supersedes": [],
+  "contradicts": [],
+  "source_files": {
+    "src/architecture/evidence_index.rs": "58f63d73249f7a42b17ce2e275c0ad1a1d4ea4d60b65e9dd7d75ac70e9486e56",
+    "src/architecture/ledger/publish.rs": "9d51e39901e6f626a650a808b63544d1c9898c31bca35a78608035f3a92c2e83",
+    "src/architecture/ledger/sessions.rs": "f7a2be9581ab875afc8d1939597460433af2f9ce585d167b48cdfc62df3635ee",
+    "src/architecture/ledger/storage.rs": "b780d184ee0aff657ddac36f750718171aeeffd5198a5a37fb314ca83a42fa64",
+    "src/architecture/ledger/views.rs": "39703239437de7a14b22a8ea4a3a26de1b2aaf8afba89fbdaf073ab8e5c9433f",
+    "src/architecture/search.rs": "16e466c58a2b5fa819da291906e1c43119898cb35658e545a7ff170efd22dd6a"
+  },
+  "schema_version": "archctl.memory.v2",
+  "revision": "ec72b964a4aac06ea1c74cc3ee591b5f66f53bee2fc1b46cb62aa408faad09d7"
+}
