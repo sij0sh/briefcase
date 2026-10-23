@@ -3,7 +3,7 @@
 # Usage: powershell -ExecutionPolicy Bypass -File install.ps1 -Repo <owner/repo> [-Version latest|tag] [-InstallDir <path>]
 # Piped: & ([scriptblock]::Create((irm <raw-url>/scripts/install.ps1))) -Version v0.1.0
 param(
-    [string]$Repo = $env:GITHUB_REPO,
+    [string]$Repo = $(if ($env:GITHUB_REPO) { $env:GITHUB_REPO } else { "sij0sh/briefcase" }),
     [string]$Version = "latest",
     [string]$InstallDir = "$env:LOCALAPPDATA\Programs\briefcase"
 )
@@ -51,6 +51,16 @@ try {
     if (-not (Test-Path $zip) -or (Get-Item $zip).Length -eq 0) {
         throw "Asset not found or empty: $url"
     }
+
+    $checksumUrl = $url.Substring(0, $url.LastIndexOf('/')) + '/SHA256SUMS'
+    $checksumFile = Join-Path $tmp 'SHA256SUMS'
+    Invoke-WebRequest -Uri $checksumUrl -OutFile $checksumFile -UseBasicParsing
+    $assetName = [IO.Path]::GetFileName($zip)
+    $matches = @(Get-Content $checksumFile | Where-Object { $_ -match ('^[0-9a-f]{64}  ' + [regex]::Escape($assetName) + '$') })
+    if ($matches.Count -ne 1) { throw 'Missing or ambiguous archive checksum' }
+    $expected = $matches[0].Substring(0, 64)
+    $actual = (Get-FileHash -Algorithm SHA256 $zip).Hash.ToLowerInvariant()
+    if ($actual -ne $expected) { throw 'Archive checksum mismatch' }
 
     Expand-Archive -Path $zip -DestinationPath $extract
     $exe = Get-ChildItem -Path $extract -Recurse -Filter 'briefcase.exe' | Select-Object -First 1

@@ -6,3 +6,7 @@ __pycache__/
 .briefcase/
 briefcase.tar.gz
 .archctl/
+
+/dist/
+
+/validation/

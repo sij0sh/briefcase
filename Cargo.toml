@@ -2,6 +2,21 @@
 name = "briefcase"
 version = "0.1.0"
 edition = "2021"
+description = "Retained source evidence and task context with explicit provenance and coverage"
+license = "MIT"
+repository = "https://github.com/sij0sh/briefcase"
+readme = "README.md"
+include = [
+  "/Cargo.toml", "/Cargo.lock", "/LICENSE", "/README.md", "/DISTRIBUTION.md", "/AGENTS.md",
+  "src/**/*.rs", "src/**/*.py", "src/**/*.cjs", "src/**/*.go", "src/**/*.java", "src/**/*.cs", "src/**/*.cpp", "src/**/*.h",
+  "contracts/**/*.json", "contracts/**/*.md", "extensions/*.ts", "profiles/**/*.json",
+  "tools/*.py", "tools/typescript/package.json", "tools/typescript/package-lock.json",
+  "scripts/*.py", "scripts/*.sh", "scripts/*.ps1", "scripts/providers/*.py", "scripts/verify-*",
+  "tests/*.rs", "tests/*.mjs", "tests/**/*.rs", "examples/*.rs", "docs/**/*.md",
+  "architecture/**/*.yaml", "architecture/**/*.md",
+  "/evaluation/outcome-protocol.json", "/evaluation/t3-p3-development-oracles.json",
+  "/evaluation/repairs/**/*.json", "/evaluation/repairs/**/*.jsonl", "/evaluation/repairs/**/*.patch"
+]
 autotests = false
 
 default-run = "briefcase"

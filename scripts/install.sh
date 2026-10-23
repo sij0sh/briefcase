@@ -5,7 +5,7 @@
 set -eu
 (set -o pipefail) 2>/dev/null && set -o pipefail
 
-REPO="${GITHUB_REPO:-}"
+REPO="${GITHUB_REPO:-sij0sh/briefcase}"
 TAG="latest"
 INSTALL_DIR="${BRIEFCASE_INSTALL_DIR:-$HOME/.local/bin}"
 
@@ -25,7 +25,7 @@ Options:
   --help                  Show this help.
 
 Environment:
-  GITHUB_REPO             Repository to download from (required unless --repo).
+  GITHUB_REPO             Repository to download from (default: sij0sh/briefcase).
 EOF
 }
 
@@ -111,6 +111,25 @@ else
 fi
 
 [ -s "$archive" ] || { echo "error: asset not found or empty: $url" >&2; exit 1; }
+
+checksum_url="${url%/*}/SHA256SUMS"
+checksums="$tmp/SHA256SUMS"
+if command -v curl >/dev/null 2>&1; then
+    curl -fsSL -o "$checksums" "$checksum_url"
+else
+    wget -O "$checksums" "$checksum_url"
+fi
+expected="$(awk -v name="$(basename "$archive")" '$2 == name {print $1}' "$checksums")"
+[ "${#expected}" -eq 64 ] || { echo "error: missing or ambiguous archive checksum" >&2; exit 1; }
+if command -v sha256sum >/dev/null 2>&1; then
+    actual="$(sha256sum "$archive" | awk '{print $1}')"
+elif command -v shasum >/dev/null 2>&1; then
+    actual="$(shasum -a 256 "$archive" | awk '{print $1}')"
+else
+    echo "error: sha256sum or shasum is required" >&2
+    exit 1
+fi
+[ "$actual" = "$expected" ] || { echo "error: archive checksum mismatch" >&2; exit 1; }
 
 tar -xzf "$archive" -C "$tmp"
 
