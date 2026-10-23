@@ -825,6 +825,7 @@ fn replay(script: &Value) -> Repo {
 }
 
 #[test]
+#[ignore = "evaluation: requires evaluation fixtures absent from this checkout"]
 fn authored_history_matches_the_evolution_gold() {
     let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("evaluation");
     let read =

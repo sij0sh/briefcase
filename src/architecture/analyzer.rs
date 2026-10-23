@@ -297,6 +297,11 @@ impl Drop for Analyzer {
 mod tests {
     use super::*;
     use std::os::unix::fs::PermissionsExt;
+    /// A deadline-bounded call returns in the low tens of milliseconds even on
+    /// a loaded machine; the fixture stalls for 30 s, so this bound still fails
+    /// when a request ignores its shared budget.
+    const STALL_BOUND: Duration = Duration::from_secs(10);
+
     fn server(mode:&str)->(tempfile::TempDir,std::path::PathBuf) {
         let dir=tempfile::tempdir().unwrap();let executable=dir.path().join("fake-analyzer");
         let script=r#"#!/usr/bin/env python3
@@ -335,7 +340,7 @@ while True:
         let file=dir.path().join("lib.rs");analyzer.open(&file,"fn a() {}\n").unwrap();
         for _ in 0..50 {assert!(analyzer.definition(&file,"fn a() {}\n",3).unwrap().is_null());}
         assert_eq!(analyzer.next,51,"initialize plus exactly one native request per definition");
-        assert!(started.elapsed()<Duration::from_secs(3));assert!(analyzer.quiescent);
+        assert!(started.elapsed()<STALL_BOUND);assert!(analyzer.quiescent);
         assert_eq!(analyzer.identity["settings"]["cargo"]["sysroot"],"discover");
         assert_eq!(analyzer.identity["settings"]["cargo"]["buildScripts"]["enable"],false);
     }
@@ -347,7 +352,7 @@ while True:
             let result=Analyzer::start(&exe,dir.path(),timeout,&[]);
             if mode=="slow_version" {
                 assert!(result.is_err());
-                assert!(started.elapsed()<Duration::from_secs(2),"{mode}");
+                assert!(started.elapsed()<STALL_BOUND,"{mode}");
             } else {
                 let mut analyzer=result.unwrap();let file=dir.path().join("lib.rs");
                 // The delayed initialization makes a renewed startup budget observable.
@@ -360,7 +365,7 @@ while True:
                 assert!(analyzer.definition(&file,"fn a() {}\n",3).is_err());
                 assert!(exe.with_extension("definition").is_file(),"the stalled request must reach the server");
                 assert_eq!(analyzer.deadline,deadline,"a request cannot renew the shared budget");
-                assert!(request_started.elapsed()<Duration::from_secs(2),"{mode}");
+                assert!(request_started.elapsed()<STALL_BOUND,"{mode}");
             }
         }
     }

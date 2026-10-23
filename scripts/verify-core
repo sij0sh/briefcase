@@ -1,14 +1,20 @@
 #!/usr/bin/env bash
-# Required PR lane: unit tests plus the fast in-process integration suite.
+# Opt-in evaluation lane: the full in-process integration suite.
+# It needs the evaluation archive, which published checkouts do not ship.
 # Tests run with the default parallel harness; no global --test-threads=1.
 set -euo pipefail
 cd "$(dirname "$0")/.."
+if [[ ! -d evaluation/fixtures || ! -d evaluation/sources ]]; then
+  printf '%s\n' 'Core evaluation lane needs evaluation/fixtures and evaluation/sources; use verify-context for the required PR lane.' >&2
+  exit 1
+fi
 state_dir=$(mktemp -d "${TMPDIR:-/tmp}/briefcase-test-state.XXXXXX")
 trap 'rm -rf "$state_dir"' EXIT
 export XDG_STATE_HOME="$state_dir"
 if ! command -v node >/dev/null || [[ ! -f "${BRIEFCASE_TYPESCRIPT_COMPILER:-tools/typescript/node_modules/typescript/lib/typescript.js}" ]]; then
-  printf '%s\n' 'Core M6 scans require Node and the pinned compiler. Run: npm ci --ignore-scripts --prefix tools/typescript' >&2
+  printf '%s\n' 'Evaluation scans require Node and the pinned compiler. Run: npm ci --ignore-scripts --prefix tools/typescript' >&2
   exit 1
 fi
 cargo test --locked --lib
 cargo test --locked --test core
+python3 tools/check_package.py

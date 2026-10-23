@@ -1,0 +1,41 @@
+name: Verification
+on:
+  push:
+    branches: ['main']
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  context:
+    name: Required lanes
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install the pinned TypeScript compiler
+        run: npm ci --ignore-scripts --prefix tools/typescript
+      - run: bash scripts/verify-context
+  lint:
+    name: Lint and package checks
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - run: bash scripts/verify-lint

@@ -225,6 +225,7 @@ fn status_summary_inventories_the_captured_view_in_one_call() {
 }
 
 #[test]
+#[ignore = "evaluation: requires evaluation fixtures absent from this checkout"]
 fn recall_session_hits_are_opt_in_labelled_and_freshness_is_stamped() {
     let temp = tempfile::tempdir().unwrap();
     let root = temp.path().join("source");

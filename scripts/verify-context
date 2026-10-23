@@ -1,7 +1,13 @@
 #!/bin/sh
-# Self-contained context gate. The original conformance archive is separate.
+# Required PR lane: self-contained context, stage and impact regressions.
+# The evaluation archive is separate; see verify-core.
 set -eu
 cd "$(dirname "$0")/.."
+compiler="${BRIEFCASE_TYPESCRIPT_COMPILER:-tools/typescript/node_modules/typescript/lib/typescript.js}"
+if ! command -v node >/dev/null || [ ! -f "$compiler" ]; then
+  printf '%s\n' 'Context gates require Node and the pinned compiler. Run: npm ci --ignore-scripts --prefix tools/typescript' >&2
+  exit 1
+fi
 cargo test --locked --lib --test context --test stage2 --test stage3 --test stage4 --test p0p1 --test p2 --test impact "$@"
 python3 -B -m unittest discover -s scripts -p 'test_*.py'
 python3 -B -m unittest discover -s tools -p 'test_*.py'

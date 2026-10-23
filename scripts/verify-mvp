@@ -1,13 +1,17 @@
 #!/usr/bin/env bash
-# Local all-in-one gate. CI runs the same lanes in parallel
+# Local all-in-one gate. CI runs the required lanes in parallel
 # (see .github/workflows/verify.yml); this wrapper runs them sequentially.
-# The conformance lane (tests/conformance.rs, --ignored tests) is not part
-# of the PR gate; run it via .github/workflows/conformance.yml or:
+# verify-core needs the evaluation archive and is skipped without it.
+# The conformance lane (tests/conformance.rs, --ignored tests) is opt-in:
 #   cargo test --locked --test conformance -- --ignored --test-threads=2
 set -euo pipefail
 cd "$(dirname "$0")"
 ./verify-lint
-./verify-core
+if [[ -d ../evaluation/fixtures && -d ../evaluation/sources ]]; then
+  ./verify-core
+else
+  printf '%s\n' 'skip verify-core: evaluation archive absent'
+fi
 ./verify-context
 ./verify-toolchain
 ./verify-pi
