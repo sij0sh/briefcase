@@ -99,6 +99,7 @@ pub(crate) fn module_files(v: &View) -> BTreeMap<String, BTreeSet<String>> {
 
 /// Child module → the modules that declare it (Rust `mod x;`): the modules
 /// held by a file that contains the child without holding it.
+#[cfg(test)]
 pub(crate) fn module_parents(v: &View) -> BTreeMap<String, BTreeSet<String>> {
     let (held, containing) = module_layout(v);
     let mut holders: BTreeMap<&String, BTreeSet<&String>> = BTreeMap::new();

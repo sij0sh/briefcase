@@ -3,7 +3,7 @@ use serde_json::{json, Value};
 use briefcase::architecture::{
     capture::Capture, clang, csharp, data, declarations, deployment, evolution, execution, go,
     identity, inference, java, ledger::Ledger, lineage, mcp, passes, pi, python,
-    query::{self, Options}, recall, runtime_observations,
+    query::{self, Options}, runtime_observations,
     rust::{self, ScanOptions}, service,
     session::{self, query as session_query}, sync, typescript, workspace, Result,
 };

@@ -72,6 +72,8 @@ pub(super) enum Direction {
 }
 #[derive(Clone, Copy, Debug)]
 pub(super) enum Accumulate {
+    /// Only tests construct this mode; production uses `Frontier`.
+    #[cfg_attr(not(test), allow(dead_code))]
     Closure,
     Frontier,
 }

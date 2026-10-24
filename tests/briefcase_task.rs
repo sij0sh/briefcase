@@ -212,7 +212,7 @@ fn session_commit_joins_require_a_paired_git_receipt_and_reject_echoed_hashes() 
         std::time::Instant::now()+std::time::Duration::from_secs(30)).unwrap();
     let mut imported=vec![];
     for (id,command) in [("actual","git commit -m fix"),("echoed","echo 'git commit -m fake'")] {
-        let records=vec![
+        let records=[
             json!({"type":"session","version":3,"id":id,"cwd":f.root,"timestamp":"2026-01-01T00:00:00Z"}),
             json!({"type":"message","message":{"role":"user","content":"fix storage"}}),
             json!({"type":"message","message":{"role":"assistant","content":[{"type":"toolCall","id":"r","name":"read","arguments":{"path":"src/store.rs"}}]}}),

@@ -215,7 +215,7 @@ fn update_delivery(doc: &mut Value, field: &str) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::architecture::{freshness, response};
+    use crate::architecture::response;
 
     fn retained(count: usize) -> Value {
         let files: Vec<_> = (0..count).map(|index| json!({

@@ -90,21 +90,6 @@ impl Repo {
         );
         serde_json::from_slice(&out.stdout).unwrap()
     }
-    /// Raw standard output, for rendered formats.
-    fn cli_text(&self, args: &[&str]) -> String {
-        let out = Command::new(env!("CARGO_BIN_EXE_briefcase"))
-            .arg("--db")
-            .arg(&self.db)
-            .args(args)
-            .output()
-            .unwrap();
-        assert!(
-            out.status.success(),
-            "{args:?}: {}",
-            String::from_utf8_lossy(&out.stderr)
-        );
-        String::from_utf8_lossy(&out.stdout).into_owned()
-    }
     fn ledger(&self) -> Ledger {
         Ledger::open(&self.db).unwrap()
     }
