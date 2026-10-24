@@ -409,6 +409,21 @@ fn notice(
             "report_id":value["report_id"],"ref":value["ref"],"source_offset":value["source_offset"]}});
     } else if value["kind"] == "agent_context" {
         result["outcome"]=value["outcome"].clone();
+        // Budget failure changes delivery, not retained completeness. Preserve
+        // the warning and its original support instead of hiding every gap.
+        let preview: Vec<_> = rows(value, "not_covered").iter().take(1).cloned().collect();
+        result["not_covered"] = json!(preview);
+        let mut delivery = serde_json::Map::new();
+        for field in ["files", "findings", "not_covered"] {
+            let total = value["coverage"]["delivery"][field]["total"]
+                .as_u64().or_else(||value["sections"][format!("/{field}")].as_u64())
+                .unwrap_or(rows(value, field).len() as u64);
+            let returned = if field == "not_covered" { preview.len() as u64 } else { 0 };
+            delivery.insert(field.into(), json!({"total":total,"returned":returned,
+                "omitted":total.saturating_sub(returned)}));
+        }
+        result["coverage"] = json!({"completeness":value["coverage"]["completeness"],"delivery":delivery});
+        result["fetch_source"] = value["fetch_source"].clone();
         let section=if value["sections"].get("/candidates").is_some() {"/candidates"} else {"/not_covered"};
         result["continue_with"]=super::reports::continuation(value["case_id"].as_str().unwrap_or(""),section,0,20);
     } else if value["kind"] == "brief" {

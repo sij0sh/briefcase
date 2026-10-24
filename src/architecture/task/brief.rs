@@ -38,7 +38,7 @@ pub(super) fn render(case: &case::Case, presentation: Presentation) -> Result<Va
     doc["kind"] = json!("brief");
     doc["case_id"] = json!(case.id);
     doc["report_id"] = json!(case.id);
-    doc["instruction"]=json!("Use not_covered as the remaining evidence checklist. Complete means complete for the retained evidence scope, not runtime truth or task completion.");
+    doc["instruction"]=json!("Use not_covered to identify questions that could change the design or verification. Complete describes retained evidence scope; partial evidence is not a prohibition on implementation. Neither establishes runtime truth, task completion or approval. Reuse fresh context and follow pinned references as needed.");
     doc["coverage"]["completeness_contract"]["C7_delivery"]=json!("Brief presentation only; coverage.delivery counts returned and omitted rows. Page reads the retained case.");
     crate::architecture::contracts::schema(&doc, "task-brief", None)?;
     preview(&mut doc, presentation.limit);

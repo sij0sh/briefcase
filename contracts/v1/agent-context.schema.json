@@ -2,6 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "urn:briefcase:agent-context:2.0",
   "title": "Budgeted agent context routing manifest v2",
+  "description": "A delivery projection of an immutable evidence Case. Completeness describes retained support, not task completion or authorization. Gap refs point to original retained rows even when previews are reordered; delivery counts include omitted findings.",
   "type": "object",
   "required": [
     "schema_version",
@@ -65,6 +66,7 @@
       }
     },
     "not_covered": {
+      "description": "Preview of retained limitations. Optional ref identifies the original /not_covered row for explain; a small budget preserves a warning and reports omissions.",
       "type": "array",
       "items": {
         "type": "object"
