@@ -234,7 +234,7 @@ fn file_digest(path: &Path, deadline: Instant) -> Result<String> {
         }
         hasher.update(&buf[..count]);
     }
-    Ok(format!("sha256:{:x}", hasher.finalize()))
+    Ok(identity::bytes_digest(&hasher.finalize()))
 }
 
 /// Pin the trusted compiler and every selected compiler/library input by bytes.

@@ -97,7 +97,7 @@ fn compiler_aliases_reexports_commonjs_calls_and_retained_only_extension() {
     }
     let mut l = Ledger::open(&temp.path().join("knowledge.db")).unwrap();
     let diagnostics = scan(&mut l, &root, "base", false);
-    assert_eq!(diagnostics["provider"]["version"], "5.9.3");
+    assert_eq!(diagnostics["provider"]["version"], "6.0.3");
     assert!(
         rows(&diagnostics, "compiler_diagnostics").is_empty(),
         "{diagnostics}"

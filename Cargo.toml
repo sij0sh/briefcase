@@ -41,20 +41,20 @@ name = "conformance"
 path = "tests/conformance.rs"
 
 [dependencies]
-sha2 = "0.10"
-unicode-normalization = "0.1"
-regex = "1"
-tempfile = "3"
-clap = { version = "4", features = ["derive"] }
-ignore = "0.4"
-rusqlite = { version = "0.37", features = ["bundled"] }
-serde = { version = "1", features = ["derive"] }
-serde_json = "1"
-tree-sitter = "0.25"
-toml_edit = "0.22"
-tree-sitter-rust = "0.23"
-yaml-rust2 = "0.10"
-notify = "8.2.0"
+sha2 = "=0.11.1"
+unicode-normalization = "=0.1.26"
+regex = "=1.13.1"
+tempfile = "=3.27.0"
+clap = { version = "=4.6.7", features = ["derive"] }
+ignore = "=0.4.33"
+rusqlite = { version = "=0.40.2", features = ["bundled", "fallible_uint"] }
+serde = { version = "=1.0.229", features = ["derive"] }
+serde_json = "=1.0.154"
+tree-sitter = "=0.27.1"
+toml_edit = "=0.25.17"
+tree-sitter-rust = "=0.24.2"
+yaml-rust2 = "=0.13.0"
+notify = "=8.2.0"
 
 [[test]]
 name = "context"

@@ -7,7 +7,14 @@ use std::fmt;
 use unicode_normalization::UnicodeNormalization;
 
 pub fn bytes_digest(bytes: &[u8]) -> String {
-    format!("sha256:{:x}", Sha256::digest(bytes))
+    use std::fmt::Write;
+    let digest = Sha256::digest(bytes);
+    let mut out = String::with_capacity(7 + digest.len() * 2);
+    out.push_str("sha256:");
+    for byte in digest {
+        write!(out, "{byte:02x}").expect("writing to a String cannot fail");
+    }
+    out
 }
 pub fn canonical(value: &Value) -> Result<Vec<u8>> {
     fn normalize(v: &Value) -> Result<Value> {
