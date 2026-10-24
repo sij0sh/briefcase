@@ -1,0 +1,146 @@
+{
+  "status": "applied_and_validated_in_complete_checkout",
+  "input_archive_sha256": "e8a86a21385943a1c55b37fac72e5865d0d64fafeafa3b8af2c7306bda7c7c04",
+  "source_files_modified": [
+    "scripts/task-corpus-evaluate.py",
+    "scripts/task-evaluate.py",
+    "scripts/task_corpus.py",
+    "scripts/test_task_corpus.py",
+    "tests/briefcase-task-adapter.test.mjs",
+    "tests/briefcase_consolidation.rs",
+    "tests/briefcase_impact_contract.rs",
+    "src/architecture/service/discovery.rs",
+    "src/architecture/task/agent.rs",
+    "src/architecture/task/brief.rs",
+    "src/architecture/task/impact.rs",
+    "src/architecture/adoption.rs",
+    "src/architecture/hooks.rs",
+    "src/architecture/mcp.rs",
+    "src/architecture/response.rs",
+    "extensions/briefcase-pi.ts",
+    "docs/decisions/architectural-impact-contract.md",
+    "contracts/v1/agent-context.schema.json",
+    "contracts/v1/architectural-impact-contract.schema.json"
+  ],
+  "integration_deltas": [
+    {
+      "file": "src/architecture/task/agent.rs",
+      "change": "Findings are fully expendable before the gap warning and the delivered paths.",
+      "reason": "The handoff trim kept one finding and dropped a path, breaking the delivery floor in tests/briefcase_retrieval.rs::mcp_agent_delivery_accounts_for_its_actual_final_frame_on_both_surfaces.",
+      "preserved": [
+        "gap preview survives budget pressure",
+        "coverage.delivery counts returned and omitted findings",
+        "pinned omission notice keeps scoped completeness and support"
+      ]
+    },
+    {
+      "file": "tests/briefcase_stage4.rs",
+      "change": "The reserved prompt-framing prefix matches the current adapter text.",
+      "reason": "The file duplicated the pre-refactor framing constant and reserved the wrong number of bytes."
+    }
+  ],
+  "handoff_snapshot_validation": {
+    "status": "source_refactor_implemented_native_validation_unrun",
+    "reasons": [
+      "Cargo.toml and Cargo.lock absent from supplied archive",
+      "Rust cargo/rustc toolchain unavailable"
+    ],
+    "checks": [
+      {
+        "command": "node --test tests/briefcase-task-adapter.test.mjs",
+        "status": "passed",
+        "tests": 20
+      },
+      {
+        "command": "python3 -B -m unittest discover -s tools -p 'test_*.py'",
+        "status": "passed",
+        "tests": 17
+      },
+      {
+        "command": "python3 -B tools/check_package.py --schemas-only",
+        "status": "passed",
+        "schemas": 11,
+        "scope": "owned schemas only"
+      },
+      {
+        "command": "python3 -B -m unittest discover -s scripts -p 'test_*.py'",
+        "status": "failed_with_unchanged_baseline_errors",
+        "tests": 135,
+        "passed": 132,
+        "skipped": 1,
+        "errors": 2,
+        "error_tests": [
+          "test_archive_is_small_and_installer_verifies_before_replacing (test_distribution.DistributionTests.test_archive_is_small_and_installer_verifies_before_replacing)",
+          "test_numbered_stage_regressions_have_explicit_cargo_targets_and_a_gate (test_test_layout.TestLayoutTests.test_numbered_stage_regressions_have_explicit_cargo_targets_and_a_gate)"
+        ],
+        "baseline": {
+          "tests": 131,
+          "errors": 2,
+          "skipped": 1
+        },
+        "missing_inputs": [
+          "LICENSE",
+          "Cargo.toml"
+        ]
+      },
+      {
+        "check": "original corpus stability",
+        "status": "passed",
+        "families": 7,
+        "fixtures": 14,
+        "seed": 3
+      },
+      {
+        "check": "schema validation constraint compatibility",
+        "status": "passed",
+        "schemas": [
+          "agent-context",
+          "architectural-impact-contract"
+        ]
+      },
+      {
+        "check": "canonical Case and ledger preservation",
+        "status": "passed",
+        "scope": "byte comparison against attachment; no runtime/storage claim"
+      }
+    ]
+  },
+  "full_checkout_validation": {
+    "status": "passed",
+    "lanes": [
+      {"command": "scripts/verify-context", "status": "passed"},
+      {"command": "scripts/verify-lint", "status": "passed"}
+    ],
+    "native": [
+      {"command": "cargo test --locked --lib", "status": "passed", "tests": 182},
+      {"command": "cargo test --locked --test context", "status": "passed", "tests": 62},
+      {"command": "cargo test --locked --test impact", "status": "passed", "tests": 17},
+      {"command": "cargo test --locked --test p0p1", "status": "passed", "tests": 7},
+      {"command": "cargo test --locked --test p2", "status": "passed", "tests": 11},
+      {"command": "cargo test --locked --test stage2", "status": "passed", "tests": 3},
+      {"command": "cargo test --locked --test stage3", "status": "passed", "tests": 5},
+      {"command": "cargo test --locked --test stage4", "status": "passed", "tests": 4}
+    ],
+    "adapters": [
+      {"command": "node --test tests/briefcase-task-adapter.test.mjs", "status": "passed", "tests": 20},
+      {"command": "python3 -B -m unittest discover -s tools -p 'test_*.py'", "status": "passed", "tests": 17},
+      {"command": "python3 -B -m unittest discover -s scripts -p 'test_*.py'", "status": "passed", "tests": 135},
+      {"command": "python3 -B tools/check_package.py --schemas-only", "status": "passed", "schemas": 11, "scope": "owned schemas only"}
+    ],
+    "observed_limits": [
+      "One verify-context run failed tests/briefcase_stage3.rs::invalid_profile_preflight_reports_configuration_without_creating_a_database with sync: locked; the same flake is recorded for a clean commit in .agents/artifacts/source/briefcase-source.md and repeated runs passed",
+      "tests/briefcase_consolidation.rs is not a Cargo.toml test target and no other target includes it, so it compiles without running",
+      "Clippy reports warnings only on unchanged lines and the lane treats them as non-blocking",
+      "Formatting is not enforced; a repo-wide cargo fmt --check does not pass"
+    ]
+  },
+  "unrun": [
+    "Installed Pi and Claude Code adapter integration outside the unit harness",
+    "Release package built from the refactored tree; dist archives predate the refactor",
+    "Coding-agent outcome measurement, including token cost and task success"
+  ],
+  "coding_agent_benchmark": {
+    "status": "not_run",
+    "reason": "No external harness was run; no performance or architectural task-success claim"
+  }
+}
