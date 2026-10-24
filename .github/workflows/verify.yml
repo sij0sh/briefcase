@@ -18,6 +18,8 @@ jobs:
         with:
           node-version: '22'
       - uses: dtolnay/rust-toolchain@stable
+      - name: Install ripgrep
+        run: sudo apt-get update && sudo apt-get install --yes ripgrep
       - name: Install the pinned TypeScript compiler
         run: npm ci --ignore-scripts --prefix tools/typescript
       - run: bash scripts/verify-context
@@ -38,4 +40,6 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy
+      - name: Install ripgrep
+        run: sudo apt-get update && sudo apt-get install --yes ripgrep
       - run: bash scripts/verify-lint
