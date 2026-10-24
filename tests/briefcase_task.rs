@@ -14,7 +14,7 @@ struct Fixture {
 impl Fixture {
     fn new() -> Self {
         let dir=tempfile::tempdir().unwrap();let root=dir.path().join("repo");let db=dir.path().join("context.db");
-        std::fs::create_dir_all(&root).unwrap();
+        std::fs::create_dir_all(&root).unwrap();let root=root.canonicalize().unwrap();
         for (path,body) in [
             ("src/store.rs","// briefcase: implements-plan docs/plans/import.md#validation\npub fn save() { let _ = std::env::var(\"DEMO_TOKEN\"); }\n"),
             ("tests/store.rs","#[path = \"../src/store.rs\"] mod store;\n#[test] fn stores(){store::save();}\n"),

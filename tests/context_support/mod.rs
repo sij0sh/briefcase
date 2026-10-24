@@ -12,7 +12,7 @@ pub struct Fixture {
 impl Fixture {
     pub fn new()->Self {
         let dir=tempfile::tempdir().unwrap();let root=dir.path().join("source");let db=dir.path().join("context.db");
-        std::fs::create_dir_all(root.join("src")).unwrap();
+        std::fs::create_dir_all(root.join("src")).unwrap();let root=root.canonicalize().unwrap();
         std::fs::write(root.join("src/lib.rs"),"pub fn start(){let _=std::process::Command::new(\"/opt/demo-tool\");}\n").unwrap();
         std::fs::write(root.join("Dockerfile"),"FROM scratch\nCOPY src /app\n").unwrap();
         std::fs::write(root.join("README.md"),"src/lib.rs starts the demo-tool.\n").unwrap();
