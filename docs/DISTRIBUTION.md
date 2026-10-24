@@ -1,6 +1,6 @@
 # Briefcase distribution
 
-The native executable and Python import producer expose the 0.1.1 JSON interface
+The native executable and Python import producer expose the 0.1.2 JSON interface
 used by Archclt 0.2.0. It needs Git and a compatible Python interpreter for native
 Python analysis; other language producers have their own external toolchains.
 The binary includes its adapters and agent templates. Source builds require Rust

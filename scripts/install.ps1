@@ -1,7 +1,7 @@
 #Requires -Version 5.1
 # briefcase installer for Windows.
 # Usage: powershell -ExecutionPolicy Bypass -File install.ps1 -Repo <owner/repo> [-Version latest|tag] [-InstallDir <path>]
-# Piped: & ([scriptblock]::Create((irm <raw-url>/scripts/install.ps1))) -Version v0.1.1
+# Piped: & ([scriptblock]::Create((irm <raw-url>/scripts/install.ps1))) -Version v0.1.2
 param(
     [string]$Repo = $(if ($env:GITHUB_REPO) { $env:GITHUB_REPO } else { "sij0sh/briefcase" }),
     [string]$Version = "latest",
