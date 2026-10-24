@@ -55,7 +55,7 @@ fn search_terms(name:&str)->&'static str{
         "evolution"|"compare"|"history_lineage"=>"history changes revisions snapshots rename correspondence",
         "status"=>"ready readiness initialized diagnostics database",
         "worktree"=>"current dirty untracked added deleted modified freshness working tree diff outside initial slice",
-        "impact"=>"architectural change impact contract planned targets base candidate snapshots consumers governing constraints verification obligations blast radius pre post",
+        "impact"=>"architectural change impact planned targets base candidate snapshots consumers declared constraints suggested checks blast radius pre post",
         _=>"",
     }
 }

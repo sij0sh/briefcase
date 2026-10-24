@@ -1,6 +1,6 @@
 # Architectural impact is retained evidence composition
 
-Status: implemented; local Rust validation is recorded in `IMPACT_VALIDATION.json`.
+Status: implemented; the evidence-first refactor updates the default guidance and registry interpretation. See the [refactor validation report](../../BRIEFCASE_REFACTOR.md) for current validation limits.
 
 ## Context
 
@@ -26,15 +26,20 @@ logical comparison keys. Keep every unknown and every source omission visible.
 Do not create a second graph, assertion authority, decision registry or test
 runner inside the engine. Existing report-only declarations cannot authorize
 mandatory verification. Static associations suggest checks with explicit
-`not_executed` status. Governing decisions remain empty until an authenticated,
-pinned registry integration exists. Overall assessment stays partial in v1.
+`not_executed` status. Architectural rationale is supplied separately by the
+agent and its rationale provider. `governing_decisions: []` and
+`governing_decisions_status: not_connected` remain legacy wire fields; they do
+not establish that no applicable reasons or policies exist. An absent registry
+is not an implementation-evidence gap or a prerequisite to using the report.
+Overall assessment stays partial in v1.
 
 ## Consequences
 
 Agents and companion architecture/validation tools have one retained change
-packet with inspectable proof references. Human review still owns architectural
-intent and approval. External runners still own executable policies, contracts
-and behavioral outcomes. File-level impact can conservatively overselect
+packet with inspectable proof references. The agent reconciles architectural
+reasons with current requirements and implementation under the existing task
+authorization. Explicitly adopted policies retain their own scope. Project
+tools and external runners own execution and behavioral outcomes. File-level impact can conservatively overselect
 entities in a changed file; it is not a semantic API diff. Bounded traversal,
 unresolved references, unlocalized endpoints and missing language coverage can
 underselect consumers, so those limitations are part of the contract.

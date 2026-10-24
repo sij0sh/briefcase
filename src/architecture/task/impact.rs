@@ -269,11 +269,12 @@ pub fn impact(l: &Ledger, a: &Value) -> Result<Value> {
         let declaration = crate::architecture::declarations::ARTIFACT_PATH;
         if before.source.files.get(declaration).map(|f|&f.digest) != candidate.source.files.get(declaration).map(|f|&f.digest) {
             unknowns.push(gap("declarations", None,
-                "Architecture declarations changed between snapshots; changed intent requires external review, not automatic approval", vec![]));
+                "Authored declarations changed between snapshots; reconcile their scope and applicability with the current request and implementation", vec![]));
         }
     }
-    unknowns.push(gap("design_decisions", None,
-        "No pinned external decision registry is connected; governing ADRs and approvals are not inferred from repository prose", vec![]));
+    // Architectural rationale belongs to the agent and its rationale provider.
+    // The legacy registry fields remain wire-compatible; absence of that
+    // optional provider is not a missing implementation-evidence obligation.
     unknowns.push(gap("verification", None,
         "Tests and runtime workflows were not executed. Static associations are suggested checks, not verification results", vec![]));
     affected.sort_by_key(|row| (text(row,"side"),text(row,"id"),text(row,"relationship")));
@@ -303,7 +304,7 @@ pub fn impact(l: &Ledger, a: &Value) -> Result<Value> {
         "retraction_epoch":l.retraction_epoch()?,
         "provenance":{"implementation_digest":identity::bytes_digest(include_bytes!("impact.rs")),
             "schema_digest":identity::bytes_digest(include_bytes!("../../../contracts/v1/architectural-impact-contract.schema.json"))},
-        "instruction":"Use evidence_refs with explain and page retained sections. Review unknowns before external validation; this report does not certify compliance or task completion."});
+        "instruction":"Follow evidence_refs with explain and page as needed. Investigate unknowns that could change the design or verification, then implement and test under the current request. Verification entries are suggestions, not executions. Architectural rationale is supplied separately; legacy governing_decisions fields do not establish absence of applicable reasons or policies."});
     let id = identity::id("impact-contract", &doc)?;
     doc["report_id"] = json!(id);
     contracts::schema(&doc, "architectural-impact-contract", None)?;

@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://briefcase.local/contracts/v1/architectural-impact-contract.schema.json",
   "title": "Briefcase Architectural Change Impact Contract",
-  "description": "Retained read-only report. Affected relationships retain evidence authority; all checks are suggestions and have not executed. ADR integration is explicitly unconnected in v1.",
+  "description": "Retained read-only implementation evidence. Checks are unexecuted suggestions. Architectural rationale is supplied separately; legacy registry fields are compatibility metadata, not an implementation prerequisite or proof that no reasons or policies apply.",
   "type": "object",
   "properties": {
     "schema_version": {
@@ -135,10 +135,12 @@
       }
     },
     "governing_decisions": {
+      "description": "Legacy compatibility field. Rationale is owned by a separate provider; an empty array does not establish absence of applicable reasons or policies.",
       "type": "array",
       "maxItems": 0
     },
     "governing_decisions_status": {
+      "description": "Legacy registry capability status, not task readiness or an obligation to connect a registry.",
       "const": "not_connected"
     },
     "unknowns": {

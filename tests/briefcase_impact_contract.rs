@@ -89,6 +89,8 @@ fn declared_features_workflows_domains_and_report_only_constraints_keep_their_au
     assert_eq!(doc["assessment"],"partial");
     assert_eq!(doc["governing_decisions"],json!([]));
     assert_eq!(doc["governing_decisions_status"],"not_connected");
+    assert!(!rows(&doc,"unknowns").iter().any(|gap|gap["area"]=="design_decisions"),
+        "an optional rationale provider is not an implementation-evidence obligation");
 }
 
 #[test]
