@@ -24,6 +24,9 @@ class DistributionTests(unittest.TestCase):
             archive=module.package(fake,target,root/'assets')
             with tarfile.open(archive) as bundle:
                 self.assertEqual(set(bundle.getnames()),{'briefcase','LICENSE','README.md','DISTRIBUTION.md'})
+                readme=bundle.extractfile('README.md').read().decode()
+                self.assertIn('](DISTRIBUTION.md)',readme)
+                self.assertNotIn('](docs/DISTRIBUTION.md)',readme)
             tools=root/'tools';tools.mkdir()
             curl=tools/'curl'
             curl.write_text('#!/bin/sh\nset -eu\ncase "$4" in */SHA256SUMS) cp "$FIXTURE_ASSETS/SHA256SUMS" "$3";; *) cp "$FIXTURE_ASSETS/'+archive.name+'" "$3";; esac\n')

@@ -6,7 +6,8 @@ Date: 2026-10-16.
 Subsequent Stage 1 harness-delivery changes and current validation are recorded
 in [STAGE1.md](STAGE1.md). This document records the preceding implementation.
 
-The original `EVALUATION_FINDINGS.md` is preserved as the historical baseline.
+The original evaluation findings remain in Git history as the historical
+baseline.
 No new recall, latency or rust-analyzer resolution figures are claimed.
 
 ## Changes

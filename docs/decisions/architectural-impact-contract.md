@@ -1,6 +1,6 @@
 # Architectural impact is retained evidence composition
 
-Status: implemented; the evidence-first refactor updates the default guidance and registry interpretation. See the [refactor validation report](../../BRIEFCASE_REFACTOR.md) for current validation limits.
+Status: implemented; the evidence-first refactor updates the default guidance and registry interpretation. See the [refactor validation report](../refactor-validation.md) for current validation limits.
 
 ## Context
 

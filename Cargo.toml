@@ -7,7 +7,7 @@ license = "MIT"
 repository = "https://github.com/sij0sh/briefcase"
 readme = "README.md"
 include = [
-  "/Cargo.toml", "/Cargo.lock", "/LICENSE", "/README.md", "/DISTRIBUTION.md", "/AGENTS.md",
+  "/Cargo.toml", "/Cargo.lock", "/LICENSE", "/README.md", "/AGENTS.md",
   "src/**/*.rs", "src/**/*.py", "src/**/*.cjs", "src/**/*.go", "src/**/*.java", "src/**/*.cs", "src/**/*.cpp", "src/**/*.h",
   "contracts/**/*.json", "contracts/**/*.md", "extensions/*.ts", "profiles/**/*.json",
   "tools/*.py", "tools/typescript/package.json", "tools/typescript/package-lock.json",

@@ -79,7 +79,7 @@ Observed limits:
 - Clippy reports warnings only. They sit on unchanged lines and the lane treats
   them as non-blocking.
 - Structured validation details are in
-  [docs/refactor-validation.json](docs/refactor-validation.json).
+  [docs/refactor-validation.json](refactor-validation.json).
 
 ## Remaining validation
 
@@ -95,7 +95,7 @@ substitute for those results.
 
 ## Use and rollback
 
-The [usage and compatibility guide](docs/evidence-first-context.md) documents
+The [usage and compatibility guide](evidence-first-context.md) documents
 the new defaults. Existing explicit source capture, policy inspection, and
 project verification commands continue to use their existing contracts.
 

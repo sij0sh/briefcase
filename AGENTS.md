@@ -2,7 +2,7 @@
 
 Read architecture/README.md, relevant ADRs and architecture/verification.yaml
 before changing boundaries or verification commands. Use reviewed external
-ARCHCTL_BIN and BRIEFCASE_BIN installations; see DISTRIBUTION.md. Candidate
+ARCHCTL_BIN and BRIEFCASE_BIN installations; see docs/DISTRIBUTION.md. Candidate
 builds are test subjects, never independent evidence producers for themselves.
 
 Keep evidence, declarations, derived results and claims distinct. Preserve pinned

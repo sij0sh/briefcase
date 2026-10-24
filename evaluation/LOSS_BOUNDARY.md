@@ -159,4 +159,5 @@ Explain the case's `/coverage/retrieval/lexical_discovery`, then follow its
 `continue_with`: `page` against the separate lexical report's `/items`, starting
 at offset 1000 for overflow. The case's `/candidates` is the fused inventory,
 not the lexical tail. Reading that tail does not promote it into ranking or
-recompute the assembled case. See [P2_IMPLEMENTATION.md](../P2_IMPLEMENTATION.md).
+recompute the assembled case. The earlier P2 implementation note remains in
+Git history.

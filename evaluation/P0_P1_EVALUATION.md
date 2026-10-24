@@ -129,7 +129,7 @@ was in the Pi manifest (about 6.7–7.0 KB) and its source bytes verified.
 ranking regression.** The corpus now contains the P0/P1 files themselves:
 `tests/briefcase_p0_p1.rs`, `scripts/test_task_investigation.py`,
 `scripts/p0-p1-smoke.py`, `scripts/task_investigation.py`,
-`scripts/validate-p0-p1.py` and `P0_P1_IMPLEMENTATION.md`. These files match the
+`scripts/validate-p0-p1.py`. These files match the
 task vocabulary heavily, and each arm-A slice in the task set took 1–5 of them.
 
 The new misses beyond the Stage 4 known-miss list were exactly the files that sat

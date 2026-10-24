@@ -94,8 +94,8 @@ feature projection, human export and simplification reports have no schemas or
 read operations. Optional feature/workflow declarations remain metadata.
 
 Report pagination uses `page` with a retained `report_id` and section/cursor;
-`explain` expands source entries, links or legacy explanation handles. See
-[README](../../README.md) and [consolidation notes](../../CONSOLIDATION.md).
+`explain` expands source entries, links or legacy explanation handles. See the
+[README](../../README.md) for the package overview.
 
 
 Task cases admit optional `/candidates` rankings and request `max_files` and

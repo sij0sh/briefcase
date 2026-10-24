@@ -105,4 +105,4 @@ layer-specific readiness already serve the target architecture. No second
 graph, rationale store, correctness score, or approval workflow is introduced.
 
 See the [impact contract decision](decisions/architectural-impact-contract.md)
-and the [implementation and validation report](../BRIEFCASE_REFACTOR.md).
+and the [implementation and validation report](refactor-validation.md).

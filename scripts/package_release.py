@@ -23,14 +23,18 @@ def package(binary, target, destination):
     windows='windows' in target
     name='briefcase-'+target+('.zip' if windows else '.tar.gz')
     archive=destination/name
-    entries={('briefcase.exe' if windows else 'briefcase'):binary,'LICENSE':ROOT/'LICENSE',
-             'README.md':ROOT/'README.md','DISTRIBUTION.md':ROOT/'DISTRIBUTION.md'}
-    if windows:
-        with zipfile.ZipFile(archive,'w',compression=zipfile.ZIP_DEFLATED) as out:
-            for name,path in entries.items():out.write(path,name)
-    else:
-        with tarfile.open(archive,'w:gz') as out:
-            for name,path in entries.items():out.add(path,arcname=name,recursive=False)
+    with tempfile.TemporaryDirectory(prefix='briefcase-package-') as staging:
+        # The archive is flat, so repository paths in the README must resolve there.
+        readme=Path(staging)/'README.md'
+        readme.write_text((ROOT/'README.md').read_text().replace('](docs/DISTRIBUTION.md)','](DISTRIBUTION.md)'))
+        entries={('briefcase.exe' if windows else 'briefcase'):binary,'LICENSE':ROOT/'LICENSE',
+                 'README.md':readme,'DISTRIBUTION.md':ROOT/'docs'/'DISTRIBUTION.md'}
+        if windows:
+            with zipfile.ZipFile(archive,'w',compression=zipfile.ZIP_DEFLATED) as out:
+                for name,path in entries.items():out.write(path,name)
+        else:
+            with tarfile.open(archive,'w:gz') as out:
+                for name,path in entries.items():out.add(path,arcname=name,recursive=False)
     digest=hashlib.sha256(archive.read_bytes()).hexdigest()
     (destination/'SHA256SUMS').write_text(f'{digest}  {archive.name}\n')
     return archive

@@ -19,7 +19,7 @@ versioned source first. `--repo`, `--version` and `--dir` select the release and
 installation. The default destination is `~/.local/bin`, outside your project.
 Linux and macOS x64/ARM64 have release build lanes. Windows installer support
 remains experimental until native Windows artifacts are validated.
-See [distribution](DISTRIBUTION.md) for source builds and publication status.
+See [distribution](docs/DISTRIBUTION.md) for source builds and publication status.
 
 ## Read a repository
 
@@ -68,7 +68,7 @@ Rust and a C/C++ toolchain are needed for source builds. The standard source
 crate includes the embedded adapters, contracts and extension templates. It
 excludes local captures, dependency installations and generated evaluation data.
 Some historical integration lanes need evaluation fixtures absent from this
-source checkout; they remain unverified. See [distribution](DISTRIBUTION.md)
+source checkout; they remain unverified. See [distribution](docs/DISTRIBUTION.md)
 and the architecture records for the exact validation boundary.
 
 MIT licensed.
