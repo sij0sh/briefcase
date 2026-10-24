@@ -11,7 +11,7 @@ Download a platform archive and `SHA256SUMS` from the reviewed GitHub release.
 The POSIX installer verifies the checksum before replacing the executable:
 
 ```sh
-sh scripts/install.sh --version v0.1.0
+sh scripts/install.sh --version v0.1.1
 ```
 
 Use the installer from the matching source release, or download and inspect its
@@ -44,7 +44,7 @@ scope and limits of an investigation.
 ## Archclt integration
 
 Set `BRIEFCASE_BIN` to the absolute reviewed executable outside source checkouts.
-Briefcase 0.1.0's public JSON operations supply the Python import evidence mapped
+Briefcase 0.1.1's public JSON operations supply the Python import evidence mapped
 by Archclt 0.2.0. Other language analysis supported by Briefcase does not imply
 that Archclt enforces those languages. Language producers may need Python, Node,
 Rust or other external compiler toolchains; inspect their readiness explicitly.

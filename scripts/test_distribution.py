@@ -19,7 +19,7 @@ class DistributionTests(unittest.TestCase):
     def test_archive_is_small_and_installer_verifies_before_replacing(self):
         with tempfile.TemporaryDirectory(prefix='briefcase-dist-') as temporary:
             root=Path(temporary); fake=root/'briefcase'
-            fake.write_text('#!/bin/sh\necho "briefcase 0.1.0"\n');fake.chmod(0o755)
+            fake.write_text('#!/bin/sh\necho "briefcase 0.1.1"\n');fake.chmod(0o755)
             target=module.native_target()
             archive=module.package(fake,target,root/'assets')
             with tarfile.open(archive) as bundle:
@@ -32,7 +32,7 @@ class DistributionTests(unittest.TestCase):
             curl.write_text('#!/bin/sh\nset -eu\ncase "$4" in */SHA256SUMS) cp "$FIXTURE_ASSETS/SHA256SUMS" "$3";; *) cp "$FIXTURE_ASSETS/'+archive.name+'" "$3";; esac\n')
             curl.chmod(0o755)
             env={**os.environ,'PATH':str(tools)+os.pathsep+os.environ['PATH'],'FIXTURE_ASSETS':str(root/'assets')}
-            command=['sh',str(ROOT/'scripts/install.sh'),'--repo','example/briefcase','--version','v0.1.0','--dir',str(root/'installed')]
+            command=['sh',str(ROOT/'scripts/install.sh'),'--repo','example/briefcase','--version','v0.1.1','--dir',str(root/'installed')]
             valid=subprocess.run(command,env=env,capture_output=True,text=True)
             self.assertEqual(valid.returncode,0,valid.stdout+valid.stderr)
             installed=root/'installed/briefcase';self.assertEqual(installed.read_bytes(),fake.read_bytes())
