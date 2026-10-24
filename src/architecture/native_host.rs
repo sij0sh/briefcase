@@ -517,7 +517,14 @@ mod tests {
             let mut command = Command::new("/bin/sh");
             command.args(["-c", &script, "sh"]).arg(&marker);
             let started = Instant::now();
-            let output = run(command, &[], started + Duration::from_millis(100));
+            // Only the `wait` case is meant to reach the deadline. The exit
+            // cases must run long enough for the shell to report its status.
+            let limit = if exit == "wait" {
+                Duration::from_millis(100)
+            } else {
+                Duration::from_secs(5)
+            };
+            let output = run(command, &[], started + limit);
             match exit {
                 "wait" => assert!(output.err().unwrap().to_string().contains("timed out")),
                 "exit 0" => assert!(output.is_ok()),
