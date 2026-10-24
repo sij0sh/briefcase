@@ -10,3 +10,4 @@ briefcase.tar.gz
 /dist/
 
 /validation/
+.agents/patch/
