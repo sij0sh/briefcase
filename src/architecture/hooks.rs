@@ -214,7 +214,7 @@ pub fn install(
     };
     let mut report = json!({"agent":agent,"status":status,"project":root,"hooks":path,
         "dry_run":dry_run,"actions":actions,"blocked":blocked,
-        "notes":["SessionStart maintains the monitor. Claude Code also receives a ranked agent_context manifest and a non-blocking completion coverage report.",
+        "notes":["SessionStart maintains the monitor. Claude Code receives prompt context and a live worktree diagnostic against its original Case. BRIEFCASE_REVIEW_CONTEXT=1 also builds a full review Case.",
         "Requires a client supporting SessionStart command hooks. Inspect /hooks and review/trust the definitions in that client.",
         "Hooks ensure the repository monitor exists without continuing the conversation. Remove only these Briefcase handlers to uninstall."]});
     if dry_run || !blocked.is_empty() || !dirty {

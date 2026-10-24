@@ -10,6 +10,15 @@ const source = stripTypeScriptTypes(readFileSync(new URL('../extensions/briefcas
   .replace('from "typebox"', `from ${JSON.stringify(schema)}`);
 const adapter = await import(dataUrl(source));
 
+function reviewContext(t) {
+  const previous = process.env.BRIEFCASE_REVIEW_CONTEXT;
+  process.env.BRIEFCASE_REVIEW_CONTEXT = '1';
+  t.after(() => {
+    if (previous === undefined) delete process.env.BRIEFCASE_REVIEW_CONTEXT;
+    else process.env.BRIEFCASE_REVIEW_CONTEXT = previous;
+  });
+}
+
 test('legacy oversized responses retain an executable restart, including source bytes', () => {
   const legacy = JSON.parse(adapter.formatOperation({response: {
     continuation_token: 'report:abc@5', results: ['x'.repeat(70000)]}}, 2000));
@@ -63,7 +72,7 @@ test('degraded task reads skip waits for unrelated semantic work', async () => {
   await adapter.execRead(pi, 'occurrences', {text: 'needle'}, '/work');
   await adapter.execRead(pi, 'policy', {component: 'demo'}, '/work');
   assert.equal(commands[0][commands[0].indexOf('--wait-ready') + 1], '0');
-  assert.equal(commands[1][commands[1].indexOf('--wait-ready') + 1], '20');
+  assert.equal(commands[1][commands[1].indexOf('--wait-ready') + 1], '0');
 });
 
 test('the complete adapter envelope stays within its UTF-8 budget', () => {
@@ -104,13 +113,12 @@ test('prompt context and post-task checks never submit another agent prompt', as
   assert.equal(entries[0].type,'briefcase-completeness');
   assert.equal(entries[0].value.prompt_report_id,'task-brief:1');
   assert.deepEqual(entries[0].value.not_covered_areas,['static_calls']);
-  assert.equal(calls.length,2);
+  assert.equal(calls.length,1);
   assert.equal(calls[0][calls[0].indexOf('call')+1], 'agent_context');
   assert.equal(JSON.parse(calls[0][calls[0].indexOf('--args')+1]).limit, undefined);
-  assert.equal(JSON.parse(calls[1][calls[1].indexOf('--args')+1]).limit, undefined);
-  assert.equal(JSON.parse(calls[1][calls[1].indexOf('--args')+1]).duty,'review');
+  assert.equal(entries[0].value.dimension_comparison,'not_requested');
   await events.get('agent_end')({},ctx);
-  assert.equal(calls.length,2,'a settled turn must not check again');
+  assert.equal(calls.length,1,'a settled turn must not check again');
 });
 
 test('automatic context failures are non-blocking and can be disabled', async t => {
@@ -149,7 +157,8 @@ test('case dimension comparisons distinguish unchanged, changed and unavailable 
   assert.equal(adapter.compareCompleteness({}, completeness()), undefined);
 });
 
-test('post-task entries compare identified cases and keep dimension deltas', async () => {
+test('explicit post-task review compares identified cases and keeps dimension deltas', async t => {
+  reviewContext(t);
   const events=new Map(), entries=[];let reads=0;
   adapter.default({registerTool(){},registerCommand(){},on:(name,handler)=>events.set(name,handler),
     appendEntry:(type,value)=>entries.push({type,value}),exec:async(_program,args)=>{
@@ -173,7 +182,8 @@ test('post-task entries compare identified cases and keep dimension deltas', asy
   assert.equal(entries[0].value.worktree.outside_initial_slice,1);
 });
 
-test('byte-budget notices recover dimension states from retained case metadata', async () => {
+test('explicit review can recover dimension states from retained case metadata', async t => {
+  reviewContext(t);
   const events=new Map(), calls=[], entries=[];
   adapter.default({registerTool(){},registerCommand(){},on:(name,handler)=>events.set(name,handler),
     appendEntry:(type,value)=>entries.push(value),exec:async (_program,args)=>{
@@ -239,4 +249,61 @@ test('automatic context preserves compact manifests with more than twenty supple
   assert.ok(Buffer.byteLength(injected.message.content)<=8000);
   const delivered=JSON.parse(injected.message.content.slice(injected.message.content.indexOf('{')));
   assert.deepEqual(delivered,manifest);
+});
+
+test('normal completion uses the original Case and workspace without another context or metadata read', async () => {
+  const events = new Map(), calls = [], entries = [];
+  adapter.default({registerTool(){}, registerCommand(){}, on:(name,handler)=>events.set(name,handler),
+    appendEntry:(type,value)=>entries.push(value), exec:async (_program,args,options)=>{
+      const operation=args[args.indexOf('call')+1];
+      const arguments_=JSON.parse(args[args.indexOf('--args')+1]);
+      calls.push({operation, arguments_, cwd:options.cwd});
+      const result=operation==='worktree'
+        ? {kind:'worktree',report_id:'context-report:live',alignment:'changed',changed_paths:2,outside_initial_slice:1}
+        : {kind:'agent_context',truncated:true,case_id:'task-case:original',report_id:'task-case:original'};
+      return {code:0,stdout:JSON.stringify(result),stderr:''};
+    }});
+  await events.get('before_agent_start')({prompt:'scale overlapping jobs'},{cwd:'/original'});
+  await events.get('agent_end')({},{cwd:'/other'});
+  assert.deepEqual(calls.map(c=>c.operation),['agent_context','worktree']);
+  assert.equal(calls[1].arguments_.case_id,'task-case:original');
+  assert.equal(calls[1].cwd,'/original');
+  assert.equal(entries[0].case_id,'task-case:original');
+  assert.equal(entries[0].dimension_comparison,'not_requested');
+  assert.equal(entries[0].worktree.outside_initial_slice,1);
+});
+
+test('compact native freshness preserves degraded fallback and read errors never trigger refresh', async () => {
+  const calls=[];
+  const pi={exec:async (_program,args)=>{calls.push(args);return {code:0,stderr:'',
+    stdout:JSON.stringify({kind:'agent_context',view_id:'view:old',freshness:{fallback:true,pending_or_interrupted:true}})};}};
+  assert.equal((await adapter.execRead(pi,'agent_context',{task:'inspect'},'/repo')).degraded,true);
+  await assert.rejects(adapter.execRead({exec:async (_program,args)=>{
+    calls.push(args); return {code:1,stdout:'',stderr:'CORRUPT: source digest mismatch'};
+  }},'explain',{report_id:'task-case:old',ref:'/slice/impl/0'},'/repo'),/source digest mismatch/);
+  assert.equal(calls.length,2);
+  assert.ok(calls.every(args=>args[args.indexOf('--wait-ready')+1]==='0'));
+  assert.ok(calls.every(args=>args[args.indexOf('call')+1]!=='sync'));
+});
+
+test('oversized manifests preserve scoped coverage, a pinned gap, and truthful omissions', () => {
+  const gaps=[{area:'capture_path',ref:'/not_covered/7',path:'src/jobs.py',reason:'Current source is missing'}];
+  const manifest={kind:'agent_context',case_id:'task-case:gaps',report_id:'task-case:gaps',
+    outcome:'partial',outcome_scope:'retained_evidence',files:[{path:'a.py',detail:'é'.repeat(10000)}],
+    findings:[{claim:'advisory',detail:'x'.repeat(10000)}],not_covered:gaps,
+    coverage:{completeness:completeness(),delivery:{files:{total:9},findings:{total:4},not_covered:{total:8}}},
+    fetch_source:{operation:'explain',arguments:{report_id:'task-case:gaps'}}};
+  const encoded=adapter.formatOperation(manifest,2200);
+  const notice=JSON.parse(encoded);
+  assert.ok(Buffer.byteLength(encoded)<=2200);
+  assert.deepEqual(notice.coverage.completeness,completeness());
+  assert.deepEqual(notice.not_covered,gaps);
+  assert.deepEqual(notice.coverage.delivery.files,{total:9,returned:0,omitted:9});
+  assert.deepEqual(notice.coverage.delivery.findings,{total:4,returned:0,omitted:4});
+  assert.deepEqual(notice.coverage.delivery.not_covered,{total:8,returned:1,omitted:7});
+  assert.equal(notice.fetch_source.arguments.report_id,'task-case:gaps');
+  delete manifest.coverage.delivery.findings;
+  manifest.sections={'/findings':4};
+  assert.deepEqual(JSON.parse(adapter.formatOperation(manifest,2200)).coverage.delivery.findings,
+    {total:4,returned:0,omitted:4},'legacy manifests can recover totals from retained section counts');
 });

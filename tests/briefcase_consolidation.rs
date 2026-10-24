@@ -60,16 +60,17 @@ fn lifecycle_outputs_never_block_or_continue_the_agent(){
     let out=adoption::event(&f.db,&f.root,"prompt",&prompt).unwrap();
     assert_eq!(out["hookSpecificOutput"]["hookEventName"],"UserPromptSubmit");assert!(out.get("decision").is_none());
     let finished=adoption::event(&f.db,&f.root,"complete",&prompt).unwrap();
-    assert!(finished["systemMessage"].as_str().unwrap().contains("coverage check"));
+    assert!(finished["systemMessage"].as_str().unwrap().contains("worktree check"));
     assert!(finished.get("decision").is_none());assert!(finished.get("continue").is_none());assert!(finished.get("hookSpecificOutput").is_none());
     let sql=rusqlite::Connection::open(&f.db).unwrap();
     let brief_count:i64=sql.query_row("SELECT count(*) FROM reports WHERE json_extract(body,'$.kind')='brief'",[],|r|r.get(0)).unwrap();
     assert_eq!(brief_count,0,"Hooks retain cases and comparison reports, never brief projections");
-    let raw:String=sql.query_row("SELECT body FROM reports WHERE json_extract(body,'$.kind')='case_comparison'",[],|r|r.get(0)).unwrap();
+    let raw:String=sql.query_row("SELECT body FROM reports WHERE json_extract(body,'$.kind')='case_worktree_check'",[],|r|r.get(0)).unwrap();
     let check:Value=serde_json::from_str(&raw).unwrap();
     assert!(check["prompt_case_id"].as_str().unwrap().starts_with("task-case:"));
     assert!(check["case_id"].as_str().unwrap().starts_with("task-case:"));
-    assert!(check["task_cycle"]["dimension_deltas"].is_object());
+    assert_eq!(check["task_cycle"]["dimension_comparison"],"not_requested");
+    assert_eq!(check["prompt_case_id"],check["case_id"]);
 }
 #[test]
 fn foreign_sessions_join_only_recorded_external_paths_or_literal_invocations(){
