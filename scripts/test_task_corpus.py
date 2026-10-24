@@ -3,6 +3,9 @@ import importlib.util
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import patch
+from types import SimpleNamespace
+import subprocess
 
 from task_corpus import FAMILIES, corpus, split
 
@@ -50,6 +53,63 @@ class CorpusTest(unittest.TestCase):
         self.assertEqual((summary["all"]["fixtures"], summary["all"]["errors"]), (2, 1))
         self.assertEqual(summary["split:held_out"]["fixtures_all_required_verified"], 0)
         self.assertEqual(summary["family:f"]["verified_source_recall"], 1)
+
+    def test_scaling_requires_prerequisite_lifecycle_repair(self):
+        fixture = corpus(1, families=["prerequisite_migration"])[0]
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for path, text in fixture["files"].items():
+                (root / path).parent.mkdir(parents=True, exist_ok=True)
+                (root / path).write_text(text)
+            script = root.parent / (root.name + ".check.py")
+            self.addCleanup(script.unlink, missing_ok=True)
+            script.write_text(fixture["answer_key"]["check"])
+            for path, text in fixture["answer_key"]["patch"].items():
+                if not path.endswith("/lifecycle.py"):
+                    (root / path).write_text(text)
+            self.assertFalse(evaluate.check(script, root)["passed"],
+                             "adding concurrency without repairing the shared lifecycle must fail")
+            for path, text in fixture["answer_key"]["patch"].items():
+                (root / path).write_text(text)
+            self.assertTrue(evaluate.check(script, root)["passed"])
+
+    def test_distinct_lifecycles_allow_shared_pure_logic_but_reject_lost_queue_state(self):
+        fixture = corpus(1, families=["intentional_separation"])[0]
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for path, text in {**fixture["files"], **fixture["answer_key"]["patch"]}.items():
+                (root / path).parent.mkdir(parents=True, exist_ok=True)
+                (root / path).write_text(text)
+            script = root.parent / (root.name + ".check.py")
+            self.addCleanup(script.unlink, missing_ok=True)
+            script.write_text(fixture["answer_key"]["check"])
+            durable = next(root.glob("*/durable.py"))
+            package = durable.parent
+            (package / "shared.py").write_text("def transform(values):\n    return [v * 2 for v in values]\n")
+            interactive = package / "interactive.py"
+            interactive.write_text("from .shared import transform\n" + interactive.read_text().replace(
+                "[value * 2 for value in values[:max(0, limit)]]", "transform(values[:max(0, limit)])"))
+            durable.write_text("from .shared import transform\n" + durable.read_text().replace(
+                "[value * 2 for value in self.pending[:limit]]", "transform(self.pending[:limit])"))
+            self.assertTrue(evaluate.check(script, root)["passed"], "a valid design need not equal the gold patch")
+            durable.write_text(durable.read_text().replace("del self.pending[:limit]", "self.pending.clear()"))
+            self.assertFalse(evaluate.check(script, root)["passed"], "shared transformation cannot erase durable state")
+
+    def test_harness_failure_and_timeout_cannot_be_reported_as_verified(self):
+        failed = SimpleNamespace(returncode=7, stdout="", stderr="agent failed")
+        with patch.object(evaluate.subprocess, "run", return_value=failed), patch.object(evaluate, "check") as check:
+            result = evaluate.harness_outcome("agent", Path("."), Path("check.py"), {}, 1)
+        self.assertEqual(result["state"], "error")
+        self.assertEqual(result["harness_exit"], 7)
+        check.assert_not_called()
+        with patch.object(evaluate.subprocess, "run", side_effect=subprocess.TimeoutExpired("agent", 1)):
+            self.assertEqual(evaluate.harness_outcome("agent", Path("."), Path("check.py"), {}, 1)["state"], "error")
+
+    def test_successful_harness_still_needs_passing_behavior(self):
+        with patch.object(evaluate.subprocess, "run", return_value=SimpleNamespace(returncode=0)), \
+                patch.object(evaluate, "check", return_value={"passed": False, "stderr": "contract broken"}):
+            result = evaluate.harness_outcome("agent", Path("."), Path("check.py"), {}, 1)
+        self.assertEqual(result["state"], "verified_fail")
 
 
 if __name__ == "__main__":

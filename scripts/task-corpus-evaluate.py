@@ -42,6 +42,28 @@ def check(script, repository, timeout=60):
     return {"passed": result.returncode == 0, "stderr": result.stderr.strip()[-400:]}
 
 
+def harness_outcome(command, repository, script, env, timeout):
+    """Execution failure cannot become success just because a check passes."""
+    started = time.monotonic()
+    try:
+        harness = subprocess.run(shlex.split(command), cwd=repository, env=env, capture_output=True,
+                                 text=True, timeout=timeout)
+        if harness.returncode:
+            return {"state": "error", "harness_exit": harness.returncode,
+                    "error": (harness.stderr or harness.stdout).strip()[-1000:],
+                    "seconds": round(time.monotonic() - started, 3)}
+        verified = check(script, repository)
+        return {"state": "verified_pass" if verified["passed"] else "verified_fail",
+                "harness_exit": harness.returncode, "check": verified,
+                "seconds": round(time.monotonic() - started, 3)}
+    except subprocess.TimeoutExpired:
+        return {"state": "error", "error": "Harness or outcome check timed out",
+                "seconds": round(time.monotonic() - started, 3)}
+    except (OSError, ValueError) as error:
+        return {"state": "error", "error": str(error)[-1000:],
+                "seconds": round(time.monotonic() - started, 3)}
+
+
 def evaluate(fixture, args, output):
     started = time.monotonic()
     fid, key = fixture["id"], fixture["answer_key"]
@@ -58,6 +80,8 @@ def evaluate(fixture, args, output):
     before, after = check(script, repository), check(script, oracle)
     record = {"id": fid, "family": fixture["family"], "split": fixture["split"], "task": fixture["task"],
               "oracle": {"valid": not before["passed"] and after["passed"], "before": before, "after_reference": after}}
+    if not record["oracle"]["valid"]:
+        raise ValueError(f"{fid}: outcome oracle does not distinguish the original and repaired behavior")
     db = output / "db" / f"{fid}.db"
     db.parent.mkdir(parents=True, exist_ok=True)
     run = RunEvidence(output / "raw" / fid)
@@ -102,10 +126,7 @@ def evaluate(fixture, args, output):
         shutil.copytree(repository, work)
         env = {**os.environ, "BRIEFCASE_TASK": fixture["task"], "BRIEFCASE_DB": str(db),
                "BRIEFCASE_INVESTIGATION": str(output / "investigations" / fid)}
-        harness = subprocess.run(shlex.split(args.harness_command), cwd=work, env=env, capture_output=True, text=True, timeout=args.harness_timeout)
-        verified = check(script, work)
-        record["outcome"] = {"state": "verified_pass" if verified["passed"] else "verified_fail",
-                             "harness_exit": harness.returncode, "check": verified}
+        record["outcome"] = harness_outcome(args.harness_command, work, script, env, args.harness_timeout)
     return record
 
 

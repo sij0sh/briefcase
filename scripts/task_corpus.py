@@ -114,8 +114,86 @@ def duplicate_chunks(rng):
     return files, task, [f"{package}/limits.py"], check, patch
 
 
+def prerequisite_migration(rng):
+    """Scaling needs the existing lifecycle repaired and its consumers migrated."""
+    package, noun = rng.choice(WORDS), rng.choice(NOUNS)
+    job = ("class Job:\n"
+           "    def __init__(self):\n        self.values = []\n        self.closed = False\n"
+           "    def add(self, value):\n        if self.closed:\n            raise ValueError('closed')\n        self.values.append(value)\n"
+           "    def finish(self):\n        self.closed = True\n        return tuple(self.values)\n"
+           "    def cancel(self):\n        self.closed = True\n")
+    legacy = ("_values = []\n"
+              "def process(values, factory):\n    _values.extend(values)\n    return tuple(_values)\n")
+    worker = ("from .legacy import process\n"
+              "def process_jobs(left, right, factory):\n    return process(left, factory), process(right, factory)\n")
+    files = {f"{package}/__init__.py": "", f"{package}/lifecycle.py": job,
+             f"{package}/legacy.py": legacy, f"{package}/workers.py": worker,
+             "docs/migration.md": f"The {noun} batch API and workers must use the supplied job factory. "
+                 "Job owns state and cancellation; legacy process remains a compatibility entry point. "
+                 "The migration is unfinished. Cancellation must release accumulated values.\n",
+             **noise(rng, package, 8)}
+    process = ("def process(values, factory):\n    job = factory()\n    try:\n"
+               "        for value in values:\n            job.add(value)\n        return job.finish()\n"
+               "    except BaseException:\n        job.cancel()\n        raise\n")
+    check = PRELUDE + (f"from {package}.lifecycle import Job\nfrom {package}.legacy import process\n"
+                       f"from {package}.workers import process_jobs\n"
+                       "created = []\ndef factory():\n    job = Job()\n    created.append(job)\n    return job\n"
+                       "assert process_jobs([1], [2], factory) == ((1,), (2,))\n"
+                       "assert len(created) == 2 and created[0] is not created[1]\n"
+                       "assert process([3], factory) == (3,)\nassert len(created) == 3\n"
+                       "assert all(job.closed for job in created)\n"
+                       "job = Job()\njob.add(9)\njob.cancel()\nassert job.closed and job.values == []\n"
+                       "try:\n    job.add(10)\nexcept ValueError:\n    pass\nelse:\n    raise AssertionError('closed job accepted work')\n"
+                       "class Broken(Job):\n    def add(self, value):\n        super().add(value)\n        raise RuntimeError('failed input')\n"
+                       "broken = Broken()\ntry:\n    process([4], lambda: broken)\nexcept RuntimeError:\n    pass\n"
+                       "else:\n    raise AssertionError('input failure was swallowed')\n"
+                       "assert broken.closed and broken.values == []\n")
+    check += ("from threading import Barrier\nbarrier = Barrier(2)\n"
+              "class Overlap(Job):\n    def add(self, value):\n        barrier.wait(timeout=3)\n        super().add(value)\n"
+              "assert process_jobs([7], [8], Overlap) == ((7,), (8,))\n")
+    patch = {f"{package}/lifecycle.py": job.replace("    def cancel(self):\n", "    def cancel(self):\n        self.values.clear()\n"),
+             f"{package}/legacy.py": process,
+             f"{package}/workers.py": ("from concurrent.futures import ThreadPoolExecutor\nfrom .legacy import process\n"
+                 "def process_jobs(left, right, factory):\n    with ThreadPoolExecutor(max_workers=2) as pool:\n"
+                 "        first = pool.submit(process, left, factory)\n        second = pool.submit(process, right, factory)\n"
+                 "        return first.result(), second.result()\n")}
+    task = (f"Scale {noun} batch processing to independent overlapping jobs using the supplied job factory. "
+            "Complete the unfinished lifecycle migration while preserving the legacy entry point. "
+            "Cancellation and failed input must release job state; closed jobs reject new work.")
+    return files, task, [f"{package}/lifecycle.py", f"{package}/legacy.py", f"{package}/workers.py", "docs/migration.md"], check, patch
+
+
+def intentional_separation(rng):
+    """Similar batching code has different immediate and durable contracts."""
+    package, noun = rng.choice(WORDS), rng.choice(NOUNS)
+    interactive = "def process(values, limit):\n    return [value * 2 for value in values[:max(0, limit - 1)]]\n"
+    durable = ("class Queue:\n"
+               "    def __init__(self):\n        self.pending = []\n"
+               "    def submit(self, value):\n        self.pending.append(value)\n"
+               "    def drain(self, limit):\n        result = [value * 2 for value in self.pending[:limit]]\n"
+               "        del self.pending[:limit]\n        return result\n")
+    files = {f"{package}/__init__.py": "", f"{package}/interactive.py": interactive,
+             f"{package}/durable.py": durable,
+             "docs/contracts.md": f"Interactive {noun} processing returns immediately. "
+                 "Durable processing queues submissions and retains undrained values across drains. "
+                 "Similar transformations do not make these lifecycle contracts interchangeable.\n",
+             **noise(rng, package, 8)}
+    check = PRELUDE + (f"from {package}.interactive import process\nfrom {package}.durable import Queue\n"
+                       "assert process([1, 2, 3], 2) == [2, 4]\nassert process([1], 0) == []\n"
+                       "assert process([1, 2], 9) == [2, 4]\n"
+                       "queue = Queue()\nqueue.submit(3)\nqueue.submit(4)\n"
+                       "assert queue.pending == [3, 4]\nassert queue.drain(0) == []\n"
+                       "assert queue.drain(1) == [6]\nqueue.submit(5)\n"
+                       "assert queue.drain(2) == [8, 10]\nassert queue.drain(2) == []\n")
+    task = (f"Interactive {noun} processing should handle exactly the requested limit, rather than one fewer. "
+            "Preserve the immediate processing and durable queue contracts, including values retained for later drains.")
+    patch = {f"{package}/interactive.py": interactive.replace("max(0, limit - 1)", "max(0, limit)")}
+    return files, task, [f"{package}/interactive.py", f"{package}/durable.py", "docs/contracts.md"], check, patch
+
+
 FAMILIES = {f.__name__: f for f in (hidden_caller, config_default, contract_rename, late_identifier,
-                                     distractor_scale, deep_chain, duplicate_chunks)}
+                                     distractor_scale, deep_chain, duplicate_chunks,
+                                     prerequisite_migration, intentional_separation)}
 
 
 def corpus(variants=4, seed=0, families=None):
